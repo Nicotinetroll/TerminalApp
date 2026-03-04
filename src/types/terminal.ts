@@ -16,6 +16,7 @@ export interface WindowContentProps {
   windowId: WindowId;
   closeWindow: () => void;
   user: User;
+  windowManager?: import("@/hooks/useWindowManager").WindowManager;
 }
 
 export interface WindowState {

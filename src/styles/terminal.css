@@ -1317,6 +1317,998 @@ input {
   color: var(--error);
 }
 
+/* ── Mail App ── */
+
+.mail-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.mail-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 100%;
+  color: var(--text-muted);
+}
+
+.mail-status {
+  padding: 6px 12px;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--accent-mid);
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.mail-status.error {
+  background: rgba(255, 68, 68, 0.1);
+  border-color: rgba(255, 68, 68, 0.2);
+  color: var(--error);
+}
+
+.mail-status-inline {
+  padding: 8px 12px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-mid);
+  border-radius: 4px;
+  color: var(--accent);
+  font-size: 12px;
+  text-align: center;
+}
+
+.mail-status-inline.error {
+  background: rgba(255, 68, 68, 0.1);
+  border-color: rgba(255, 68, 68, 0.2);
+  color: var(--error);
+}
+
+.mail-layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ── Mail Setup (first-time) ── */
+
+.mail-setup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 40px;
+  gap: 16px;
+}
+
+.mail-setup-icon {
+  font-size: 48px;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.mail-setup-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.mail-setup-desc {
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.mail-setup-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.mail-setup-input-wrap {
+  display: flex;
+  align-items: center;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-medium);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.mail-setup-input-wrap input {
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+  width: 160px;
+}
+
+.mail-setup-domain {
+  padding: 10px 12px 10px 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  user-select: none;
+}
+
+.mail-setup-hint {
+  color: var(--text-ghost);
+  font-size: 11px;
+  margin: 0;
+  text-align: center;
+}
+
+/* ── Mail Sidebar ── */
+
+.mail-sidebar {
+  width: 200px;
+  min-width: 200px;
+  border-right: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.mail-compose-btn {
+  margin: 10px;
+  padding: 8px 16px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-mid);
+  border-radius: 4px;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 150ms ease;
+  text-align: center;
+}
+
+.mail-compose-btn:hover {
+  background: var(--accent-mid);
+}
+
+.mail-folders {
+  padding: 4px 0;
+}
+
+.mail-folder-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.mail-folder-item:hover {
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+}
+
+.mail-folder-item.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.mail-folder-icon {
+  font-weight: 700;
+  font-size: 12px;
+  width: 16px;
+  text-align: center;
+}
+
+.mail-folder-label {
+  flex: 1;
+}
+
+.mail-folder-badge {
+  background: var(--accent);
+  color: var(--bg-primary);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+  min-width: 18px;
+  text-align: center;
+}
+
+.mail-folder-count {
+  font-size: 10px;
+  color: var(--text-ghost);
+}
+
+.mail-sidebar-section {
+  border-top: 1px solid var(--border-subtle);
+  margin-top: auto;
+  padding: 8px 0;
+}
+
+.mail-sidebar-section-label {
+  padding: 4px 14px;
+  font-size: 10px;
+  color: var(--text-ghost);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.mail-address-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 14px;
+  font-size: 11px;
+}
+
+.mail-address-text {
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mail-address-delete {
+  background: none;
+  border: none;
+  color: var(--text-ghost);
+  font-family: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  padding: 2px 4px;
+  opacity: 0;
+  transition: opacity 150ms ease, color 150ms ease;
+}
+
+.mail-address-item:hover .mail-address-delete {
+  opacity: 1;
+}
+
+.mail-address-delete:hover {
+  color: var(--error);
+}
+
+.mail-address-add {
+  background: none;
+  border: none;
+  color: var(--text-ghost);
+  font-family: inherit;
+  font-size: 11px;
+  padding: 4px 14px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: color 150ms ease;
+}
+
+.mail-address-add:hover {
+  color: var(--accent);
+}
+
+.mail-address-form {
+  display: flex;
+  gap: 4px;
+  padding: 4px 10px;
+}
+
+.mail-address-form input {
+  flex: 1;
+  padding: 4px 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-medium);
+  border-radius: 3px;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 11px;
+  outline: none;
+  min-width: 0;
+}
+
+.mail-address-form input:focus {
+  border-color: var(--accent);
+}
+
+.mail-address-form-btn {
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 6px;
+  transition: color 150ms ease, border-color 150ms ease;
+}
+
+.mail-address-form-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ── Mail Main Content ── */
+
+.mail-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.mail-content-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 12px;
+  padding: 40px;
+}
+
+.mail-empty-icon {
+  font-size: 32px;
+  color: var(--text-ghost);
+  font-weight: 700;
+}
+
+.mail-empty-text {
+  color: var(--text-muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.mail-empty-sub {
+  color: var(--text-ghost);
+  font-size: 12px;
+  font-style: italic;
+  text-align: center;
+}
+
+/* ── Mail List ── */
+
+.mail-list {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.mail-list-header {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.mail-list-items {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.mail-list-item {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+.mail-list-item:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.mail-list-item.unread {
+  background: var(--accent-soft);
+  border-left: 2px solid var(--accent);
+}
+
+.mail-list-item.unread .mail-list-from {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.mail-list-item.unread .mail-list-subject {
+  color: var(--text-primary);
+}
+
+.mail-list-item-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 2px;
+}
+
+.mail-list-from {
+  color: var(--text-secondary);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mail-list-date {
+  color: var(--text-ghost);
+  font-size: 11px;
+  flex-shrink: 0;
+  margin-left: 12px;
+}
+
+.mail-list-subject {
+  color: var(--text-muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mail-nice {
+  color: var(--accent);
+  font-style: italic;
+  margin-left: 4px;
+}
+
+.mail-no-subject {
+  font-style: italic;
+  color: var(--text-ghost) !important;
+}
+
+/* search input in mail list header */
+.mail-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mail-search-input {
+  padding: 4px 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 11px;
+  outline: none;
+  width: 140px;
+  transition: border-color 200ms ease, width 200ms ease;
+}
+
+.mail-search-input:focus {
+  border-color: var(--accent);
+  width: 180px;
+}
+
+.mail-search-input::placeholder {
+  color: var(--text-ghost);
+}
+
+/* quick action buttons on mail list items */
+.mail-quick-actions {
+  display: inline-flex;
+  gap: 2px;
+  margin-right: 8px;
+}
+
+.mail-quick-btn {
+  background: none;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-ghost);
+  font-family: inherit;
+  font-size: 11px;
+  padding: 0px 4px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: color 150ms ease, border-color 150ms ease;
+  line-height: 1.4;
+}
+
+.mail-quick-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent-mid);
+}
+
+.mail-quick-btn-danger:hover {
+  color: var(--error);
+  border-color: rgba(248, 113, 113, 0.3);
+}
+
+/* star icon in mail list */
+.mail-star-icon {
+  color: var(--text-ghost);
+  margin-right: 4px;
+}
+
+.mail-star-icon.active {
+  color: var(--accent);
+}
+
+/* ── Mail View ── */
+
+.mail-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.mail-view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.mail-view-back {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.mail-view-back:hover {
+  text-decoration: underline;
+}
+
+.mail-view-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.mail-view-meta {
+  padding: 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.mail-view-subject {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 8px 0;
+}
+
+.mail-view-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.mail-view-from {
+  color: var(--text-secondary);
+}
+
+.mail-view-body {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-primary);
+}
+
+/* ── Mail Compose ── */
+
+.mail-compose {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.mail-compose-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.mail-compose-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.mail-compose-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.mail-compose-fields {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.mail-compose-field {
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.mail-compose-field:last-child {
+  border-bottom: none;
+}
+
+.mail-compose-field label {
+  width: 60px;
+  font-size: 12px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.mail-compose-field input {
+  flex: 1;
+  padding: 10px 0;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+}
+
+.mail-compose-field input::placeholder {
+  color: var(--text-ghost);
+}
+
+.mail-compose-select {
+  flex: 1;
+  padding: 8px 0;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+}
+
+.mail-compose-select option {
+  background: var(--bg-elevated);
+}
+
+.mail-compose-body {
+  flex: 1;
+  padding: 16px;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+  resize: none;
+  outline: none;
+}
+
+.mail-compose-body::placeholder {
+  color: var(--text-ghost);
+}
+
+/* ── Mail Autocomplete ── */
+
+.mail-autocomplete {
+  position: absolute;
+  top: 100%;
+  left: 60px;
+  right: 0;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-medium);
+  border-radius: 4px;
+  z-index: 10;
+  max-height: 180px;
+  overflow-y: auto;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.mail-autocomplete-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 13px;
+  transition: background 100ms ease;
+}
+
+.mail-autocomplete-item:hover,
+.mail-autocomplete-item.selected {
+  background: var(--accent-soft);
+}
+
+.mail-autocomplete-name {
+  color: var(--text-primary);
+}
+
+.mail-autocomplete-addr {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+/* ── Signature Editor ── */
+
+.mail-signature-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 16px;
+  gap: 12px;
+}
+
+.mail-signature-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mail-signature-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.mail-signature-select {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.mail-signature-tab {
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 11px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.mail-signature-tab:hover {
+  border-color: var(--accent-mid);
+  color: var(--text-primary);
+}
+
+.mail-signature-tab.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.mail-signature-textarea {
+  flex: 1;
+  min-height: 120px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-medium);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  padding: 12px;
+  resize: none;
+  outline: none;
+}
+
+.mail-signature-textarea:focus {
+  border-color: var(--accent);
+}
+
+.mail-signature-textarea::placeholder {
+  color: var(--text-ghost);
+}
+
+.mail-signature-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mail-signature-hint {
+  font-size: 11px;
+  color: var(--text-ghost);
+}
+
+/* ── Custom Folder Delete ── */
+
+.mail-custom-folders-divider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 4px 14px;
+}
+
+.mail-folder-delete {
+  background: none;
+  border: none;
+  color: var(--text-ghost);
+  font-family: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  padding: 2px 4px;
+  opacity: 0;
+  transition: opacity 150ms ease, color 150ms ease;
+}
+
+.mail-folder-item:hover .mail-folder-delete {
+  opacity: 1;
+}
+
+.mail-folder-delete:hover {
+  color: var(--error);
+}
+
+/* ── Mail Attachments (Reader) ── */
+
+.mail-attachments {
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 10px 16px;
+}
+
+.mail-attachments-label {
+  font-size: 10px;
+  color: var(--text-ghost);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+
+.mail-attachments-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mail-attachment-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-medium);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.mail-attachment-item:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.mail-attachment-icon {
+  font-size: 10px;
+  color: var(--text-ghost);
+  font-weight: 700;
+}
+
+.mail-attachment-name {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mail-attachment-size {
+  color: var(--text-ghost);
+  font-size: 10px;
+}
+
+/* ── Mail Attachments (Compose) ── */
+
+.mail-compose-attachments {
+  padding: 0 16px 8px;
+}
+
+.mail-attach-btn {
+  background: none;
+  border: 1px dashed var(--border-medium);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 12px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.mail-attach-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.mail-attach-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.mail-attached-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.mail-attached-file {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+.mail-attached-name {
+  color: var(--text-secondary);
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mail-attached-size {
+  color: var(--text-ghost);
+  font-size: 10px;
+}
+
+.mail-attached-remove {
+  background: none;
+  border: none;
+  color: var(--text-ghost);
+  font-family: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  padding: 0 2px;
+  transition: color 150ms ease;
+}
+
+.mail-attached-remove:hover {
+  color: var(--error);
+}
+
+/* ── Mail List Attachment Icon ── */
+
+.mail-list-attachment-icon {
+  color: var(--text-ghost);
+  font-size: 10px;
+  margin-right: 4px;
+}
+
+/* admin-btn-danger */
+
+.admin-btn-danger {
+  color: var(--error) !important;
+  border-color: rgba(255, 68, 68, 0.3) !important;
+}
+
+.admin-btn-danger:hover {
+  background: rgba(255, 68, 68, 0.1) !important;
+}
+
 /* ── Responsive — ALL windows ── */
 
 @media (max-width: 768px) {
@@ -1481,4 +2473,821 @@ input {
     flex-direction: column;
     gap: 12px;
   }
+
+  /* ── Mail responsive ── */
+
+  .mail-layout {
+    flex-direction: column;
+  }
+
+  .mail-sidebar {
+    width: 100%;
+    min-width: 100%;
+    max-height: 160px;
+    border-right: none;
+    border-bottom: 1px solid var(--border-subtle);
+    flex-direction: row;
+    overflow-x: auto;
+  }
+
+  .mail-compose-btn {
+    margin: 6px;
+    padding: 6px 12px;
+    white-space: nowrap;
+  }
+
+  .mail-folders {
+    display: flex;
+    padding: 0;
+  }
+
+  .mail-folder-item {
+    padding: 8px 10px;
+    white-space: nowrap;
+  }
+
+  .mail-sidebar-section {
+    display: none;
+  }
+
+  .mail-compose-field input {
+    font-size: 16px;
+  }
+
+  .mail-compose-body {
+    font-size: 16px;
+  }
+
+  .mail-address-delete {
+    opacity: 1;
+  }
+
+  /* ── Games responsive ── */
+
+  .games-panel {
+    font-size: 13px;
+  }
+
+  .games-cards {
+    flex-direction: column;
+  }
+
+  .games-lb-grid {
+    flex-direction: column;
+  }
+
+  .snake-grid {
+    max-width: 100% !important;
+  }
+
+  .snake-cell {
+    width: 14px !important;
+    height: 14px !important;
+  }
+
+  .g2048-grid {
+    max-width: 280px !important;
+    gap: 4px !important;
+    padding: 6px !important;
+  }
+
+  .g2048-cell {
+    font-size: 12px !important;
+    height: 60px !important;
+  }
+
+  .mines-cell {
+    width: 22px !important;
+    height: 22px !important;
+    font-size: 10px !important;
+  }
+
+  .games-hud {
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 6px 10px;
+  }
+
+  .games-selector-leaderboards {
+    display: none;
+  }
+
+  .games-difficulty-select {
+    padding: 20px;
+  }
 }
+
+/* ── Games Arcade ── */
+
+.games-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  font-size: 13px;
+  color: var(--text-primary);
+  overflow: hidden;
+}
+
+/* Selector */
+
+.games-selector {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+  padding: 20px;
+  gap: 20px;
+}
+
+.games-selector-header {
+  text-align: center;
+}
+
+.games-selector-title {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: 6px;
+  text-shadow: 0 0 20px var(--accent-mid);
+}
+
+.games-selector-sub {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.games-cards {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.games-card {
+  flex: 1;
+  max-width: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 200ms ease;
+  color: var(--text-primary);
+  font-family: inherit;
+  text-align: center;
+}
+
+.games-card:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.games-card-key {
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.games-card-icon {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--accent);
+  text-shadow: 0 0 12px var(--accent-mid);
+  line-height: 1;
+}
+
+.games-card-name {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+.games-card-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.games-card-top {
+  font-size: 10px;
+  color: var(--text-ghost);
+  margin-top: 4px;
+}
+
+/* Leaderboard section */
+
+.games-selector-leaderboards {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 16px;
+}
+
+.games-selector-lb-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 2px;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.games-lb-grid {
+  display: flex;
+  gap: 16px;
+}
+
+.games-lb-section {
+  flex: 1;
+  min-width: 0;
+}
+
+.games-lb-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+}
+
+/* Leaderboard component */
+
+.games-lb {
+  font-size: 12px;
+}
+
+.games-lb-compact {
+  font-size: 11px;
+}
+
+.games-lb-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  letter-spacing: 1px;
+}
+
+.games-lb-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.games-lb-table th {
+  text-align: left;
+  color: var(--text-ghost);
+  font-weight: 600;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 4px 4px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.games-lb-table td {
+  padding: 3px 4px;
+  color: var(--text-secondary);
+}
+
+.games-lb-table tr.games-lb-top-1 td {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.games-lb-table tr.games-lb-top-2 td {
+  color: var(--text-primary);
+}
+
+.games-lb-table tr.games-lb-top-3 td {
+  color: var(--text-primary);
+}
+
+.games-lb-score {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.games-lb-date {
+  color: var(--text-ghost) !important;
+  font-size: 10px;
+}
+
+.games-lb-player {
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.games-lb-loading,
+.games-lb-empty {
+  color: var(--text-ghost);
+  font-size: 11px;
+  font-style: italic;
+  padding: 8px 0;
+}
+
+/* Guest notice */
+
+.games-guest-notice {
+  text-align: center;
+  color: var(--text-ghost);
+  font-size: 11px;
+  font-style: italic;
+  padding: 8px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* Game container */
+
+.games-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  gap: 8px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* HUD */
+
+.games-hud {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 16px;
+  width: 100%;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.games-back-btn {
+  background: none;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.games-back-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent-mid);
+}
+
+.games-hud-title {
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--accent);
+  letter-spacing: 2px;
+}
+
+.games-hud-score {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.games-hud-info {
+  color: var(--text-muted);
+  font-size: 11px;
+  margin-left: auto;
+}
+
+/* Start overlay */
+
+.games-start-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(10, 10, 18, 0.85);
+  z-index: 5;
+}
+
+.games-start-text {
+  color: var(--accent);
+  font-size: 16px;
+  font-weight: 700;
+  animation: games-blink 1.5s ease-in-out infinite;
+}
+
+.games-start-sub {
+  color: var(--text-ghost);
+  font-size: 11px;
+}
+
+@keyframes games-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Game over overlay */
+
+.games-over-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(10, 10, 18, 0.9);
+  z-index: 5;
+}
+
+.games-over-title {
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--error);
+  letter-spacing: 4px;
+  text-shadow: 0 0 20px rgba(248, 113, 113, 0.4);
+}
+
+.games-win-title {
+  color: var(--success) !important;
+  text-shadow: 0 0 20px rgba(52, 211, 153, 0.4) !important;
+}
+
+.games-over-score {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.games-over-roast {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-style: italic;
+  max-width: 300px;
+  text-align: center;
+}
+
+.games-over-stat {
+  color: var(--text-ghost);
+  font-size: 11px;
+}
+
+.games-over-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* Game over screen (full page) */
+
+.games-gameover-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 24px;
+}
+
+.games-gameover-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 32px 40px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  text-align: center;
+  max-width: 360px;
+}
+
+.games-gameover-header {
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--text-primary);
+  letter-spacing: 4px;
+}
+
+.games-gameover-game {
+  font-size: 12px;
+  color: var(--text-ghost);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.games-gameover-score-big {
+  font-size: 48px;
+  font-weight: 900;
+  color: var(--accent);
+  line-height: 1;
+  text-shadow: 0 0 20px var(--accent-mid);
+}
+
+.games-gameover-rank {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.games-gameover-msg {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.games-gameover-egg {
+  color: var(--accent);
+  font-size: 14px;
+  font-style: italic;
+  font-weight: 600;
+}
+
+.games-gameover-error {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-style: italic;
+}
+
+.games-gameover-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+/* Buttons */
+
+.games-btn {
+  padding: 8px 20px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-mid);
+  border-radius: 4px;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+.games-btn:hover {
+  background: var(--accent-mid);
+}
+
+.games-btn-secondary {
+  background: transparent;
+  border-color: var(--border-subtle);
+  color: var(--text-muted);
+}
+
+.games-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+
+/* Hint */
+
+.games-hint {
+  color: var(--text-ghost);
+  font-size: 10px;
+  padding: 4px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+/* Difficulty selector */
+
+.games-difficulty-select {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 12px;
+  padding: 40px;
+}
+
+.games-difficulty-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.games-difficulty-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  width: 100%;
+  max-width: 300px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 200ms ease;
+  text-align: left;
+}
+
+.games-difficulty-btn:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  transform: translateX(4px);
+}
+
+.games-difficulty-key {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.games-difficulty-label {
+  flex: 1;
+}
+
+.games-difficulty-info {
+  color: var(--text-ghost);
+  font-size: 11px;
+}
+
+/* ── Snake Grid ── */
+
+.snake-grid {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-medium);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  padding: 2px;
+  flex-shrink: 0;
+  margin: auto 0;
+}
+
+.snake-row {
+  display: flex;
+}
+
+.snake-cell {
+  width: 22px;
+  height: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.02);
+}
+
+.snake-head {
+  background: var(--accent);
+  border-radius: 3px;
+  box-shadow: 0 0 6px var(--accent-mid);
+}
+
+.snake-body {
+  background: var(--accent-mid);
+  border-radius: 2px;
+}
+
+.snake-food {
+  background: var(--success);
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(52, 211, 153, 0.4);
+  animation: games-pulse 1s ease-in-out infinite;
+}
+
+@keyframes games-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(0.8); }
+}
+
+/* ── 2048 Grid ── */
+
+.g2048-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  padding: 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-medium);
+  border-radius: 8px;
+  max-width: 340px;
+  width: 100%;
+  margin: auto 0;
+  flex-shrink: 0;
+}
+
+.g2048-cell {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 18px;
+  border-radius: 4px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  transition: background 100ms ease;
+  height: 70px;
+  font-variant-numeric: tabular-nums;
+}
+
+.g2048-filled {
+  border-color: var(--border-medium);
+}
+
+.g2048-pop {
+  animation: g2048-pop-in 200ms ease;
+}
+
+@keyframes g2048-pop-in {
+  0% { transform: scale(0); opacity: 0; }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Tile colors by value */
+.g2048-cell[data-value="2"] { background: rgba(238, 228, 218, 0.15); color: var(--text-primary); }
+.g2048-cell[data-value="4"] { background: rgba(237, 224, 200, 0.2); color: var(--text-primary); }
+.g2048-cell[data-value="8"] { background: rgba(242, 177, 121, 0.3); color: #fff; }
+.g2048-cell[data-value="16"] { background: rgba(245, 149, 99, 0.35); color: #fff; }
+.g2048-cell[data-value="32"] { background: rgba(246, 124, 95, 0.4); color: #fff; }
+.g2048-cell[data-value="64"] { background: rgba(246, 94, 59, 0.5); color: #fff; }
+.g2048-cell[data-value="128"] { background: rgba(237, 207, 114, 0.4); color: #fff; font-size: 16px; }
+.g2048-cell[data-value="256"] { background: rgba(237, 204, 97, 0.45); color: #fff; font-size: 16px; }
+.g2048-cell[data-value="512"] { background: rgba(237, 200, 80, 0.5); color: #fff; font-size: 16px; }
+.g2048-cell[data-value="1024"] { background: rgba(237, 197, 63, 0.55); color: #fff; font-size: 14px; }
+.g2048-cell[data-value="2048"] {
+  background: rgba(237, 194, 46, 0.6);
+  color: #fff;
+  font-size: 14px;
+  box-shadow: 0 0 16px rgba(237, 194, 46, 0.5);
+}
+.g2048-cell[data-value="4096"] { background: rgba(60, 180, 75, 0.5); color: #fff; font-size: 14px; }
+.g2048-cell[data-value="8192"] { background: rgba(36, 160, 237, 0.5); color: #fff; font-size: 14px; }
+
+/* ── Minesweeper Grid ── */
+
+.mines-grid {
+  display: grid;
+  gap: 1px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-medium);
+  border-radius: 4px;
+  padding: 4px;
+  margin: auto 0;
+  flex-shrink: 0;
+  justify-content: center;
+}
+
+.mines-cell {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 2px;
+  color: var(--text-primary);
+  transition: background 100ms ease;
+  user-select: none;
+}
+
+.mines-cell:not(.mines-revealed):hover {
+  background: var(--accent-soft);
+  border-color: var(--accent-mid);
+}
+
+.mines-revealed {
+  background: var(--bg-primary);
+  border-color: rgba(255, 255, 255, 0.03);
+  cursor: default;
+}
+
+.mines-mine {
+  background: rgba(248, 113, 113, 0.2) !important;
+  color: var(--error) !important;
+  font-size: 14px;
+}
+
+.mines-flagged {
+  color: var(--accent);
+  font-weight: 800;
+}
+
+/* Adjacent number colors */
+.mines-cell[data-adjacent="1"] { color: #6bc5f0; }
+.mines-cell[data-adjacent="2"] { color: #34d399; }
+.mines-cell[data-adjacent="3"] { color: #f87171; }
+.mines-cell[data-adjacent="4"] { color: #a78bfa; }
+.mines-cell[data-adjacent="5"] { color: #f59e0b; }
+.mines-cell[data-adjacent="6"] { color: #14b8a6; }
+.mines-cell[data-adjacent="7"] { color: #f472b6; }
+.mines-cell[data-adjacent="8"] { color: #94a3b8; }

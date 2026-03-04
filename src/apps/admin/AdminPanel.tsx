@@ -6,8 +6,10 @@ import { UserTable } from "./UserTable";
 import { UserForm } from "./UserForm";
 import { InvitePanel } from "./InvitePanel";
 import { ChatSpyPanel } from "./ChatSpyPanel";
+import { MailReviewPanel } from "./MailSpyPanel";
+import { SettingsPanel } from "./SettingsPanel";
 
-type View = "list" | "create" | "edit" | "invites" | "chats";
+type View = "list" | "create" | "edit" | "invites" | "chats" | "emails" | "settings";
 
 export function AdminPanel({ user }: WindowContentProps) {
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -109,7 +111,9 @@ export function AdminPanel({ user }: WindowContentProps) {
           {view === "create" && "create user"}
           {view === "edit" && `edit: ${editingUser?.username ?? ""}`}
           {view === "invites" && "invite links"}
-          {view === "chats" && "whisper spy"}
+          {view === "chats" && "chat logs"}
+          {view === "emails" && "mail mgmt"}
+          {view === "settings" && "global settings"}
         </h2>
         <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
           {status && (
@@ -119,8 +123,14 @@ export function AdminPanel({ user }: WindowContentProps) {
           )}
           {view === "list" && (
             <>
+              <button className="admin-btn" onClick={() => setView("settings")}>
+                settings
+              </button>
+              <button className="admin-btn" onClick={() => setView("emails")}>
+                mail
+              </button>
               <button className="admin-btn" onClick={() => setView("chats")}>
-                whisper spy
+                whispers
               </button>
               <button className="admin-btn" onClick={() => setView("invites")}>
                 invite links
@@ -136,6 +146,16 @@ export function AdminPanel({ user }: WindowContentProps) {
             </button>
           )}
           {view === "chats" && (
+            <button className="admin-btn" onClick={() => setView("list")}>
+              back to users
+            </button>
+          )}
+          {view === "emails" && (
+            <button className="admin-btn" onClick={() => setView("list")}>
+              back to users
+            </button>
+          )}
+          {view === "settings" && (
             <button className="admin-btn" onClick={() => setView("list")}>
               back to users
             </button>
@@ -182,6 +202,10 @@ export function AdminPanel({ user }: WindowContentProps) {
       {view === "invites" && <InvitePanel />}
 
       {view === "chats" && <ChatSpyPanel />}
+
+      {view === "emails" && <MailReviewPanel />}
+
+      {view === "settings" && <SettingsPanel />}
     </div>
   );
 }

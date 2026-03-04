@@ -31,3 +31,7 @@ export function disconnectSocket(): void {
 export function isSocketConnected(): boolean {
   return socket?.connected ?? false;
 }
+
+export function getSocketIfConnected(): Socket | null {
+  return socket?.connected ? socket : null;
+}

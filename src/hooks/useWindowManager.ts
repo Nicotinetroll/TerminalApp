@@ -10,6 +10,7 @@ export interface WindowManager {
   maximizeWindow: (id: WindowId) => void;
   updateWindowPosition: (id: WindowId, x: number, y: number) => void;
   updateWindowSize: (id: WindowId, w: number, h: number) => void;
+  updateWindowTitle: (id: WindowId, title: string) => void;
 }
 
 export function useWindowManager(): WindowManager {
@@ -95,6 +96,12 @@ export function useWindowManager(): WindowManager {
     );
   }, []);
 
+  const updateWindowTitle = useCallback((id: WindowId, title: string) => {
+    setWindows((prev) =>
+      prev.map((w) => (w.id === id ? { ...w, title } : w))
+    );
+  }, []);
+
   const updateWindowSize = useCallback((id: WindowId, w: number, h: number) => {
     setWindows((prev) =>
       prev.map((win) => {
@@ -117,5 +124,6 @@ export function useWindowManager(): WindowManager {
     maximizeWindow,
     updateWindowPosition,
     updateWindowSize,
+    updateWindowTitle,
   };
 }

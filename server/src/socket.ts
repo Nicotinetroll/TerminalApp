@@ -62,75 +62,106 @@ try {
   // table doesn't exist, will be created by db.ts
 }
 
-// ── Prepared statements ──
+// ── Prepared statements (lazy-init to avoid race with ALTER TABLE migrations) ──
 
-const stmtInsertRoom = db.prepare('INSERT INTO chat_rooms (id, created_by) VALUES (?, ?)');
-const stmtInsertParticipant = db.prepare('INSERT OR IGNORE INTO chat_participants (room_id, user_id, anon_handle) VALUES (?, ?, ?)');
-const stmtGetParticipant = db.prepare('SELECT anon_handle FROM chat_participants WHERE room_id = ? AND user_id = ?');
-const stmtGetRoomParticipants = db.prepare('SELECT user_id, anon_handle FROM chat_participants WHERE room_id = ?');
-const stmtInsertMessage = db.prepare('INSERT INTO chat_messages (room_id, sender_id, content, reply_to) VALUES (?, ?, ?, ?)');
-const stmtGetMessages = db.prepare(
-  `SELECT m.id, m.content, m.created_at, m.reply_to, p.anon_handle
-   FROM chat_messages m
-   JOIN chat_participants p ON p.room_id = m.room_id AND p.user_id = m.sender_id
-   WHERE m.room_id = ?
-   ORDER BY m.created_at DESC
-   LIMIT ?`
-);
-const stmtGetMessageById = db.prepare(
-  `SELECT m.id, m.content, p.anon_handle
-   FROM chat_messages m
-   JOIN chat_participants p ON p.room_id = m.room_id AND p.user_id = m.sender_id
-   WHERE m.id = ?`
-);
-const stmtGetUserRooms = db.prepare(
-  `SELECT r.id, r.created_at FROM chat_rooms r
-   JOIN chat_participants p ON p.room_id = r.id
-   WHERE p.user_id = ?
-   ORDER BY r.created_at DESC`
-);
-const stmtGetLastMessage = db.prepare(
-  `SELECT m.content, m.created_at, p.anon_handle
-   FROM chat_messages m
-   JOIN chat_participants p ON p.room_id = m.room_id AND p.user_id = m.sender_id
-   WHERE m.room_id = ?
-   ORDER BY m.created_at DESC
-   LIMIT 1`
-);
-const stmtRoomExists = db.prepare('SELECT id FROM chat_rooms WHERE id = ?');
-const stmtCleanupMessages = db.prepare("DELETE FROM chat_messages WHERE created_at < datetime('now', '-24 hours')");
-const stmtCleanupEmptyRooms = db.prepare(
-  `DELETE FROM chat_rooms WHERE id != ? AND id NOT IN (SELECT DISTINCT room_id FROM chat_messages)`
-);
+let _stmtsReady = false;
+let stmtInsertRoom: ReturnType<typeof db.prepare>;
+let stmtInsertParticipant: ReturnType<typeof db.prepare>;
+let stmtUpdateHandle: ReturnType<typeof db.prepare>;
+let stmtGetParticipantWithTimestamp: ReturnType<typeof db.prepare>;
+let stmtGetParticipant: ReturnType<typeof db.prepare>;
+let stmtGetRoomParticipants: ReturnType<typeof db.prepare>;
+let stmtInsertMessage: ReturnType<typeof db.prepare>;
+let stmtGetMessages: ReturnType<typeof db.prepare>;
+let stmtGetMessageById: ReturnType<typeof db.prepare>;
+let stmtGetUserRooms: ReturnType<typeof db.prepare>;
+let stmtGetLastMessage: ReturnType<typeof db.prepare>;
+let stmtRoomExists: ReturnType<typeof db.prepare>;
+let stmtCleanupMessages: ReturnType<typeof db.prepare>;
+let stmtCleanupEmptyRooms: ReturnType<typeof db.prepare>;
+let stmtUpsertReaction: ReturnType<typeof db.prepare>;
+let stmtRemoveReaction: ReturnType<typeof db.prepare>;
+let stmtGetReactions: ReturnType<typeof db.prepare>;
+let stmtGetUserReaction: ReturnType<typeof db.prepare>;
+let stmtGetMessageReactionsForRoom: ReturnType<typeof db.prepare>;
+let stmtGetUserReactionsForRoom: ReturnType<typeof db.prepare>;
+let stmtGetMessageRoom: ReturnType<typeof db.prepare>;
+let stmtInsertDmRequest: ReturnType<typeof db.prepare>;
+let stmtGetPendingRequests: ReturnType<typeof db.prepare>;
+let stmtGetRequest: ReturnType<typeof db.prepare>;
+let stmtUpdateRequestStatus: ReturnType<typeof db.prepare>;
+let stmtCheckExistingRequest: ReturnType<typeof db.prepare>;
 
-// reactions — PK is (message_id, user_id), one emoji per user per message
-const stmtUpsertReaction = db.prepare(
-  'INSERT INTO chat_reactions (message_id, user_id, emoji) VALUES (?, ?, ?) ON CONFLICT(message_id, user_id) DO UPDATE SET emoji = excluded.emoji'
-);
-const stmtRemoveReaction = db.prepare('DELETE FROM chat_reactions WHERE message_id = ? AND user_id = ?');
-const stmtGetReactions = db.prepare('SELECT emoji, COUNT(*) as count FROM chat_reactions WHERE message_id = ? GROUP BY emoji');
-const stmtGetUserReaction = db.prepare('SELECT emoji FROM chat_reactions WHERE message_id = ? AND user_id = ?');
-const stmtGetMessageReactionsForRoom = db.prepare(
-  `SELECT r.message_id, r.emoji, COUNT(*) as count
-   FROM chat_reactions r JOIN chat_messages m ON m.id = r.message_id
-   WHERE m.room_id = ? GROUP BY r.message_id, r.emoji`
-);
-const stmtGetUserReactionsForRoom = db.prepare(
-  `SELECT r.message_id, r.emoji
-   FROM chat_reactions r JOIN chat_messages m ON m.id = r.message_id
-   WHERE m.room_id = ? AND r.user_id = ?`
-);
-const stmtGetMessageRoom = db.prepare('SELECT room_id FROM chat_messages WHERE id = ?');
-
-// dm requests
-const stmtInsertDmRequest = db.prepare("INSERT INTO dm_requests (from_user_id, to_user_id, from_anon, status) VALUES (?, ?, ?, 'pending')");
-const stmtGetPendingRequests = db.prepare("SELECT id, from_user_id, from_anon FROM dm_requests WHERE to_user_id = ? AND status = 'pending'");
-const stmtGetRequest = db.prepare('SELECT id, from_user_id, to_user_id, from_anon, status FROM dm_requests WHERE id = ?');
-const stmtUpdateRequestStatus = db.prepare('UPDATE dm_requests SET status = ? WHERE id = ?');
-const stmtCheckExistingRequest = db.prepare("SELECT id FROM dm_requests WHERE from_user_id = ? AND to_user_id = ? AND status = 'pending'");
+function initStatements(): void {
+  if (_stmtsReady) return;
+  stmtInsertRoom = db.prepare('INSERT INTO chat_rooms (id, created_by) VALUES (?, ?)');
+  stmtInsertParticipant = db.prepare('INSERT OR IGNORE INTO chat_participants (room_id, user_id, anon_handle, handle_updated_at) VALUES (?, ?, ?, datetime(\'now\'))');
+  stmtUpdateHandle = db.prepare('UPDATE chat_participants SET anon_handle = ?, handle_updated_at = datetime(\'now\') WHERE room_id = ? AND user_id = ?');
+  stmtGetParticipantWithTimestamp = db.prepare('SELECT anon_handle, handle_updated_at FROM chat_participants WHERE room_id = ? AND user_id = ?');
+  stmtGetParticipant = db.prepare('SELECT anon_handle FROM chat_participants WHERE room_id = ? AND user_id = ?');
+  stmtGetRoomParticipants = db.prepare('SELECT user_id, anon_handle FROM chat_participants WHERE room_id = ?');
+  stmtInsertMessage = db.prepare('INSERT INTO chat_messages (room_id, sender_id, content, reply_to) VALUES (?, ?, ?, ?)');
+  stmtGetMessages = db.prepare(
+    `SELECT m.id, m.content, m.created_at, m.reply_to, p.anon_handle
+     FROM chat_messages m
+     JOIN chat_participants p ON p.room_id = m.room_id AND p.user_id = m.sender_id
+     WHERE m.room_id = ?
+     ORDER BY m.created_at DESC
+     LIMIT ?`
+  );
+  stmtGetMessageById = db.prepare(
+    `SELECT m.id, m.content, p.anon_handle
+     FROM chat_messages m
+     JOIN chat_participants p ON p.room_id = m.room_id AND p.user_id = m.sender_id
+     WHERE m.id = ?`
+  );
+  stmtGetUserRooms = db.prepare(
+    `SELECT r.id, r.created_at FROM chat_rooms r
+     JOIN chat_participants p ON p.room_id = r.id
+     WHERE p.user_id = ?
+     ORDER BY r.created_at DESC`
+  );
+  stmtGetLastMessage = db.prepare(
+    `SELECT m.content, m.created_at, p.anon_handle
+     FROM chat_messages m
+     JOIN chat_participants p ON p.room_id = m.room_id AND p.user_id = m.sender_id
+     WHERE m.room_id = ?
+     ORDER BY m.created_at DESC
+     LIMIT 1`
+  );
+  stmtRoomExists = db.prepare('SELECT id FROM chat_rooms WHERE id = ?');
+  stmtCleanupMessages = db.prepare("DELETE FROM chat_messages WHERE created_at < datetime('now', '-24 hours')");
+  stmtCleanupEmptyRooms = db.prepare(
+    `DELETE FROM chat_rooms WHERE id != ? AND id NOT IN (SELECT DISTINCT room_id FROM chat_messages)`
+  );
+  stmtUpsertReaction = db.prepare(
+    'INSERT INTO chat_reactions (message_id, user_id, emoji) VALUES (?, ?, ?) ON CONFLICT(message_id, user_id) DO UPDATE SET emoji = excluded.emoji'
+  );
+  stmtRemoveReaction = db.prepare('DELETE FROM chat_reactions WHERE message_id = ? AND user_id = ?');
+  stmtGetReactions = db.prepare('SELECT emoji, COUNT(*) as count FROM chat_reactions WHERE message_id = ? GROUP BY emoji');
+  stmtGetUserReaction = db.prepare('SELECT emoji FROM chat_reactions WHERE message_id = ? AND user_id = ?');
+  stmtGetMessageReactionsForRoom = db.prepare(
+    `SELECT r.message_id, r.emoji, COUNT(*) as count
+     FROM chat_reactions r JOIN chat_messages m ON m.id = r.message_id
+     WHERE m.room_id = ? GROUP BY r.message_id, r.emoji`
+  );
+  stmtGetUserReactionsForRoom = db.prepare(
+    `SELECT r.message_id, r.emoji
+     FROM chat_reactions r JOIN chat_messages m ON m.id = r.message_id
+     WHERE m.room_id = ? AND r.user_id = ?`
+  );
+  stmtGetMessageRoom = db.prepare('SELECT room_id FROM chat_messages WHERE id = ?');
+  stmtInsertDmRequest = db.prepare("INSERT INTO dm_requests (from_user_id, to_user_id, from_anon, status) VALUES (?, ?, ?, 'pending')");
+  stmtGetPendingRequests = db.prepare("SELECT id, from_user_id, from_anon FROM dm_requests WHERE to_user_id = ? AND status = 'pending'");
+  stmtGetRequest = db.prepare('SELECT id, from_user_id, to_user_id, from_anon, status FROM dm_requests WHERE id = ?');
+  stmtUpdateRequestStatus = db.prepare('UPDATE dm_requests SET status = ? WHERE id = ?');
+  stmtCheckExistingRequest = db.prepare("SELECT id FROM dm_requests WHERE from_user_id = ? AND to_user_id = ? AND status = 'pending'");
+  _stmtsReady = true;
+}
 
 // ── Ensure lobby ──
 function ensureLobby(): void {
+  initStatements();
   const exists = stmtRoomExists.get(LOBBY_ID);
   if (!exists) {
     const admin = db.prepare("SELECT id FROM users WHERE role = 'admin' LIMIT 1").get() as { id: number } | undefined;
@@ -152,6 +183,13 @@ ensureLobby();
 
 const onlineUsers = new Map<string, OnlineUser>();
 const rateLimits = new Map<number, number[]>();
+
+function getHandleRefreshHours(): number {
+  try {
+    const row = db.prepare("SELECT value FROM global_settings WHERE key = 'handle_refresh_hours'").get() as { value: string } | undefined;
+    return row ? parseInt(row.value, 10) || 48 : 48;
+  } catch { return 48; }
+}
 
 function generateAnonHandle(): string { return 'anon-' + crypto.randomBytes(4).toString('hex'); }
 function generateRoomId(): string { return crypto.randomBytes(16).toString('hex'); }
@@ -238,9 +276,26 @@ function ensureLobbyParticipant(userId: number): string {
   return handle;
 }
 
+let ioInstance: Server | null = null;
+
+export function getIO(): Server | null {
+  return ioInstance;
+}
+
+export function emitToUser(userId: number, event: string, data: unknown): void {
+  if (!ioInstance) return;
+  for (const u of onlineUsers.values()) {
+    if (u.userId === userId) {
+      const sock = ioInstance.sockets.sockets.get(u.socketId);
+      if (sock) sock.emit(event, data);
+    }
+  }
+}
+
 export function setupSocket(server: HttpServer): Server {
   const ALLOWED_ORIGINS = ['https://mynig.ga', 'http://localhost:5173'];
   const io = new Server(server, { cors: { origin: ALLOWED_ORIGINS, credentials: true } });
+  ioInstance = io;
 
   io.use((socket, next) => {
     const token = socket.handshake.auth?.token as string | undefined;
@@ -396,8 +451,22 @@ export function setupSocket(server: HttpServer): Server {
       if (!content) { callback({ ok: false, error: 'empty message. say something.' }); return; }
       if (content.length > 500) { callback({ ok: false, error: 'max 500 chars. this ain\'t your diary.' }); return; }
       if (!checkRateLimit(user.userId)) { callback({ ok: false, error: 'slow down. you\'re not that interesting.' }); return; }
-      const participant = stmtGetParticipant.get(data.roomId, user.userId) as { anon_handle: string } | undefined;
+      const participant = stmtGetParticipantWithTimestamp.get(data.roomId, user.userId) as { anon_handle: string; handle_updated_at: string | null } | undefined;
       if (!participant) { callback({ ok: false, error: 'you\'re not in this room. creep.' }); return; }
+
+      // Auto-refresh handle if expired
+      let currentHandle = participant.anon_handle;
+      if (participant.handle_updated_at) {
+        const updatedAt = new Date(participant.handle_updated_at + 'Z').getTime();
+        const refreshHours = getHandleRefreshHours();
+        if (Date.now() - updatedAt > refreshHours * 3600_000) {
+          const oldHandle = currentHandle;
+          const newHandle = generateAnonHandle();
+          stmtUpdateHandle.run(newHandle, data.roomId, user.userId);
+          currentHandle = newHandle;
+          io.to(`room:${data.roomId}`).emit('handle:changed', { roomId: data.roomId, oldHandle, newHandle });
+        }
+      }
 
       const replyTo = data.replyTo ?? null;
       if (replyTo !== null) {
@@ -410,7 +479,7 @@ export function setupSocket(server: HttpServer): Server {
       const message = {
         id: result.lastInsertRowid as number,
         roomId: data.roomId, content,
-        anonHandle: participant.anon_handle,
+        anonHandle: currentHandle,
         created_at: new Date().toISOString().replace('T', ' ').replace('Z', '').split('.')[0],
         reactions: [] as ReactionData[],
         replyTo: replyInfo,
@@ -470,6 +539,17 @@ export function setupSocket(server: HttpServer): Server {
     socket.on('typing:stop', (data: { roomId: string }) => {
       const p = stmtGetParticipant.get(data.roomId, user.userId) as { anon_handle: string } | undefined;
       if (p) socket.to(`room:${data.roomId}`).emit('typing:update', { roomId: data.roomId, anonHandle: p.anon_handle, typing: false });
+    });
+
+    // ── handle:refresh — manually regenerate anon handle ──
+    socket.on('handle:refresh', (data: { roomId: string }, callback: (r: { ok: boolean; newHandle?: string; error?: string }) => void) => {
+      const existing = stmtGetParticipant.get(data.roomId, user.userId) as { anon_handle: string } | undefined;
+      if (!existing) { callback({ ok: false, error: "you're not in this room." }); return; }
+      const oldHandle = existing.anon_handle;
+      const newHandle = generateAnonHandle();
+      stmtUpdateHandle.run(newHandle, data.roomId, user.userId);
+      io.to(`room:${data.roomId}`).emit('handle:changed', { roomId: data.roomId, oldHandle, newHandle });
+      callback({ ok: true, newHandle });
     });
 
     socket.on('room:invite-link', (data: { roomId: string }, callback: (r: { ok: boolean; url?: string; error?: string }) => void) => {

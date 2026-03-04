@@ -92,7 +92,7 @@ export function ChatSpyPanel() {
     return (
       <div className="admin-loading">
         <span className="spinner" />
-        loading whisper rooms...
+        loading rooms...
       </div>
     );
   }
@@ -159,7 +159,7 @@ export function ChatSpyPanel() {
       {loadingRoom && (
         <div className="admin-loading">
           <span className="spinner" />
-          reading their secrets...
+          loading messages...
         </div>
       )}
       {rooms.length === 0 ? (
@@ -195,7 +195,7 @@ export function ChatSpyPanel() {
                     style={{ fontSize: "11px", padding: "2px 8px" }}
                     onClick={() => void handleSelectRoom(room.id)}
                   >
-                    spy
+                    view
                   </button>
                   <button
                     className="admin-btn"

@@ -1,6 +1,7 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { WindowContentProps } from "@/types/terminal";
 import { useChat } from "@/hooks/useChat";
+import { useNotifications } from "@/hooks/useNotifications";
 import { Sidebar } from "./Sidebar";
 import { ChatView } from "./ChatView";
 import { EmptyState } from "./EmptyState";
@@ -27,8 +28,28 @@ export function WhisperPanel({ user: _user, initialRoomId }: WindowContentProps 
     sendMessage,
     toggleReaction,
     setTyping,
+    refreshHandle,
     generateInviteLink,
   } = useChat(initialRoomId);
+
+  const { playChatSound, showBrowserNotification } = useNotifications();
+  const prevMsgCount = useRef(messages.length);
+
+  // Play sound on incoming messages from others
+  useEffect(() => {
+    if (messages.length > prevMsgCount.current) {
+      const newMsgs = messages.slice(prevMsgCount.current);
+      const hasOtherMsg = newMsgs.some(m => m.anonHandle !== myAnonHandle);
+      if (hasOtherMsg) {
+        playChatSound();
+        const lastMsg = newMsgs[newMsgs.length - 1];
+        if (lastMsg) {
+          showBrowserNotification("whisper", `${lastMsg.anonHandle}: ${lastMsg.content.slice(0, 80)}`);
+        }
+      }
+    }
+    prevMsgCount.current = messages.length;
+  }, [messages, myAnonHandle, playChatSound, showBrowserNotification]);
 
   const handleInviteLink = useCallback(
     async (roomId: string) => {
@@ -85,6 +106,7 @@ export function WhisperPanel({ user: _user, initialRoomId }: WindowContentProps 
               onTyping={setTyping}
               onReaction={toggleReaction}
               onReply={setReplyTo}
+              onRefreshHandle={refreshHandle}
               onInviteLink={(roomId) => void handleInviteLink(roomId)}
             />
           ) : (

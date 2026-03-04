@@ -1,9 +1,11 @@
 import { useRef, useCallback, useEffect, useState } from "react";
 import type { WindowState, User } from "@/types/terminal";
+import type { WindowManager } from "@/hooks/useWindowManager";
 
 interface Props {
   window: WindowState;
   user: User;
+  windowManager: WindowManager;
   onClose: (id: string) => void;
   onFocus: (id: string) => void;
   onMinimize: (id: string) => void;
@@ -28,6 +30,7 @@ const RESIZE_DIRS: { dir: ResizeDir; className: string; cursor: string }[] = [
 export function Window({
   window: win,
   user,
+  windowManager,
   onClose,
   onFocus,
   onMinimize,
@@ -211,6 +214,7 @@ export function Window({
           windowId={win.id}
           closeWindow={() => onClose(win.id)}
           user={user}
+          windowManager={windowManager}
           {...win.props}
         />
       </div>

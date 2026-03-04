@@ -11,6 +11,13 @@ import { WindowLayer } from "./WindowLayer";
 import { HOSTNAME } from "@/config";
 import { getAll } from "@/core/commandRegistry";
 import { WhisperPanel } from "@/apps/whisper/WhisperPanel";
+import { GlobalSettingsProvider } from "@/hooks/useGlobalSettings";
+import { useMailNotifications } from "@/hooks/useMailNotifications";
+
+function MailNotificationListener() {
+  useMailNotifications();
+  return null;
+}
 
 interface Props {
   user: User;
@@ -84,6 +91,8 @@ export function Terminal({ user, userId, onLogout, roomToken }: Props) {
   }, [roomToken, user.role, roomTokenUsed, windowManager]);
 
   return (
+    <GlobalSettingsProvider>
+    <MailNotificationListener />
     <div className="h-full flex flex-col font-mono screen-flicker">
       <LogoHeader
         subtitle={`${user.username}@${HOSTNAME}:${shortenPath(cwd, homePath)}  ·  nsh v1.0`}
@@ -173,5 +182,6 @@ export function Terminal({ user, userId, onLogout, roomToken }: Props) {
 
       <WindowLayer windowManager={windowManager} user={user} />
     </div>
+    </GlobalSettingsProvider>
   );
 }

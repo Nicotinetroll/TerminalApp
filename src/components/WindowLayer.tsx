@@ -20,6 +20,7 @@ export function WindowLayer({ windowManager, user }: Props) {
           key={win.id}
           window={win}
           user={user}
+          windowManager={windowManager}
           onClose={closeWindow}
           onFocus={focusWindow}
           onMinimize={minimizeWindow}

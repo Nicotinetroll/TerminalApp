@@ -36,6 +36,9 @@ const { default: authRouter } = await import('./routes/auth.js');
 const { default: syncRouter } = await import('./routes/sync.js');
 const { default: adminRouter } = await import('./routes/admin.js');
 const { default: chatRouter } = await import('./routes/chat.js');
+const { default: mailRouter } = await import('./routes/mail.js');
+const { default: settingsRouter } = await import('./routes/settings.js');
+const { default: gamesRouter } = await import('./routes/games.js');
 const { setupSocket } = await import('./socket.js');
 
 const app = express();
@@ -66,6 +69,9 @@ app.use('/api/auth', authRouter);
 app.use('/api/sync', syncRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/admin', chatRouter);
+app.use('/api/mail', mailRouter);
+app.use('/api/settings', settingsRouter);
+app.use('/api/games', gamesRouter);
 
 // Health check
 app.get('/api/health', (_req, res) => {

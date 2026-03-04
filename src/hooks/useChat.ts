@@ -134,6 +134,36 @@ export function useChat(initialRoomId?: string | null) {
       });
     };
 
+    const onHandleChanged = (data: { roomId: string; oldHandle: string; newHandle: string }) => {
+      // Update room participant lists
+      setRooms((prev) =>
+        prev.map((r) => {
+          if (r.id !== data.roomId) return r;
+          return {
+            ...r,
+            anonHandle: r.anonHandle === data.oldHandle ? data.newHandle : r.anonHandle,
+            participants: r.participants.map((p) =>
+              p.anonHandle === data.oldHandle ? { ...p, anonHandle: data.newHandle } : p
+            ),
+          };
+        })
+      );
+      // Inject system message
+      setMessages((prev) => {
+        if (data.roomId !== activeRoomIdRef.current) return prev;
+        const sysMsg: ChatMessage = {
+          id: Date.now() * -1, // negative to avoid collision
+          roomId: data.roomId,
+          content: `${data.oldHandle} morphed into ${data.newHandle}`,
+          anonHandle: "system",
+          created_at: new Date().toISOString().replace("T", " ").split(".")[0] ?? "",
+          reactions: [],
+          replyTo: null,
+        };
+        return [...prev, sysMsg];
+      });
+    };
+
     const onRoomUserJoined = (data: { roomId: string; anonHandle: string }) => {
       setRooms((prev) =>
         prev.map((r) =>
@@ -223,6 +253,7 @@ export function useChat(initialRoomId?: string | null) {
     socket.on("message:new", onMessageNew);
     socket.on("room:new", onRoomNew);
     socket.on("room:user-joined", onRoomUserJoined);
+    socket.on("handle:changed", onHandleChanged);
     socket.on("typing:update", onTypingUpdate);
     socket.on("dm:pending", onDmPending);
     socket.on("dm:incoming", onDmIncoming);
@@ -255,6 +286,7 @@ export function useChat(initialRoomId?: string | null) {
       socket.off("message:new", onMessageNew);
       socket.off("room:new", onRoomNew);
       socket.off("room:user-joined", onRoomUserJoined);
+      socket.off("handle:changed", onHandleChanged);
       socket.off("typing:update", onTypingUpdate);
       socket.off("dm:pending", onDmPending);
       socket.off("dm:incoming", onDmIncoming);
@@ -389,6 +421,19 @@ export function useChat(initialRoomId?: string | null) {
     [activeRoomId]
   );
 
+  const refreshHandle = useCallback(
+    (roomId: string) => {
+      const socket = socketRef.current;
+      if (!socket) return;
+      socket.emit("handle:refresh", { roomId }, (result: { ok: boolean; newHandle?: string; error?: string }) => {
+        if (!result.ok) {
+          setError(result.error ?? "handle refresh failed");
+        }
+      });
+    },
+    []
+  );
+
   const generateInviteLink = useCallback(
     (roomId: string): Promise<string> => {
       return new Promise((resolve, reject) => {
@@ -447,6 +492,7 @@ export function useChat(initialRoomId?: string | null) {
     sendMessage,
     toggleReaction,
     setTyping,
+    refreshHandle,
     generateInviteLink,
   };
 }

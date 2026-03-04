@@ -13,6 +13,7 @@ interface ChatViewProps {
   onTyping: (typing: boolean) => void;
   onReaction: (messageId: number, emoji: string) => void;
   onReply: (msg: ChatMessage | null) => void;
+  onRefreshHandle: (roomId: string) => void;
   onInviteLink: (roomId: string) => void;
 }
 
@@ -70,7 +71,7 @@ function ReplyPreview({ replyTo }: { replyTo: ReplyInfo }) {
   );
 }
 
-export function ChatView({ roomId, roomName, messages, myAnonHandle, typingUsers, replyToMsg, onSend, onTyping, onReaction, onReply, onInviteLink }: ChatViewProps) {
+export function ChatView({ roomId, roomName, messages, myAnonHandle, typingUsers, replyToMsg, onSend, onTyping, onReaction, onReply, onRefreshHandle, onInviteLink }: ChatViewProps) {
   const [input, setInput] = useState("");
   const [placeholder] = useState(getRandomPlaceholder);
   const [pickerMsgId, setPickerMsgId] = useState<number | null>(null);
@@ -119,15 +120,24 @@ export function ChatView({ roomId, roomName, messages, myAnonHandle, typingUsers
         <span className="whisper-chat-room-id">
           {roomName ? `# ${roomName}` : `room: ${roomId.slice(0, 8)}...`}
         </span>
-        {!isLobby && (
+        <div style={{ display: "flex", gap: 4 }}>
           <button
             className="whisper-invite-btn"
-            onClick={() => onInviteLink(roomId)}
-            title="copy invite link"
+            onClick={() => onRefreshHandle(roomId)}
+            title="get a new identity"
           >
-            link
+            new identity
           </button>
-        )}
+          {!isLobby && (
+            <button
+              className="whisper-invite-btn"
+              onClick={() => onInviteLink(roomId)}
+              title="copy invite link"
+            >
+              link
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="whisper-messages terminal-scroll">
