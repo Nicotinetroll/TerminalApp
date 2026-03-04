@@ -1,0 +1,107 @@
+export type WindowId = string;
+
+export interface WindowConfig {
+  id?: string;
+  title: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  component: React.ComponentType<any>;
+  props?: Record<string, unknown>;
+  width?: number;
+  height?: number;
+  minWidth?: number;
+  minHeight?: number;
+}
+
+export interface WindowContentProps {
+  windowId: WindowId;
+  closeWindow: () => void;
+  user: User;
+}
+
+export interface WindowState {
+  id: WindowId;
+  title: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  component: React.ComponentType<any>;
+  props: Record<string, unknown>;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  minWidth: number;
+  minHeight: number;
+  zIndex: number;
+  isMinimized: boolean;
+  isMaximized: boolean;
+}
+
+export interface FileSystemNode {
+  name: string;
+  type: "file" | "directory";
+  children?: Record<string, FileSystemNode>;
+  content?: string;
+}
+
+export interface User {
+  username: string;
+  role: "admin" | "user" | "guest";
+  id?: string;
+}
+
+export interface ThemeColors {
+  accent: string;
+  accentSoft: string;
+  accentMid: string;
+}
+
+export interface CommandResult {
+  text?: string;
+  isError?: boolean;
+  blocks?: OutputBlock[];
+}
+
+export interface OutputBlock {
+  label: string;
+  content: string;
+}
+
+export interface TerminalAPI {
+  user: User;
+  cwd: string;
+  setCwd: (path: string) => void;
+  setTheme: (theme: ThemeColors) => void;
+  fs: FileSystemNode;
+  clearHistory: () => void;
+  print: (result: CommandResult) => void;
+  logout: () => void;
+  openWindow: (config: WindowConfig) => WindowId;
+}
+
+export interface CommandDef {
+  name: string;
+  description: string;
+  usage?: string;
+  category: "system" | "filesystem" | "apps";
+  run: (args: string[], terminal: TerminalAPI) => CommandResult | Promise<CommandResult>;
+}
+
+export interface AppModule {
+  name: string;
+  description: string;
+  run: (args: string[], terminal: TerminalAPI) => CommandResult | Promise<CommandResult>;
+}
+
+export interface HistoryEntry {
+  id: number;
+  command: string;
+  result: CommandResult;
+  cwd: string;
+}
+
+export type AppPhase = "login" | "terminal";
+
+export interface AuthState {
+  user: User | null;
+  failedAttempts: number;
+  lockedUntil: number | null;
+}
