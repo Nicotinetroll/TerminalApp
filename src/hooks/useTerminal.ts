@@ -127,18 +127,8 @@ export function useTerminal(user: User, userId: string | null, onLogout: () => v
       }
     }
 
-    // don't add empty results from clear
+    // don't add entry for clear (history was already wiped)
     if (result.text === "" && !result.blocks && !result.isError) {
-      setHistory((prev) => {
-        const entry: HistoryEntry = {
-          id: ++idCounter.current,
-          command: input,
-          result: { text: "" },
-          cwd,
-        };
-        const next = [...prev, entry];
-        return next.length > MAX_HISTORY ? next.slice(-MAX_HISTORY) : next;
-      });
       scheduleSave();
       return;
     }

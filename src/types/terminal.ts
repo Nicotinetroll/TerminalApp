@@ -45,8 +45,9 @@ export interface FileSystemNode {
 
 export interface User {
   username: string;
-  role: "admin" | "user" | "guest";
+  role: "admin" | "user" | "code";
   id?: string;
+  permissions?: string[];
 }
 
 export interface ThemeColors {
@@ -64,6 +65,7 @@ export interface CommandResult {
 export interface OutputBlock {
   label: string;
   content: string;
+  animated?: boolean;
 }
 
 export interface TerminalAPI {

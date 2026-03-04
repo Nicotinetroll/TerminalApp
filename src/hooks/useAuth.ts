@@ -28,6 +28,7 @@ export function useAuth() {
             username: sessionUser.username,
             role: sessionUser.role,
             id: String(sessionUser.id),
+            permissions: sessionUser.permissions,
           });
           setUserId(String(sessionUser.id));
         }
@@ -97,10 +98,39 @@ export function useAuth() {
     [checkLockout, trackFailure]
   );
 
-  const loginAsGuest = useCallback(() => {
-    setUser({ username: "guest", role: "guest" });
-    setUserId(null);
-  }, []);
+  const codeLogin = useCallback(
+    async (code: string): Promise<LoginResult> => {
+      const lockError = checkLockout();
+      if (lockError) return { ok: false, error: lockError };
+
+      setIsAuthenticating(true);
+      try {
+        const result = await api.codeLogin(code);
+        if (!result.ok) {
+          trackFailure();
+          return { ok: false, error: result.error };
+        }
+
+        failedAttempts.current = 0;
+        lockedUntil.current = null;
+
+        setUser({
+          username: result.user.username,
+          role: result.user.role,
+          id: String(result.user.id),
+          permissions: result.user.permissions,
+        });
+        setUserId(String(result.user.id));
+        return { ok: true };
+      } catch {
+        trackFailure();
+        return { ok: false, error: "Code login failed." };
+      } finally {
+        setIsAuthenticating(false);
+      }
+    },
+    [checkLockout, trackFailure]
+  );
 
   const logout = useCallback(() => {
     api.logout();
@@ -115,6 +145,7 @@ export function useAuth() {
       username: authUser.username,
       role: authUser.role,
       id: String(authUser.id),
+      permissions: authUser.permissions,
     });
     setUserId(String(authUser.id));
   }, []);
@@ -125,7 +156,7 @@ export function useAuth() {
     isLoading,
     isAuthenticating,
     login,
-    loginAsGuest,
+    codeLogin,
     logout,
     setUserFromRegister,
   };

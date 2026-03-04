@@ -1,3 +1,6 @@
+import { captureConsole, logHttp } from './logger.js';
+captureConsole();
+
 import { readFileSync } from 'fs';
 import { createServer } from 'http';
 import { resolve, dirname } from 'path';
@@ -39,6 +42,8 @@ const { default: chatRouter } = await import('./routes/chat.js');
 const { default: mailRouter } = await import('./routes/mail.js');
 const { default: settingsRouter } = await import('./routes/settings.js');
 const { default: gamesRouter } = await import('./routes/games.js');
+const { default: aiRouter } = await import('./routes/ai.js');
+const { default: codesRouter } = await import('./routes/codes.js');
 const { setupSocket } = await import('./socket.js');
 
 const app = express();
@@ -64,6 +69,15 @@ app.use((_req, res, next) => {
 
 app.use(express.json({ limit: '10mb' }));
 
+// HTTP request logging
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    logHttp(req.method, req.path, res.statusCode, Date.now() - start, (req as Record<string, unknown>).user ? ((req as Record<string, unknown>).user as { username?: string }).username : undefined);
+  });
+  next();
+});
+
 // Routes
 app.use('/api/auth', authRouter);
 app.use('/api/sync', syncRouter);
@@ -72,6 +86,8 @@ app.use('/api/admin', chatRouter);
 app.use('/api/mail', mailRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/games', gamesRouter);
+app.use('/api/ai', aiRouter);
+app.use('/api', codesRouter);
 
 // Health check
 app.get('/api/health', (_req, res) => {

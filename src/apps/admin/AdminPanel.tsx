@@ -5,11 +5,13 @@ import type { AdminUser } from "@/lib/api";
 import { UserTable } from "./UserTable";
 import { UserForm } from "./UserForm";
 import { InvitePanel } from "./InvitePanel";
-import { ChatSpyPanel } from "./ChatSpyPanel";
-import { MailReviewPanel } from "./MailSpyPanel";
+import { ChatLogPanel } from "./ChatLogPanel";
+import { MailReviewPanel } from "./MailReviewPanel";
 import { SettingsPanel } from "./SettingsPanel";
+import { CodePanel } from "./CodePanel";
+import { AiLogPanel } from "./AiLogPanel";
 
-type View = "list" | "create" | "edit" | "invites" | "chats" | "emails" | "settings";
+type View = "list" | "create" | "edit" | "invites" | "chats" | "emails" | "settings" | "codes" | "ai-logs";
 
 export function AdminPanel({ user }: WindowContentProps) {
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -111,9 +113,11 @@ export function AdminPanel({ user }: WindowContentProps) {
           {view === "create" && "create user"}
           {view === "edit" && `edit: ${editingUser?.username ?? ""}`}
           {view === "invites" && "invite links"}
+          {view === "codes" && "access codes"}
           {view === "chats" && "chat logs"}
           {view === "emails" && "mail mgmt"}
           {view === "settings" && "global settings"}
+          {view === "ai-logs" && "nigga AI logs"}
         </h2>
         <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
           {status && (
@@ -129,8 +133,14 @@ export function AdminPanel({ user }: WindowContentProps) {
               <button className="admin-btn" onClick={() => setView("emails")}>
                 mail
               </button>
+              <button className="admin-btn" onClick={() => setView("ai-logs")}>
+                nigga logs
+              </button>
               <button className="admin-btn" onClick={() => setView("chats")}>
                 whispers
+              </button>
+              <button className="admin-btn" onClick={() => setView("codes")}>
+                codes
               </button>
               <button className="admin-btn" onClick={() => setView("invites")}>
                 invite links
@@ -141,6 +151,16 @@ export function AdminPanel({ user }: WindowContentProps) {
             </>
           )}
           {view === "invites" && (
+            <button className="admin-btn" onClick={() => setView("list")}>
+              back to users
+            </button>
+          )}
+          {view === "codes" && (
+            <button className="admin-btn" onClick={() => setView("list")}>
+              back to users
+            </button>
+          )}
+          {view === "ai-logs" && (
             <button className="admin-btn" onClick={() => setView("list")}>
               back to users
             </button>
@@ -201,7 +221,11 @@ export function AdminPanel({ user }: WindowContentProps) {
 
       {view === "invites" && <InvitePanel />}
 
-      {view === "chats" && <ChatSpyPanel />}
+      {view === "codes" && <CodePanel />}
+
+      {view === "ai-logs" && <AiLogPanel />}
+
+      {view === "chats" && <ChatLogPanel />}
 
       {view === "emails" && <MailReviewPanel />}
 

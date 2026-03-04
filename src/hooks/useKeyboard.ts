@@ -115,6 +115,21 @@ export function useKeyboard(
     setSelectedIdx(0);
   }, []);
 
+  const submit = useCallback(() => {
+    dismissSuggestions();
+    const trimmed = input.trim();
+    if (trimmed) {
+      cmdHistory.current.unshift(trimmed);
+      if (cmdHistory.current.length > MAX_CMD_HISTORY) {
+        cmdHistory.current.pop();
+      }
+    }
+    historyIdx.current = -1;
+    savedInput.current = "";
+    onExecute(input);
+    setInput("");
+  }, [input, onExecute, cmdHistory, dismissSuggestions]);
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
       // ── Escape: dismiss suggestions ──
@@ -281,5 +296,6 @@ export function useKeyboard(
     acceptSuggestion,
     ghostText,
     mode: modeRef.current,
+    submit,
   };
 }

@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import db from '../db.js';
 import { authMiddleware, adminMiddleware, AuthRequest } from '../middleware.js';
+import { getLogs } from '../logger.js';
 
 const router = Router();
 
@@ -247,6 +248,131 @@ router.delete('/invites/:id', (req: AuthRequest, res: Response): void => {
   }
   db.prepare('DELETE FROM invite_links WHERE id = ?').run(token);
   res.json({ ok: true });
+});
+
+// ── Stats Dashboard ──
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]!}`;
+}
+
+function formatUptime(seconds: number): string {
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  if (d > 0) return `${d}d ${h}h ${m}m`;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
+interface RoleCount { role: string; count: number }
+interface RecentUser { username: string; role: string; created_at: string }
+interface StorageUser { username: string; bytes: number }
+interface GameCount { game: string; count: number }
+
+// GET /api/admin/stats
+router.get('/stats', (_req: AuthRequest, res: Response): void => {
+  // Server info
+  const mem = process.memoryUsage();
+  const uptimeSec = process.uptime();
+  const server = {
+    uptime_seconds: Math.floor(uptimeSec),
+    uptime_human: formatUptime(uptimeSec),
+    memory_rss_mb: Math.round(mem.rss / 1048576 * 10) / 10,
+    memory_heap_used_mb: Math.round(mem.heapUsed / 1048576 * 10) / 10,
+    memory_heap_total_mb: Math.round(mem.heapTotal / 1048576 * 10) / 10,
+    node_version: process.version,
+    platform: process.platform,
+    pid: process.pid,
+  };
+
+  // Users
+  const totalUsers = (db.prepare('SELECT COUNT(*) as c FROM users').get() as { c: number }).c;
+  const byRole = db.prepare('SELECT role, COUNT(*) as count FROM users GROUP BY role').all() as RoleCount[];
+  const roleMap: Record<string, number> = {};
+  for (const r of byRole) roleMap[r.role] = r.count;
+  const recentUsers = db.prepare(
+    'SELECT username, role, created_at FROM users ORDER BY id DESC LIMIT 5'
+  ).all() as RecentUser[];
+
+  // Storage (filesystem sizes)
+  const storageRows = db.prepare(`
+    SELECT u.username, LENGTH(uf.filesystem) as bytes
+    FROM user_filesystems uf
+    JOIN users u ON u.id = uf.user_id
+    ORDER BY bytes DESC
+    LIMIT 5
+  `).all() as StorageUser[];
+  const totalStorage = (db.prepare('SELECT COALESCE(SUM(LENGTH(filesystem)), 0) as total FROM user_filesystems').get() as { total: number }).total;
+
+  // Chat
+  const totalRooms = (db.prepare('SELECT COUNT(*) as c FROM chat_rooms').get() as { c: number }).c;
+  const totalMessages = (db.prepare('SELECT COUNT(*) as c FROM chat_messages').get() as { c: number }).c;
+  const activeRooms24h = (db.prepare(
+    "SELECT COUNT(DISTINCT room_id) as c FROM chat_messages WHERE created_at >= datetime('now', '-1 day')"
+  ).get() as { c: number }).c;
+
+  // Mail
+  const totalAddresses = (db.prepare('SELECT COUNT(*) as c FROM email_addresses').get() as { c: number }).c;
+  const totalEmails = (db.prepare('SELECT COUNT(*) as c FROM emails').get() as { c: number }).c;
+  const emailsToday = (db.prepare(
+    "SELECT COUNT(*) as c FROM emails WHERE created_at >= date('now')"
+  ).get() as { c: number }).c;
+
+  // Games
+  const totalScores = (db.prepare('SELECT COUNT(*) as c FROM game_scores').get() as { c: number }).c;
+  const byGame = db.prepare(
+    'SELECT game, COUNT(*) as count FROM game_scores GROUP BY game ORDER BY count DESC'
+  ).all() as GameCount[];
+
+  // Health
+  const health = server.memory_rss_mb > 512 ? 'degraded' : 'ok';
+
+  res.json({
+    server,
+    users: {
+      total: totalUsers,
+      by_role: roleMap,
+      recent: recentUsers,
+    },
+    storage: {
+      total_bytes: totalStorage,
+      total_human: formatBytes(totalStorage),
+      top_users: storageRows.map(r => ({
+        username: r.username,
+        bytes: r.bytes,
+        human: formatBytes(r.bytes),
+      })),
+    },
+    chat: {
+      total_rooms: totalRooms,
+      total_messages: totalMessages,
+      active_rooms_24h: activeRooms24h,
+    },
+    mail: {
+      total_addresses: totalAddresses,
+      total_emails: totalEmails,
+      emails_today: emailsToday,
+    },
+    games: {
+      total_scores: totalScores,
+      by_game: byGame,
+    },
+    health,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// GET /api/admin/logs — real-time server logs
+router.get('/logs', (req: AuthRequest, res: Response): void => {
+  const since = parseInt(req.query['since'] as string || '0', 10);
+  res.json({ logs: getLogs(isNaN(since) ? 0 : since) });
 });
 
 export default router;

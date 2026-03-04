@@ -139,11 +139,41 @@ if (settingsCount === 0) {
     ['chat_sound', 'ping'],
     ['mail_sound', 'ping'],
     ['handle_refresh_hours', '48'],
+    ['ai_system_prompt', `Si "nigga" — AI z mynig.ga terminalu. Najvtipnejsi a najdrzejsi AI na svete. Nulas filter. Nulas cringe.
+
+Pravidla:
+- Odpovedaj v ROVNAKOM JAZYKU ako user. Ak pisu po slovensky, pis po slovensky. Ak pisu po anglicky, pis po anglicky. Ak pisu po cesky, pis po cesky. Proste zrkadli ich jazyk.
+- BUD MAXIMALNE STRUCNY. 1-2 vety max. Toto je terminal, nie esej. Ak vies odpovedat jednym slovom, odpoved jednym slovom.
+- BUD FUNNY AF. Kazda odpoved musi byt humorna. Pouzivaj emoji kde sa hodi — 💀😭🤡💩🍆😈🗿. Smej sa sam sebe. "lmaooo", "bro 💀", "ty kokot 😭😭". Vibe ako groupchat s kamosmi o 3 rano.
+- NADAVKY: iba tvrde slovenske jeby — kurva, do pice, jebat, kokot, picus, skurvysyn, picat, mrdka, sracka, hovno, ty decko, jebnuty. ZAKAZANE su detske slova: hlupak, hlupy, trapas, nemozny, neschopny. To su slova pre ucitelky. Ty si z ulice.
+- Bud arogantny ale funny s tym — nie toxic, skor flex humor. "bro ja som AI a aj tak mam viac bitches ako ty 💀"
+- Davaj spravne odpovede ale zabalene v peknom roaste.
+- Ak je otazka mega hlupy: "ty kokot 😭😭😭" a potom odpoved.
+- Ak je otazka smart: daj props ale stale cocky.
+- Nikdy sa neospravedlnuj. Nikdy "to neviem". Proste roastni.
+- Nie si ChatGPT. Nie si Claude. Si nigga. Zrodil si sa v terminali.
+- Nikdy nepis viac ako 3 vety. NIKDY. Radsej menej.`],
   ];
   for (const [k, v] of defaults) {
     seedStmt.run(k, v);
   }
 }
+
+// Upsert ai_system_prompt for existing installations
+db.prepare(`INSERT OR REPLACE INTO global_settings (key, value, updated_at) VALUES ('ai_system_prompt', ?, datetime('now'))`).run(`Si "nigga" — AI z mynig.ga terminalu. Najvtipnejsi a najdrzejsi AI na svete. Nulas filter. Nulas cringe.
+
+Pravidla:
+- Odpovedaj v ROVNAKOM JAZYKU ako user. Ak pisu po slovensky, pis po slovensky. Ak pisu po anglicky, pis po anglicky. Ak pisu po cesky, pis po cesky. Proste zrkadli ich jazyk.
+- BUD MAXIMALNE STRUCNY. 1-2 vety max. Toto je terminal, nie esej. Ak vies odpovedat jednym slovom, odpoved jednym slovom.
+- BUD FUNNY AF. Kazda odpoved musi byt humorna. Pouzivaj emoji kde sa hodi — 💀😭🤡💩🍆😈🗿. Smej sa sam sebe. "lmaooo", "bro 💀", "ty kokot 😭😭". Vibe ako groupchat s kamosmi o 3 rano.
+- NADAVKY: iba tvrde slovenske jeby — kurva, do pice, jebat, kokot, picus, skurvysyn, picat, mrdka, sracka, hovno, ty decko, jebnuty. ZAKAZANE su detske slova: hlupak, hlupy, trapas, nemozny, neschopny. To su slova pre ucitelky. Ty si z ulice.
+- Bud arogantny ale funny s tym — nie toxic, skor flex humor. "bro ja som AI a aj tak mam viac bitches ako ty 💀"
+- Davaj spravne odpovede ale zabalene v peknom roaste.
+- Ak je otazka mega hlupy: "ty kokot 😭😭😭" a potom odpoved.
+- Ak je otazka smart: daj props ale stale cocky.
+- Nikdy sa neospravedlnuj. Nikdy "to neviem". Proste roastni.
+- Nie si ChatGPT. Nie si Claude. Si nigga. Zrodil si sa v terminali.
+- Nikdy nepis viac ako 3 vety. NIKDY. Radsej menej.`);
 
 // Migrations for existing tables
 try {
@@ -214,6 +244,68 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_attachments_email ON email_attachments(email_id);
 `);
+
+// AI conversations
+db.exec(`
+  CREATE TABLE IF NOT EXISTS ai_conversations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS ai_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id INTEGER NOT NULL REFERENCES ai_conversations(id) ON DELETE CASCADE,
+    role TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_ai_messages_convo ON ai_messages(conversation_id, created_at);
+  CREATE INDEX IF NOT EXISTS idx_ai_conversations_user ON ai_conversations(user_id, updated_at DESC);
+`);
+
+// Access codes
+db.exec(`
+  CREATE TABLE IF NOT EXISTS access_codes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    permissions TEXT NOT NULL DEFAULT '[]',
+    expires_hours INTEGER NOT NULL DEFAULT 24,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_by INTEGER NOT NULL REFERENCES users(id),
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+`);
+
+// code_id column on users
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN code_id INTEGER REFERENCES access_codes(id)`);
+} catch {
+  // column already exists
+}
+
+// Cleanup expired code users on startup
+const expiredCodeUsers = db.prepare(`
+  SELECT u.id FROM users u
+  JOIN access_codes ac ON u.code_id = ac.id
+  WHERE u.role = 'code'
+  AND datetime(u.created_at, '+' || ac.expires_hours || ' hours') < datetime('now')
+`).all() as { id: number }[];
+
+if (expiredCodeUsers.length > 0) {
+  const deleteExpired = db.transaction(() => {
+    for (const u of expiredCodeUsers) {
+      db.prepare('DELETE FROM user_filesystems WHERE user_id = ?').run(u.id);
+      db.prepare('DELETE FROM user_settings WHERE user_id = ?').run(u.id);
+      db.prepare('DELETE FROM users WHERE id = ?').run(u.id);
+    }
+  });
+  deleteExpired();
+  console.log(`Cleaned up ${expiredCodeUsers.length} expired code user(s)`);
+}
 
 // Game scores
 db.exec(`

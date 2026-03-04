@@ -22,6 +22,17 @@ export const run: CommandDef = {
       };
     }
 
+    // Permission check for code users
+    if (terminal.user.role === "code") {
+      const blocked = ["cloud", "mail"];
+      if (blocked.includes(appName)) {
+        return { text: "access denied. code users can't touch that shit.", isError: true };
+      }
+      if (terminal.user.permissions && !terminal.user.permissions.includes(appName)) {
+        return { text: "access denied. your code doesn't unlock this app, bitch.", isError: true };
+      }
+    }
+
     const app = await loadApp(appName);
     if (!app) {
       return { text: `run: app '${appName}' not found`, isError: true };

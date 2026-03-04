@@ -54,7 +54,7 @@ async function fetchRoomDetail(roomId: string): Promise<RoomDetail> {
   return (data as { room: RoomDetail }).room;
 }
 
-export function ChatSpyPanel() {
+export function ChatLogPanel() {
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRoom, setSelectedRoom] = useState<RoomDetail | null>(null);

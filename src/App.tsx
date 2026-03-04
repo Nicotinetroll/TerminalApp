@@ -15,7 +15,7 @@ export default function App() {
     isLoading,
     isAuthenticating,
     login,
-    loginAsGuest,
+    codeLogin,
     logout,
     setUserFromRegister,
   } = useAuth();
@@ -52,10 +52,14 @@ export default function App() {
     [login]
   );
 
-  const handleGuest = useCallback(() => {
-    loginAsGuest();
-    setPhase("terminal");
-  }, [loginAsGuest]);
+  const handleCodeLogin = useCallback(
+    async (code: string): Promise<LoginResult> => {
+      const result = await codeLogin(code);
+      if (result.ok) setPhase("terminal");
+      return result;
+    },
+    [codeLogin]
+  );
 
   const handleLogout = useCallback(() => {
     logout();
@@ -85,7 +89,7 @@ export default function App() {
     return (
       <LoginScreen
         onLogin={handleLogin}
-        onGuest={handleGuest}
+        onCodeLogin={handleCodeLogin}
         onRegister={handleRegister}
         isAuthenticating={isAuthenticating}
         inviteToken={inviteToken}

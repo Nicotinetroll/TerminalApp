@@ -49,8 +49,9 @@ export class ApiError extends Error {
 export interface AuthUser {
   id: number;
   username: string;
-  role: "admin" | "user" | "guest";
+  role: "admin" | "user" | "guest" | "code";
   created_at?: string;
+  permissions?: string[];
 }
 
 interface LoginResponse {
@@ -447,7 +448,7 @@ export async function getEmailStats(): Promise<EmailStats> {
   return request<EmailStats>("/mail/stats");
 }
 
-// ── Admin: Mail Spy ──
+// ── Admin: Mail Review ──
 
 export interface AdminEmailAddress {
   id: number;
@@ -642,6 +643,86 @@ export async function getMyScores(): Promise<MyGameScore[]> {
   return data.scores;
 }
 
+// ── Admin: Server Stats ──
+
+export interface ServerStats {
+  server: {
+    uptime_seconds: number;
+    uptime_human: string;
+    memory_rss_mb: number;
+    memory_heap_used_mb: number;
+    memory_heap_total_mb: number;
+    node_version: string;
+    platform: string;
+    pid: number;
+  };
+  users: {
+    total: number;
+    by_role: Record<string, number>;
+    recent: { username: string; role: string; created_at: string }[];
+  };
+  storage: {
+    total_bytes: number;
+    total_human: string;
+    top_users: { username: string; bytes: number; human: string }[];
+  };
+  chat: {
+    total_rooms: number;
+    total_messages: number;
+    active_rooms_24h: number;
+  };
+  mail: {
+    total_addresses: number;
+    total_emails: number;
+    emails_today: number;
+  };
+  games: {
+    total_scores: number;
+    by_game: { game: string; count: number }[];
+  };
+  health: "ok" | "degraded";
+  timestamp: string;
+}
+
+export async function getServerStats(): Promise<ServerStats> {
+  return request<ServerStats>("/admin/stats");
+}
+
+// ── Admin: Server Logs ──
+
+export interface LogEntry {
+  id: number;
+  ts: string;
+  level: 'info' | 'warn' | 'error' | 'http';
+  message: string;
+  meta?: Record<string, unknown>;
+}
+
+export async function getServerLogs(sinceId = 0): Promise<LogEntry[]> {
+  const data = await request<{ logs: LogEntry[] }>(`/admin/logs?since=${sinceId}`);
+  return data.logs;
+}
+
+// ── Password Change ──
+
+// ── AI Chat ──
+
+export async function sendAiMessage(
+  message: string,
+  newConversation = false
+): Promise<{ reply: string; conversationId: number }> {
+  return request<{ reply: string; conversationId: number }>("/ai/chat", {
+    method: "POST",
+    body: JSON.stringify({ message, newConversation }),
+  });
+}
+
+export async function clearAiHistory(): Promise<{ ok: boolean; deleted: number }> {
+  return request<{ ok: boolean; deleted: number }>("/ai/chat", {
+    method: "DELETE",
+  });
+}
+
 // ── Password Change ──
 
 export async function changePassword(
@@ -658,4 +739,74 @@ export async function changePassword(
     const message = err instanceof ApiError ? err.message : "password change failed";
     return { ok: false, error: message };
   }
+}
+
+// ── Access Code Login ──
+
+interface CodeLoginResponse {
+  token: string;
+  user: AuthUser;
+}
+
+export async function codeLogin(
+  code: string
+): Promise<{ ok: true; user: AuthUser } | { ok: false; error: string }> {
+  try {
+    const data = await request<CodeLoginResponse>("/auth/code-login", {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    });
+    setToken(data.token);
+    return { ok: true, user: data.user };
+  } catch (err) {
+    const message = err instanceof ApiError ? err.message : "code login failed.";
+    return { ok: false, error: message };
+  }
+}
+
+// ── Access Code Admin CRUD ──
+
+export interface AccessCode {
+  id: number;
+  code: string;
+  name: string;
+  permissions: string;
+  expires_hours: number;
+  is_active: number;
+  created_by: number;
+  created_at: string;
+  temp_user_count: number;
+}
+
+export async function getAccessCodes(): Promise<AccessCode[]> {
+  const data = await request<{ codes: AccessCode[] }>("/codes");
+  return data.codes;
+}
+
+export async function createAccessCode(data: {
+  name: string;
+  code?: string;
+  permissions?: string[];
+  expires_hours?: number;
+}): Promise<AccessCode> {
+  const resp = await request<{ code: AccessCode }>("/codes", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+  return resp.code;
+}
+
+export async function updateAccessCode(
+  id: number,
+  updates: { name?: string; permissions?: string[]; expires_hours?: number; is_active?: boolean }
+): Promise<AccessCode> {
+  const resp = await request<{ code: AccessCode }>(`/codes/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  });
+  return resp.code;
+}
+
+export async function deleteAccessCode(id: number): Promise<{ ok: boolean; deleted_users: number }> {
+  return request<{ ok: boolean; deleted_users: number }>(`/codes/${id}`, { method: "DELETE" });
 }

@@ -82,8 +82,8 @@ router.post('/logout', (_req: AuthRequest, res: Response): void => {
 
 // GET /api/auth/session
 router.get('/session', authMiddleware, (req: AuthRequest, res: Response): void => {
-  const row = db.prepare('SELECT id, username, role, created_at FROM users WHERE id = ?').get(req.user!.userId) as
-    | { id: number; username: string; role: string; created_at: string }
+  const row = db.prepare('SELECT id, username, role, created_at, code_id FROM users WHERE id = ?').get(req.user!.userId) as
+    | { id: number; username: string; role: string; created_at: string; code_id: number | null }
     | undefined;
 
   if (!row) {
@@ -91,9 +91,19 @@ router.get('/session', authMiddleware, (req: AuthRequest, res: Response): void =
     return;
   }
 
-  res.json({
-    user: { id: row.id, username: row.username, role: row.role, created_at: row.created_at },
-  });
+  // For code users, include permissions from their access code
+  const result: Record<string, unknown> = {
+    id: row.id,
+    username: row.username,
+    role: row.role,
+    created_at: row.created_at,
+  };
+
+  if (row.role === 'code' && row.code_id) {
+    result.permissions = req.user!.permissions ?? [];
+  }
+
+  res.json({ user: result });
 });
 
 // POST /api/auth/register — register via invite link

@@ -6,6 +6,7 @@ interface Props {
   window: WindowState;
   user: User;
   windowManager: WindowManager;
+  isFocused: boolean;
   onClose: (id: string) => void;
   onFocus: (id: string) => void;
   onMinimize: (id: string) => void;
@@ -31,6 +32,7 @@ export function Window({
   window: win,
   user,
   windowManager,
+  isFocused,
   onClose,
   onFocus,
   onMinimize,
@@ -176,7 +178,7 @@ export function Window({
 
   return (
     <div
-      className={`window-frame${entered ? " window-enter" : ""}`}
+      className={`window-frame${entered ? " window-enter" : ""}${isFocused ? " window-focused" : ""}`}
       style={style}
       onMouseDown={() => onFocus(win.id)}
     >

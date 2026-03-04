@@ -5,6 +5,8 @@ export interface AuthPayload {
   userId: number;
   username: string;
   role: string;
+  permissions?: string[];
+  codeId?: number;
 }
 
 export interface AuthRequest extends Request {
@@ -33,6 +35,8 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
       userId: decoded.userId,
       username: decoded.username,
       role: decoded.role,
+      permissions: decoded.permissions,
+      codeId: decoded.codeId,
     };
     next();
   } catch {

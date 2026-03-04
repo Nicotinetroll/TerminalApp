@@ -13,6 +13,9 @@ export function WindowLayer({ windowManager, user }: Props) {
 
   if (windows.length === 0) return null;
 
+  const visibleWindows = windows.filter((w) => !w.isMinimized);
+  const maxZ = visibleWindows.reduce((max, w) => Math.max(max, w.zIndex), 0);
+
   return (
     <div className="window-layer">
       {windows.map((win) => (
@@ -21,6 +24,7 @@ export function WindowLayer({ windowManager, user }: Props) {
           window={win}
           user={user}
           windowManager={windowManager}
+          isFocused={!win.isMinimized && win.zIndex === maxZ}
           onClose={closeWindow}
           onFocus={focusWindow}
           onMinimize={minimizeWindow}
