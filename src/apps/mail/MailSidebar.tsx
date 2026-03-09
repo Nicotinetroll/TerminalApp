@@ -12,6 +12,7 @@ interface Props {
   onAddressDeleted: (id: number) => void;
   onFoldersChanged: () => void;
   onEditSignatures: () => void;
+  onSetupGuide: () => void;
   showStatus: (text: string, isError?: boolean) => void;
 }
 
@@ -25,7 +26,7 @@ const FOLDERS = [
 
 export function MailSidebar({
   folder, stats, addresses, customFolders, onFolderChange, onCompose,
-  onAddressDeleted, onFoldersChanged, onEditSignatures, showStatus,
+  onAddressDeleted, onFoldersChanged, onEditSignatures, onSetupGuide, showStatus,
 }: Props) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [newAddr, setNewAddr] = useState("");
@@ -200,7 +201,7 @@ export function MailSidebar({
             </button>
           </div>
         ))}
-        {addresses.length < 3 && !showAddForm && (
+        {addresses.length < 10 && !showAddForm && (
           <button
             className="mail-address-add"
             onClick={() => setShowAddForm(true)}
@@ -241,6 +242,12 @@ export function MailSidebar({
           style={{ marginTop: "4px" }}
         >
           signatures
+        </button>
+        <button
+          className="mail-address-add"
+          onClick={onSetupGuide}
+        >
+          setup guide
         </button>
       </div>
     </div>

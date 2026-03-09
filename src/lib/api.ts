@@ -120,9 +120,18 @@ export async function saveFilesystem(filesystem: Record<string, unknown>): Promi
 
 // ── Sync: Settings ──
 
+export interface WindowLayout {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface SettingsData {
   theme_name: string;
   command_history: string[];
+  auto_open_apps?: string[];
+  window_layouts?: Record<string, WindowLayout>;
 }
 
 export async function loadSettings(): Promise<SettingsData | null> {
@@ -195,6 +204,7 @@ export interface StorageStats {
   used: number;
   limit: number;
   role: string;
+  niggabytes: number;
 }
 
 export async function getStorageStats(): Promise<StorageStats> {
@@ -809,4 +819,832 @@ export async function updateAccessCode(
 
 export async function deleteAccessCode(id: number): Promise<{ ok: boolean; deleted_users: number }> {
   return request<{ ok: boolean; deleted_users: number }>(`/codes/${id}`, { method: "DELETE" });
+}
+
+// ── Slots (Casino) ──
+
+export interface SlotsBalance {
+  bonus_bytes: number;
+  base_limit: number;
+  effective_limit: number;
+  used: number;
+  available_to_bet: number;
+  free_spins: number;
+  niggabytes: number;
+  bonus: SlotsBonusInfo | null;
+  stats: {
+    total_won: number;
+    total_lost: number;
+    spins: number;
+    win_rate: number;
+  };
+}
+
+export interface SlotsLineWin {
+  line: number;
+  line_name: string;
+  symbols: string[];
+  multiplier: number;
+  payout_bytes: number;
+}
+
+export interface SlotsBonusInfo {
+  type: string;
+  symbol: string;
+  emoji: string;
+  tier: string;
+  multiplier: number;
+  spins_remaining: number;
+  spins_total: number;
+  total_bonus: number;
+  hits_this_spin: number;
+  hit_payout: number;
+  bet_mb: number;
+  currency: string;
+}
+
+export interface SlotsSpinResult {
+  grid: string[][];
+  wins: SlotsLineWin[];
+  total_payout_bytes: number;
+  bet_bytes: number;
+  is_free_spin: boolean;
+  free_spins_awarded: number;
+  free_spins_remaining: number;
+  has_jackpot: boolean;
+  message: string;
+  currency: string;
+  nb_balance: number;
+  bonus: SlotsBonusInfo | null;
+  bonus_awarded: SlotsBonusInfo | null;
+  balance: {
+    bonus_bytes: number;
+    effective_limit: number;
+    used: number;
+    available_to_bet: number;
+  };
+  stats: {
+    total_won: number;
+    total_lost: number;
+    spins: number;
+    win_rate: number;
+  };
+}
+
+export interface SlotsHistoryEntry {
+  id: number;
+  bet_bytes: number;
+  result: string;
+  payout_bytes: number;
+  grid: string[][];
+  created_at: string;
+}
+
+export async function getSlotsBalance(): Promise<SlotsBalance> {
+  return request<SlotsBalance>("/slots/balance");
+}
+
+export async function spinSlots(bet_mb: number, theme?: string, currency?: string): Promise<SlotsSpinResult> {
+  return request<SlotsSpinResult>("/slots/spin", {
+    method: "POST",
+    body: JSON.stringify({ bet_mb, theme, currency }),
+  });
+}
+
+export async function getSlotsHistory(): Promise<SlotsHistoryEntry[]> {
+  const data = await request<{ history: SlotsHistoryEntry[] }>("/slots/history");
+  return data.history;
+}
+
+// ── Coinflip ──
+
+export interface CoinflipBalance {
+  bonus_bytes: number;
+  niggabytes: number;
+  base_limit: number;
+  effective_limit: number;
+  used: number;
+  available_to_bet: number;
+  stats: {
+    total_flips: number;
+    wins: number;
+    total_won: number;
+    total_lost: number;
+    win_rate: number;
+  };
+  streak: number;
+}
+
+export interface CoinflipResult {
+  choice: string;
+  outcome: string;
+  won: boolean;
+  bet_bytes: number;
+  payout_bytes: number;
+  message: string;
+  streak: number;
+  currency: string;
+  nb_balance: number;
+  balance: {
+    bonus_bytes: number;
+    effective_limit: number;
+    used: number;
+    available_to_bet: number;
+  };
+}
+
+export interface CoinflipHistoryEntry {
+  id: number;
+  bet_bytes: number;
+  choice: string;
+  outcome: string;
+  payout_bytes: number;
+  created_at: string;
+}
+
+export async function getCoinflipBalance(): Promise<CoinflipBalance> {
+  return request<CoinflipBalance>("/coinflip/balance");
+}
+
+export async function flipCoin(bet_mb: number, choice: string, currency?: string): Promise<CoinflipResult> {
+  return request<CoinflipResult>("/coinflip/flip", {
+    method: "POST",
+    body: JSON.stringify({ bet_mb, choice, currency }),
+  });
+}
+
+export async function getCoinflipHistory(): Promise<CoinflipHistoryEntry[]> {
+  const data = await request<{ history: CoinflipHistoryEntry[] }>("/coinflip/history");
+  return data.history;
+}
+
+// ── Coinflip Admin ──
+
+export interface CoinflipPlayer {
+  userId: number;
+  username: string;
+  role: string;
+  bonus_bytes: number;
+  flips: number;
+  wins: number;
+  total_won: number;
+  total_lost: number;
+  win_rate: number;
+}
+
+export async function getCoinflipPlayers(): Promise<CoinflipPlayer[]> {
+  const data = await request<{ players: CoinflipPlayer[] }>("/coinflip/admin/players");
+  return data.players;
+}
+
+export async function resetCoinflipPlayer(userId: number): Promise<void> {
+  await request(`/coinflip/admin/reset/${userId}`, { method: "DELETE" });
+}
+
+export async function getCoinflipConfig(): Promise<{ win_chance: number }> {
+  return request<{ win_chance: number }>("/coinflip/admin/config");
+}
+
+export async function setCoinflipConfig(win_chance: number): Promise<{ win_chance: number }> {
+  return request<{ ok: boolean; win_chance: number }>("/coinflip/admin/config", {
+    method: "PUT",
+    body: JSON.stringify({ win_chance }),
+  });
+}
+
+// ── Slots Admin ──
+
+export interface SlotsPlayer {
+  userId: number;
+  username: string;
+  role: string;
+  bonus_bytes: number;
+  total_won: number;
+  total_lost: number;
+  spins: number;
+  free_spins: number;
+  win_rate: number;
+}
+
+export async function getSlotsPlayers(): Promise<SlotsPlayer[]> {
+  const data = await request<{ players: SlotsPlayer[] }>("/slots/admin/players");
+  return data.players;
+}
+
+export async function resetSlotsPlayer(userId: number): Promise<void> {
+  await request(`/slots/admin/reset/${userId}`, { method: "DELETE" });
+}
+
+export interface SlotsConfig {
+  rtp_target: number;
+  payout_factor: number;
+  house_edge: string;
+  win_frequency?: number;
+}
+
+export async function getSlotsConfig(): Promise<SlotsConfig> {
+  return request<SlotsConfig>("/slots/admin/config");
+}
+
+export async function setSlotsConfig(rtp_target: number): Promise<SlotsConfig & { ok: boolean }> {
+  return request<SlotsConfig & { ok: boolean }>("/slots/admin/config", {
+    method: "PUT",
+    body: JSON.stringify({ rtp_target }),
+  });
+}
+
+// ── Unified Casino Admin ──
+
+export interface CasinoPlayer {
+  userId: number;
+  username: string;
+  role: string;
+  niggabytes: number;
+  bonus_bytes: number;
+  slots_spins: number;
+  slots_wr: number;
+  cf_flips: number;
+  cf_wr: number;
+}
+
+export interface CasinoConfig {
+  slots_rtp_target: number;
+  slots_payout_factor: number;
+  slots_house_edge: string;
+  slots_win_frequency?: number;
+  coinflip_win_chance: number;
+}
+
+export async function getCasinoPlayers(): Promise<CasinoPlayer[]> {
+  const data = await request<{ players: CasinoPlayer[] }>("/casino/admin/players");
+  return data.players;
+}
+
+export async function getCasinoConfig(): Promise<CasinoConfig> {
+  return request<CasinoConfig>("/casino/admin/config");
+}
+
+export async function setCasinoConfig(updates: { slots_rtp_target?: number; coinflip_win_chance?: number }): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>("/casino/admin/config", {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function grantNiggaBytes(userId: number, amount: number): Promise<{ ok: boolean; niggabytes: number; message: string }> {
+  return request<{ ok: boolean; niggabytes: number; message: string }>("/casino/admin/grant-nb", {
+    method: "POST",
+    body: JSON.stringify({ userId, amount }),
+  });
+}
+
+export async function resetCasinoPlayer(userId: number): Promise<void> {
+  await request(`/casino/admin/reset/${userId}`, { method: "DELETE" });
+}
+
+// ── Casino Player Detail ──
+
+export interface CasinoHistoryEntry {
+  type: string;
+  bet: number;
+  payout: number;
+  result: string;
+  detail: string;
+  created_at: string;
+}
+
+export interface CasinoBalancePoint {
+  nb: number;
+  ts: string;
+}
+
+export interface CasinoPlayerDetailData {
+  player: {
+    userId: number;
+    username: string;
+    role: string;
+    niggabytes: number;
+    bonus_bytes: number;
+    total_won: number;
+    total_lost: number;
+    slots_spins: number;
+    slots_wins: number;
+    cf_flips: number;
+    cf_wins: number;
+    free_spins: number;
+  };
+  history: CasinoHistoryEntry[];
+  balance_history: CasinoBalancePoint[];
+}
+
+export async function getCasinoPlayerDetail(userId: number): Promise<CasinoPlayerDetailData> {
+  return request<CasinoPlayerDetailData>(`/casino/admin/players/${userId}`);
+}
+
+// ── Nigdit (Terminal Reddit) ──
+
+export interface NigditAttachment {
+  id: number;
+  filename: string;
+  mime_type: string;
+  size: number;
+}
+
+export interface NigditBoard {
+  id: number;
+  name: string;
+  description: string;
+}
+
+export interface NigditAwardBadge {
+  award_type: string;
+  count: number;
+}
+
+export interface NigditAwardType {
+  key: string;
+  label: string;
+  cost: number;
+  aura: number;
+}
+
+export interface NigditPollOption {
+  id: number;
+  label: string;
+  vote_count: number;
+}
+
+export interface NigditPoll {
+  options: NigditPollOption[];
+  my_vote: number | null;
+  total_votes: number;
+}
+
+export interface NigditPost {
+  id: number;
+  user_id: number;
+  username: string;
+  real_username?: string;
+  title: string;
+  body: string;
+  body_preview: string;
+  board: string;
+  upvotes: number;
+  downvotes: number;
+  score: number;
+  comment_count: number;
+  my_vote: number;
+  author_aura: number;
+  is_pinned: boolean;
+  is_edited: boolean;
+  is_anonymous: boolean;
+  post_type: string;
+  expires_at: string | null;
+  time_remaining: number | null;
+  time_ago: string;
+  created_at: string;
+  attachments: NigditAttachment[];
+  awards: NigditAwardBadge[];
+  bookmarked: boolean;
+  poll: NigditPoll | null;
+}
+
+export interface NigditComment {
+  id: number;
+  post_id: number;
+  parent_id: number | null;
+  user_id: number;
+  username: string;
+  body: string;
+  upvotes: number;
+  downvotes: number;
+  score: number;
+  depth: number;
+  my_vote: number;
+  author_aura: number;
+  is_op: boolean;
+  is_edited: boolean;
+  is_anonymous: boolean;
+  time_ago: string;
+  created_at: string;
+  awards: NigditAwardBadge[];
+}
+
+export interface NigditAura {
+  username: string;
+  post_aura: number;
+  comment_aura: number;
+  total: number;
+}
+
+export interface NigditVoteResult {
+  ok: boolean;
+  my_vote: number;
+  score: number;
+}
+
+export interface NigditNotification {
+  id: number;
+  type: string;
+  from_username: string;
+  post_id: number | null;
+  comment_id: number | null;
+  meme_id: number | null;
+  message: string;
+  is_read: boolean;
+  time_ago: string;
+  created_at: string;
+}
+
+export interface NigditUserProfile {
+  username: string;
+  created_at: string;
+  aura: NigditAura;
+  post_count: number;
+  comment_count: number;
+  awards_received: number;
+  streak: number;
+}
+
+export interface NigditUserProfilePost {
+  id: number;
+  title: string;
+  board: string;
+  score: number;
+  comment_count: number;
+  time_ago: string;
+  post_type: string;
+  is_pinned: boolean;
+}
+
+export async function getNigditPosts(
+  board = "all",
+  sort = "hot",
+  page = 1,
+  search = "",
+  bookmarks = false
+): Promise<{ posts: NigditPost[]; page: number; total: number; pages: number }> {
+  let path = `/nigdit/posts?board=${board}&sort=${sort}&page=${page}`;
+  if (search) path += `&search=${encodeURIComponent(search)}`;
+  if (bookmarks) path += `&bookmarks=1`;
+  return request(path);
+}
+
+export async function getNigditPost(id: number): Promise<{ post: NigditPost; comments: NigditComment[] }> {
+  return request(`/nigdit/posts/${id}`);
+}
+
+export async function createNigditPost(data: {
+  title: string;
+  body: string;
+  board: string;
+  post_type?: string;
+  is_anonymous?: boolean;
+  poll_options?: string[];
+  attachments?: File[];
+}): Promise<{ ok: boolean; post: NigditPost }> {
+  const formData = new FormData();
+  formData.append("title", data.title);
+  formData.append("body", data.body);
+  formData.append("board", data.board);
+  if (data.post_type) formData.append("post_type", data.post_type);
+  if (data.is_anonymous) formData.append("is_anonymous", "true");
+  if (data.poll_options && data.poll_options.length > 0) {
+    formData.append("poll_options", JSON.stringify(data.poll_options));
+  }
+  if (data.attachments) {
+    for (const file of data.attachments) {
+      formData.append("attachments", file);
+    }
+  }
+
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE}/nigdit/posts`, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+  if (!res.ok) {
+    const b = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, (b as { error?: string }).error ?? "post failed");
+  }
+  return res.json() as Promise<{ ok: boolean; post: NigditPost }>;
+}
+
+export async function editNigditPost(id: number, updates: { title?: string; body?: string }): Promise<{ ok: boolean }> {
+  return request(`/nigdit/posts/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function deleteNigditPost(id: number): Promise<{ ok: boolean }> {
+  return request(`/nigdit/posts/${id}`, { method: "DELETE" });
+}
+
+export async function createNigditComment(
+  post_id: number,
+  body: string,
+  parent_id?: number,
+  is_anonymous?: boolean
+): Promise<{ ok: boolean; comment: NigditComment }> {
+  return request("/nigdit/comments", {
+    method: "POST",
+    body: JSON.stringify({ post_id, body, parent_id, is_anonymous }),
+  });
+}
+
+export async function editNigditComment(id: number, body: string): Promise<{ ok: boolean }> {
+  return request(`/nigdit/comments/${id}`, {
+    method: "PUT",
+    body: JSON.stringify({ body }),
+  });
+}
+
+export async function deleteNigditComment(id: number): Promise<{ ok: boolean }> {
+  return request(`/nigdit/comments/${id}`, { method: "DELETE" });
+}
+
+export async function voteNigdit(
+  target_id: number,
+  target_type: "post" | "comment",
+  value: 1 | -1
+): Promise<NigditVoteResult> {
+  return request("/nigdit/vote", {
+    method: "POST",
+    body: JSON.stringify({ target_id, target_type, value }),
+  });
+}
+
+export async function giveNigditAward(
+  award_type: string,
+  post_id?: number,
+  comment_id?: number
+): Promise<{ ok: boolean; nb_remaining: number }> {
+  return request("/nigdit/awards", {
+    method: "POST",
+    body: JSON.stringify({ award_type, post_id, comment_id }),
+  });
+}
+
+export async function getNigditAwardTypes(): Promise<NigditAwardType[]> {
+  const data = await request<{ award_types: NigditAwardType[] }>("/nigdit/award-types");
+  return data.award_types;
+}
+
+export async function voteNigditPoll(postId: number, option_id: number): Promise<{ ok: boolean; poll: NigditPoll }> {
+  return request(`/nigdit/polls/${postId}/vote`, {
+    method: "POST",
+    body: JSON.stringify({ option_id }),
+  });
+}
+
+export async function toggleNigditBookmark(postId: number): Promise<{ ok: boolean; bookmarked: boolean }> {
+  return request(`/nigdit/bookmarks/${postId}`, { method: "POST" });
+}
+
+export async function getNigditNotifications(): Promise<NigditNotification[]> {
+  const data = await request<{ notifications: NigditNotification[] }>("/nigdit/notifications");
+  return data.notifications;
+}
+
+export async function getNigditNotificationCount(): Promise<number> {
+  const data = await request<{ count: number }>("/nigdit/notifications/count");
+  return data.count;
+}
+
+export async function markNigditNotificationsRead(): Promise<void> {
+  await request("/nigdit/notifications/read", { method: "PUT" });
+}
+
+export async function pinNigditPost(id: number): Promise<{ ok: boolean; is_pinned: boolean }> {
+  return request(`/nigdit/posts/${id}/pin`, { method: "POST" });
+}
+
+export async function getNigditUserProfile(username: string): Promise<{ user: NigditUserProfile; posts: NigditUserProfilePost[] }> {
+  return request(`/nigdit/users/${encodeURIComponent(username)}`);
+}
+
+export async function getNigditAura(username?: string): Promise<NigditAura> {
+  const path = username ? `/nigdit/aura/${encodeURIComponent(username)}` : "/nigdit/aura";
+  return request(path);
+}
+
+export async function getNigditBoards(): Promise<NigditBoard[]> {
+  const data = await request<{ boards: NigditBoard[] }>("/nigdit/boards");
+  return data.boards;
+}
+
+export async function createNigditBoard(name: string, description: string): Promise<NigditBoard[]> {
+  const data = await request<{ ok: boolean; boards: NigditBoard[] }>("/nigdit/admin/boards", {
+    method: "POST",
+    body: JSON.stringify({ name, description }),
+  });
+  return data.boards;
+}
+
+export async function updateNigditBoard(id: number, updates: { name?: string; description?: string }): Promise<NigditBoard[]> {
+  const data = await request<{ ok: boolean; boards: NigditBoard[] }>(`/nigdit/admin/boards/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  });
+  return data.boards;
+}
+
+export async function deleteNigditBoard(id: number): Promise<NigditBoard[]> {
+  const data = await request<{ ok: boolean; boards: NigditBoard[] }>(`/nigdit/admin/boards/${id}`, {
+    method: "DELETE",
+  });
+  return data.boards;
+}
+
+export interface NigditAdminStats {
+  totalPosts: number;
+  totalComments: number;
+  totalVotes: number;
+  topPosters: { username: string; post_count: number }[];
+  topAura: { username: string; total_aura: number }[];
+  boards: NigditBoard[];
+}
+
+export async function getNigditAdminStats(): Promise<NigditAdminStats> {
+  return request<NigditAdminStats>("/nigdit/admin/stats");
+}
+
+// ── Pastes (Code Paste Bin) ──
+
+export interface Paste {
+  id: string;
+  username: string;
+  title: string;
+  content: string;
+  language: string;
+  expires_at: string | null;
+  created_at: string;
+  time_ago: string;
+}
+
+export interface PasteListItem {
+  id: string;
+  title: string;
+  language: string;
+  expires_at: string | null;
+  created_at: string;
+  time_ago: string;
+}
+
+export interface PasteCreateResult {
+  ok: boolean;
+  paste: { id: string; title: string; language: string; expires_at: string | null; url: string };
+}
+
+export async function getPaste(id: string): Promise<Paste> {
+  const data = await request<{ paste: Paste }>(`/pastes/${encodeURIComponent(id)}`);
+  return data.paste;
+}
+
+export async function getMyPastes(page = 1): Promise<{ pastes: PasteListItem[]; has_more: boolean }> {
+  return request(`/pastes?page=${page}`);
+}
+
+export async function createPaste(data: {
+  title?: string;
+  content: string;
+  language?: string;
+  expires_in?: string;
+}): Promise<PasteCreateResult> {
+  return request("/pastes", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deletePaste(id: string): Promise<{ ok: boolean }> {
+  return request(`/pastes/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export async function analyzeCode(code: string, language: string): Promise<{ analysis: string }> {
+  return request<{ analysis: string }>("/pastes/analyze", {
+    method: "POST",
+    body: JSON.stringify({ code, language }),
+  });
+}
+
+// ── Shop ──
+
+export interface ShopItem {
+  id: string;
+  name: string;
+  description: string;
+  price: number | null;
+  owned: number;
+  max_purchases: number;
+  total_slots: number;
+  max_slots: number;
+  sold_out: boolean;
+  price_schedule: number[];
+}
+
+export interface ShopItemsResponse {
+  items: ShopItem[];
+  nb_balance: number;
+}
+
+export interface ShopPurchaseResult {
+  ok: boolean;
+  message: string;
+  nb_balance: number;
+  total_slots: number;
+  next_price: number | null;
+}
+
+export async function getShopItems(): Promise<ShopItemsResponse> {
+  return request<ShopItemsResponse>("/shop/items");
+}
+
+export async function purchaseShopItem(item: string): Promise<ShopPurchaseResult> {
+  return request<ShopPurchaseResult>("/shop/purchase", {
+    method: "POST",
+    body: JSON.stringify({ item }),
+  });
+}
+
+// ── Online Users ──
+
+export interface OnlineUser {
+  username: string;
+  role: string;
+}
+
+export async function getOnlineUsers(): Promise<OnlineUser[]> {
+  const data = await request<{ users: OnlineUser[] }>("/who");
+  return data.users;
+}
+
+// ── Memes (Image Gallery) ──
+
+export interface Meme {
+  id: number;
+  username: string;
+  upvotes: number;
+  downvotes: number;
+  score: number;
+  my_vote: number;
+  time_ago: string;
+  created_at: string;
+  image_url: string;
+}
+
+export interface MemeVoteResult {
+  ok: boolean;
+  my_vote: number;
+  score: number;
+}
+
+export async function getMemes(
+  sort = "hot",
+  page = 1
+): Promise<{ memes: Meme[]; has_more: boolean }> {
+  return request(`/memes?sort=${sort}&page=${page}`);
+}
+
+export async function voteMeme(
+  meme_id: number,
+  value: 1 | -1
+): Promise<MemeVoteResult> {
+  return request("/memes/vote", {
+    method: "POST",
+    body: JSON.stringify({ meme_id, value }),
+  });
+}
+
+export async function deleteMeme(id: number): Promise<{ ok: boolean }> {
+  return request(`/memes/${id}`, { method: "DELETE" });
+}
+
+export async function uploadMeme(
+  file: File
+): Promise<{ ok: boolean; meme: Meme }> {
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const formData = new FormData();
+  formData.append("image", file);
+
+  const res = await fetch(`${API_BASE}/memes`, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const b = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, (b as { error?: string }).error ?? "upload failed");
+  }
+
+  return res.json() as Promise<{ ok: boolean; meme: Meme }>;
 }

@@ -92,14 +92,14 @@ export function InvitePanel() {
     <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "12px" }}>
       <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
         <button
-          className="admin-btn admin-btn-primary"
+          className="btn btn-primary"
           disabled={creating}
           onClick={() => void handleCreate("user")}
         >
           {creating ? "generating..." : "+ generate invite (user)"}
         </button>
         <button
-          className="admin-btn"
+          className="btn"
           disabled={creating}
           onClick={() => void handleCreate("admin")}
         >
@@ -170,14 +170,14 @@ export function InvitePanel() {
                       {s === "active" && (
                         <span style={{ display: "inline-flex", gap: "6px" }}>
                           <button
-                            className="admin-btn"
+                            className="btn"
                             style={{ fontSize: "12px", padding: "3px 8px" }}
                             onClick={() => void handleCopy(inv.id)}
                           >
                             {copiedId === inv.id ? "copied!" : "copy"}
                           </button>
                           <button
-                            className="admin-btn admin-btn-danger"
+                            className="btn btn-danger"
                             style={{ fontSize: "12px", padding: "3px 8px" }}
                             onClick={() => void handleRevoke(inv.id)}
                           >

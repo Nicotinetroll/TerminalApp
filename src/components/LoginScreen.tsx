@@ -173,8 +173,8 @@ export function LoginScreen({ onLogin, onCodeLogin, onRegister, isAuthenticating
   }, [lines, stage]);
 
   return (
-    <div className="terminal-page font-mono">
-      <LogoHeader />
+    <div className="terminal-page login-page font-mono">
+      <LogoHeader showArtOnMobile />
 
       <div className="terminal-frame">
       <div ref={scrollRef} className="terminal-body terminal-scroll">

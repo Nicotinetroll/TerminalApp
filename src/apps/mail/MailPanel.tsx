@@ -1,15 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { WindowContentProps } from "@/types/terminal";
 import type { EmailAddress, EmailStats, MailFolder } from "@/lib/api";
-import { getEmailAddresses, getEmailStats, getCustomFolders, updateEmail, deleteEmail, getEmail, ApiError } from "@/lib/api";
+import { getEmailAddresses, getEmailStats, getCustomFolders, updateEmail, deleteEmail, getEmail, bulkEmailAction, ApiError } from "@/lib/api";
 import { AddressSetup } from "./AddressSetup";
 import { MailSidebar } from "./MailSidebar";
 import { MailList } from "./MailList";
 import { MailView } from "./MailView";
 import { ComposeView } from "./ComposeView";
 import { SignatureEditor } from "./SignatureEditor";
+import { SetupGuide } from "./SetupGuide";
 
-type View = "list" | "read" | "compose" | "signatures";
+type View = "list" | "read" | "compose" | "signatures" | "setup";
 
 export function MailPanel({ user: _user, windowId, windowManager }: WindowContentProps) {
   const [addresses, setAddresses] = useState<EmailAddress[]>([]);
@@ -24,6 +25,7 @@ export function MailPanel({ user: _user, windowId, windowManager }: WindowConten
   const [editingDraftId, setEditingDraftId] = useState<number | undefined>(undefined);
   const [status, setStatus] = useState<{ text: string; isError: boolean } | null>(null);
   const [listRefreshKey, setListRefreshKey] = useState(0);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const panelRef = useRef<HTMLDivElement>(null);
 
   const showStatus = useCallback((text: string, isError = false) => {
@@ -45,6 +47,33 @@ export function MailPanel({ user: _user, windowId, windowManager }: WindowConten
     } catch { /* ignore */ }
     void refreshStats();
   }, [refreshStats]);
+
+  // Clear selection on folder change
+  useEffect(() => { setSelectedIds(new Set()); }, [folder]);
+
+  const handleToggleSelect = useCallback((id: number) => {
+    setSelectedIds(prev => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  }, []);
+  const handleSelectAll = useCallback((ids: number[]) => setSelectedIds(new Set(ids)), []);
+  const handleDeselectAll = useCallback(() => setSelectedIds(new Set()), []);
+
+  const handleBulkAction = useCallback(async (action: string) => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    try {
+      await bulkEmailAction(ids, action);
+      setSelectedIds(new Set());
+      setListRefreshKey(k => k + 1);
+      void refreshStats();
+      showStatus(`${ids.length} email${ids.length > 1 ? "s" : ""} ${action === "trash" ? "trashed" : action === "read" ? "marked read" : "marked unread"}`);
+    } catch (err) {
+      showStatus(err instanceof ApiError ? err.message : "bulk action failed", true);
+    }
+  }, [selectedIds, refreshStats, showStatus]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -242,6 +271,7 @@ export function MailPanel({ user: _user, windowId, windowManager }: WindowConten
           onAddressDeleted={handleAddressDeleted}
           onFoldersChanged={() => void refreshFolders()}
           onEditSignatures={() => setView("signatures")}
+          onSetupGuide={() => setView("setup")}
           showStatus={showStatus}
         />
         <div className="mail-main">
@@ -253,6 +283,12 @@ export function MailPanel({ user: _user, windowId, windowManager }: WindowConten
               onQuickTrash={handleQuickTrash}
               onQuickToggleRead={handleQuickToggleRead}
               onQuickStar={handleQuickStar}
+              selectedIds={selectedIds}
+              onToggleSelect={handleToggleSelect}
+              onSelectAll={handleSelectAll}
+              onDeselectAll={handleDeselectAll}
+              onBulkAction={handleBulkAction}
+              customFolders={customFolders}
               key={`${folder}-${listRefreshKey}`}
             />
           )}
@@ -286,6 +322,12 @@ export function MailPanel({ user: _user, windowId, windowManager }: WindowConten
               onUpdated={handleSignatureUpdated}
               onClose={handleBack}
               showStatus={showStatus}
+            />
+          )}
+          {view === "setup" && (
+            <SetupGuide
+              addresses={addresses}
+              onClose={handleBack}
             />
           )}
         </div>

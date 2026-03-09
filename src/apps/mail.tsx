@@ -16,6 +16,7 @@ export const app: AppModule = {
       height: 650,
       minWidth: 600,
       minHeight: 400,
+      appName: "mail",
     });
     return { text: "opening your mailbox..." };
   },

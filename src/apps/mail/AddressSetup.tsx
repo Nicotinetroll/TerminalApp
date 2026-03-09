@@ -60,7 +60,7 @@ export function AddressSetup({ onClaimed, showStatus, status }: Props) {
           <span className="mail-setup-domain">@mynig.ga</span>
         </div>
         <button
-          className="admin-btn admin-btn-primary"
+          className="btn btn-primary"
           onClick={() => void handleClaim()}
           disabled={claiming || input.length < 2}
         >

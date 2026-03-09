@@ -22,9 +22,10 @@ const ANIM_NAMES = [
 
 interface Props {
   subtitle?: string;
+  showArtOnMobile?: boolean;
 }
 
-export function LogoHeader({ subtitle }: Props) {
+export function LogoHeader({ subtitle, showArtOnMobile }: Props) {
   const lines = useMemo(() => {
     return LOGO.map((line) =>
       line.split("").map((ch) => {
@@ -40,8 +41,8 @@ export function LogoHeader({ subtitle }: Props) {
   }, []);
 
   return (
-    <div className="logo-header select-none">
-      <div className="logo-art">
+    <div className={`logo-header select-none${showArtOnMobile ? " logo-header-login" : ""}`}>
+      <div className={`logo-art${showArtOnMobile ? " logo-art-login" : ""}`}>
         {lines.map((chars, row) => (
           <div key={row} className="whitespace-pre">
             {chars.map((c, col) => {

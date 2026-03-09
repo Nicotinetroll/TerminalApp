@@ -8,8 +8,11 @@ export interface WindowConfig {
   props?: Record<string, unknown>;
   width?: number;
   height?: number;
+  x?: number;
+  y?: number;
   minWidth?: number;
   minHeight?: number;
+  appName?: string;
 }
 
 export interface WindowContentProps {
@@ -34,6 +37,7 @@ export interface WindowState {
   zIndex: number;
   isMinimized: boolean;
   isMaximized: boolean;
+  appName?: string;
 }
 
 export interface FileSystemNode {

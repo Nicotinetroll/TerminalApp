@@ -15,7 +15,6 @@ const __dirname = dirname(__filename);
 
 const router = Router();
 const DOMAIN = 'mynig.ga';
-const MAX_ADDRESSES = 3;
 const SEND_RATE_LIMIT = 20; // per hour per user
 const ADDRESS_REGEX = /^[a-z0-9._-]{2,32}$/;
 const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024; // 5MB per file
@@ -63,6 +62,14 @@ if (existsSync(dkimKeyPath)) {
 
 // Rate limiting: track sends per user per hour
 const sendCounts = new Map<number, { count: number; resetAt: number }>();
+
+// Cleanup expired entries every 30 min to prevent memory leak
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of sendCounts) {
+    if (now > entry.resetAt) sendCounts.delete(key);
+  }
+}, 30 * 60 * 1000);
 
 function checkSendRate(userId: number): boolean {
   const now = Date.now();
@@ -116,13 +123,18 @@ router.post('/addresses', (req: AuthRequest, res: Response): void => {
     return;
   }
 
-  // Check how many the user already has
+  // Check how many the user already has vs purchased slots
   const count = (db.prepare(
     'SELECT COUNT(*) as cnt FROM email_addresses WHERE user_id = ?'
   ).get(userId) as { cnt: number }).cnt;
 
-  if (count >= MAX_ADDRESSES) {
-    res.status(400).json({ error: `max ${MAX_ADDRESSES} addresses per user. you're not that important.` });
+  const slotsPurchased = (db.prepare(
+    "SELECT COUNT(*) as cnt FROM shop_purchases WHERE user_id = ? AND item_type = 'mail_slot'"
+  ).get(userId) as { cnt: number }).cnt;
+  const maxAddresses = 1 + slotsPurchased; // 1 free + purchased
+
+  if (count >= maxAddresses) {
+    res.status(400).json({ error: "you need more mail slots. hit up the shop, broke boy." });
     return;
   }
 

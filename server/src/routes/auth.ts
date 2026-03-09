@@ -250,19 +250,19 @@ router.post('/invite', authMiddleware, (req: AuthRequest, res: Response): void =
     return;
   }
 
-  const token = crypto.randomBytes(24).toString('hex');
+  const code = `${req.user!.username}-inv-${String(crypto.randomInt(10000, 99999))}`;
   const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString().replace('T', ' ').replace('Z', '').split('.')[0]!;
 
   db.prepare(
     'INSERT INTO invite_links (id, created_by, role, expires_at) VALUES (?, ?, ?, ?)'
-  ).run(token, req.user!.userId, 'user', expiresAt);
+  ).run(code, req.user!.userId, 'user', expiresAt);
 
   res.status(201).json({
     invite: {
-      id: token,
+      id: code,
       role: 'user',
       expires_at: expiresAt,
-      url: `https://mynig.ga/?invite=${token}`,
+      url: `https://mynig.ga/?invite=${code}`,
     },
   });
 });

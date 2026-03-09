@@ -101,7 +101,7 @@ export function ChatLogPanel() {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: "12px", flex: 1, overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-          <button className="admin-btn" onClick={() => setSelectedRoom(null)}>
+          <button className="btn" onClick={() => setSelectedRoom(null)}>
             back
           </button>
           <span style={{ fontSize: "13px", color: "var(--text-muted)" }}>
@@ -111,7 +111,7 @@ export function ChatLogPanel() {
             ({selectedRoom.participants.map((p) => `${p.username} as ${p.anon_handle}`).join(", ")})
           </span>
           <button
-            className="admin-btn"
+            className="btn"
             style={{ fontSize: "11px", padding: "2px 8px", color: "var(--error)", borderColor: "rgba(248,113,113,0.3)", marginLeft: "auto" }}
             onClick={async () => {
               if (!confirm(`nuke all messages in this room?`)) return;
@@ -191,14 +191,14 @@ export function ChatLogPanel() {
                 <td style={{ whiteSpace: "nowrap", fontSize: "11px" }}>{room.created_at}</td>
                 <td style={{ display: "flex", gap: "4px" }}>
                   <button
-                    className="admin-btn"
+                    className="btn"
                     style={{ fontSize: "11px", padding: "2px 8px" }}
                     onClick={() => void handleSelectRoom(room.id)}
                   >
                     view
                   </button>
                   <button
-                    className="admin-btn"
+                    className="btn"
                     style={{ fontSize: "11px", padding: "2px 8px", color: "var(--error)", borderColor: "rgba(248,113,113,0.3)" }}
                     onClick={async () => {
                       if (!confirm(`nuke all ${room.message_count} messages?`)) return;

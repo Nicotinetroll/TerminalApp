@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { sfx } from "./sounds";
 
 interface SnakeGameProps {
   onGameOver: (score: number, metadata?: Record<string, unknown>) => void;
@@ -7,6 +8,14 @@ interface SnakeGameProps {
 
 type Direction = "up" | "down" | "left" | "right";
 type Pos = [number, number];
+
+interface Particle {
+  id: number;
+  row: number;
+  col: number;
+  dx: number;
+  dy: number;
+}
 
 const GRID = 20;
 const INITIAL_SPEED = 200;
@@ -34,14 +43,21 @@ function randomDeathMessage(): string {
   return DEATH_MESSAGES[Math.floor(Math.random() * DEATH_MESSAGES.length)]!;
 }
 
+let particleId = 0;
+let popupId = 0;
+
 export function SnakeGame({ onGameOver, onBack }: SnakeGameProps) {
   const [snake, setSnake] = useState<Pos[]>([[10, 10]]);
   const [food, setFood] = useState<Pos>([5, 5]);
-  const [direction, setDirection] = useState<Direction>("right");
   const [gameOver, setGameOver] = useState(false);
   const [score, setScore] = useState(0);
   const [started, setStarted] = useState(false);
   const [deathMsg, setDeathMsg] = useState("");
+  const [shaking, setShaking] = useState(false);
+  const [particles, setParticles] = useState<Particle[]>([]);
+  const [scoreFlash, setScoreFlash] = useState(false);
+  const [flashing, setFlashing] = useState(false);
+  const [popups, setPopups] = useState<{ id: number; text: string }[]>([]);
 
   const dirRef = useRef<Direction>("right");
   const snakeRef = useRef<Pos[]>([[10, 10]]);
@@ -57,6 +73,23 @@ export function SnakeGame({ onGameOver, onBack }: SnakeGameProps) {
       pos = [Math.floor(Math.random() * GRID), Math.floor(Math.random() * GRID)];
     } while (occupied.has(`${pos[0]},${pos[1]}`));
     return pos;
+  }, []);
+
+  const spawnParticles = useCallback((row: number, col: number) => {
+    const dirs = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+    const newParticles: Particle[] = dirs.map(([dy, dx]) => ({
+      id: particleId++,
+      row, col,
+      dx: dx!,
+      dy: dy!,
+    }));
+    setParticles(newParticles);
+    setTimeout(() => setParticles([]), 500);
+  }, []);
+
+  const triggerShake = useCallback(() => {
+    setShaking(true);
+    setTimeout(() => setShaking(false), 400);
   }, []);
 
   const handleKey = useCallback((e: KeyboardEvent) => {
@@ -90,15 +123,15 @@ export function SnakeGame({ onGameOver, onBack }: SnakeGameProps) {
     return () => window.removeEventListener("keydown", handleKey);
   }, [handleKey]);
 
+  // Game loop: recursive setTimeout — speed adjusts naturally
   useEffect(() => {
     if (!started || gameOver) return;
 
-    const speed = Math.max(MIN_SPEED, INITIAL_SPEED - scoreRef.current * SPEED_STEP);
+    let timeoutId: ReturnType<typeof setTimeout>;
 
-    const timer = setInterval(() => {
+    const tick = () => {
       if (gameOverRef.current) return;
 
-      // Apply queued direction
       if (queuedDir.current) {
         dirRef.current = queuedDir.current;
         queuedDir.current = null;
@@ -121,6 +154,10 @@ export function SnakeGame({ onGameOver, onBack }: SnakeGameProps) {
         gameOverRef.current = true;
         setGameOver(true);
         setDeathMsg(randomDeathMessage());
+        setFlashing(true);
+        setTimeout(() => setFlashing(false), 150);
+        setTimeout(() => triggerShake(), 150);
+        sfx.death();
         onGameOver(scoreRef.current, { cause: "wall", length: currentSnake.length });
         return;
       }
@@ -130,6 +167,10 @@ export function SnakeGame({ onGameOver, onBack }: SnakeGameProps) {
         gameOverRef.current = true;
         setGameOver(true);
         setDeathMsg(randomDeathMessage());
+        setFlashing(true);
+        setTimeout(() => setFlashing(false), 150);
+        setTimeout(() => triggerShake(), 150);
+        sfx.death();
         onGameOver(scoreRef.current, { cause: "self", length: currentSnake.length });
         return;
       }
@@ -141,28 +182,57 @@ export function SnakeGame({ onGameOver, onBack }: SnakeGameProps) {
 
       snakeRef.current = newSnake;
       setSnake([...newSnake]);
-      setDirection(dirRef.current);
 
       if (ate) {
         scoreRef.current += 1;
         setScore(scoreRef.current);
+        spawnParticles(currentFood[0], currentFood[1]);
+        sfx.eat();
+        setScoreFlash(true);
+        setTimeout(() => setScoreFlash(false), 200);
+        const id = popupId++;
+        setPopups(prev => [...prev, { id, text: "+1" }]);
+        setTimeout(() => setPopups(prev => prev.filter(p => p.id !== id)), 600);
         const newFood = spawnFood(newSnake);
         foodRef.current = newFood;
         setFood(newFood);
       }
-    }, speed);
 
-    return () => clearInterval(timer);
-  }, [started, gameOver, score, onGameOver, spawnFood]);
+      const speed = Math.max(MIN_SPEED, INITIAL_SPEED - scoreRef.current * SPEED_STEP);
+      timeoutId = setTimeout(tick, speed);
+    };
+
+    const speed = Math.max(MIN_SPEED, INITIAL_SPEED - scoreRef.current * SPEED_STEP);
+    timeoutId = setTimeout(tick, speed);
+    return () => clearTimeout(timeoutId);
+  }, [started, gameOver, onGameOver, spawnFood, spawnParticles, triggerShake]);
 
   const speed = Math.max(MIN_SPEED, INITIAL_SPEED - score * SPEED_STEP);
 
+  // Precompute segment distances for glow trail
+  const segmentMap = new Map<string, number>();
+  snake.forEach(([r, c], i) => {
+    segmentMap.set(`${r},${c}`, i);
+  });
+
+  const intensity = (INITIAL_SPEED - speed) / (INITIAL_SPEED - MIN_SPEED);
+  const isRainbow = score >= 15;
+
   return (
-    <div className="games-container">
+    <div
+      className={`games-container${shaking ? " games-shake" : ""}`}
+      style={{ "--intensity": intensity } as React.CSSProperties}
+    >
+      {flashing && <div className="games-death-flash" />}
       <div className="games-hud">
         <button className="games-back-btn" onClick={onBack}>&lt; back</button>
         <span className="games-hud-title">SNAKE</span>
-        <span className="games-hud-score">score: {score}</span>
+        <span className={`games-hud-score${scoreFlash ? " games-score-flash" : ""}`}>
+          score: {score}
+          {popups.map(p => (
+            <span key={p.id} className="games-score-popup">{p.text}</span>
+          ))}
+        </span>
         <span className="games-hud-info">speed: {Math.round((1000 / speed) * 10) / 10}/s</span>
       </div>
 
@@ -181,21 +251,36 @@ export function SnakeGame({ onGameOver, onBack }: SnakeGameProps) {
         </div>
       )}
 
-      <div className="snake-grid">
+      <div className={`snake-grid${isRainbow ? " snake-rainbow" : ""}`}>
         {Array.from({ length: GRID }, (_, r) => (
           <div key={r} className="snake-row">
             {Array.from({ length: GRID }, (_, c) => {
               const isHead = snake[0]?.[0] === r && snake[0]?.[1] === c;
-              const isBody = !isHead && snake.some(([sr, sc]) => sr === r && sc === c);
+              const segIdx = segmentMap.get(`${r},${c}`);
+              const isBody = segIdx !== undefined && segIdx > 0;
               const isFood = food[0] === r && food[1] === c;
               return (
                 <div
                   key={c}
                   className={`snake-cell${isHead ? " snake-head" : ""}${isBody ? " snake-body" : ""}${isFood ? " snake-food" : ""}`}
+                  data-segment={isBody ? Math.min(segIdx, 5) : undefined}
+                  style={isBody && isRainbow ? { "--hue": segIdx * 30 } as React.CSSProperties : undefined}
                 />
               );
             })}
           </div>
+        ))}
+        {particles.map(p => (
+          <div
+            key={p.id}
+            className="snake-particle"
+            style={{
+              left: `${p.col * 22 + 11}px`,
+              top: `${p.row * 22 + 11}px`,
+              ["--dx" as string]: p.dx,
+              ["--dy" as string]: p.dy,
+            }}
+          />
         ))}
       </div>
     </div>

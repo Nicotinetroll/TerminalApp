@@ -13,6 +13,9 @@ interface Props {
   onMaximize: (id: string) => void;
   onMove: (id: string, x: number, y: number) => void;
   onResize: (id: string, w: number, h: number) => void;
+  onLayoutChange?: (id: string) => void;
+  autoOpenApps?: string[];
+  onToggleAutoOpen?: (appName: string) => void;
 }
 
 type ResizeDir = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
@@ -39,6 +42,9 @@ export function Window({
   onMaximize,
   onMove,
   onResize,
+  onLayoutChange,
+  autoOpenApps,
+  onToggleAutoOpen,
 }: Props) {
   const dragRef = useRef<{ startX: number; startY: number; winX: number; winY: number } | null>(null);
   const resizeRef = useRef<{
@@ -89,12 +95,13 @@ export function Window({
         dragRef.current = null;
         document.removeEventListener("mousemove", handleMouseMove);
         document.removeEventListener("mouseup", handleMouseUp);
+        onLayoutChange?.(win.id);
       };
 
       document.addEventListener("mousemove", handleMouseMove);
       document.addEventListener("mouseup", handleMouseUp);
     },
-    [win.id, win.x, win.y, onFocus, onMove]
+    [win.id, win.x, win.y, onFocus, onMove, onLayoutChange]
   );
 
   const handleResizeStart = useCallback(
@@ -153,12 +160,13 @@ export function Window({
         resizeRef.current = null;
         document.removeEventListener("mousemove", handleMouseMove);
         document.removeEventListener("mouseup", handleMouseUp);
+        onLayoutChange?.(win.id);
       };
 
       document.addEventListener("mousemove", handleMouseMove);
       document.addEventListener("mouseup", handleMouseUp);
     },
-    [win.id, win.x, win.y, win.width, win.height, win.minWidth, win.minHeight, onFocus, onMove, onResize]
+    [win.id, win.x, win.y, win.width, win.height, win.minWidth, win.minHeight, onFocus, onMove, onResize, onLayoutChange]
   );
 
   if (win.isMinimized) return null;
@@ -186,6 +194,20 @@ export function Window({
       <div className="window-titlebar" onMouseDown={handleDragStart}>
         <span className="window-title">{win.title}</span>
         <div className="window-controls">
+          {win.appName && onToggleAutoOpen && (
+            <label
+              className="window-auto-open"
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <input
+                type="checkbox"
+                checked={autoOpenApps?.includes(win.appName) ?? false}
+                onChange={() => onToggleAutoOpen(win.appName!)}
+              />
+              <span>auto-open</span>
+            </label>
+          )}
           <button
             className="window-btn"
             onClick={() => onMinimize(win.id)}

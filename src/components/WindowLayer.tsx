@@ -5,9 +5,12 @@ import { Window } from "./Window";
 interface Props {
   windowManager: WindowManager;
   user: User;
+  autoOpenApps?: string[];
+  onToggleAutoOpen?: (appName: string) => void;
+  onLayoutChange?: (id: string) => void;
 }
 
-export function WindowLayer({ windowManager, user }: Props) {
+export function WindowLayer({ windowManager, user, autoOpenApps, onToggleAutoOpen, onLayoutChange }: Props) {
   const { windows, closeWindow, focusWindow, minimizeWindow, maximizeWindow, updateWindowPosition, updateWindowSize } =
     windowManager;
 
@@ -31,6 +34,9 @@ export function WindowLayer({ windowManager, user }: Props) {
           onMaximize={maximizeWindow}
           onMove={updateWindowPosition}
           onResize={updateWindowSize}
+          onLayoutChange={onLayoutChange}
+          autoOpenApps={autoOpenApps}
+          onToggleAutoOpen={onToggleAutoOpen}
         />
       ))}
     </div>

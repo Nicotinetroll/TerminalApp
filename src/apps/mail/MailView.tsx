@@ -207,27 +207,32 @@ export function MailView({ emailId, onBack, onReply, onForward, onDelete, showSt
   return (
     <div className="mail-view">
       <div className="mail-view-header">
-        <button className="mail-view-back" onClick={onBack}>&lt; back</button>
+        <button className="mail-view-back" onClick={onBack}>← back</button>
         <div className="mail-view-actions">
-          <button className="admin-btn" onClick={() => void handleToggleStar()} title="star (s)">
+          <button className="mail-view-action-btn" onClick={handleReply} title="reply (r)">↩ reply</button>
+          <button className="mail-view-action-btn" onClick={handleForward} title="forward (f)">→ fwd</button>
+          <button className="mail-view-action-btn" onClick={() => void handleToggleStar()} title="star (s)">
             {email.is_starred ? "★" : "☆"}
           </button>
-          <button className="admin-btn" onClick={handleReply} title="reply (r)">reply</button>
-          <button className="admin-btn" onClick={handleForward} title="forward (f)">fwd</button>
-          <button className="admin-btn" onClick={() => void handleMarkUnread()} title="mark unread (u)">mark unread</button>
-          <button className="admin-btn admin-btn-danger" onClick={() => void handleTrash()} title="trash (t)">
+          <button className="mail-view-action-btn" onClick={() => void handleMarkUnread()} title="mark unread (u)">○ unread</button>
+          <button className="mail-view-action-btn mail-view-action-danger" onClick={() => void handleTrash()} title="trash (t)">
             {email.folder === "trash"
-              ? (confirmDelete ? "confirm delete?" : "delete forever")
-              : "trash"}
+              ? (confirmDelete ? "confirm?" : "✕ delete")
+              : "✕ trash"}
           </button>
         </div>
       </div>
 
       <div className="mail-view-meta">
         <h2 className="mail-view-subject">{email.subject}</h2>
-        <div className="mail-view-info">
-          <span className="mail-view-from">from: {email.from_address}</span>
-          <span className="mail-view-to">to: {email.to_address}</span>
+        <div className="mail-view-sender-row">
+          <div className="mail-sender-avatar">
+            {email.from_address[0]?.toUpperCase() ?? "?"}
+          </div>
+          <div className="mail-view-info">
+            <span className="mail-view-from">{email.from_address}</span>
+            <span className="mail-view-to">to {email.to_address}</span>
+          </div>
           <span className="mail-view-date">{formatFullDate(email.created_at)}</span>
         </div>
       </div>

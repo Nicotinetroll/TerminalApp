@@ -33,10 +33,17 @@ export function useWindowManager(): WindowManager {
 
       const width = config.width ?? 700;
       const height = config.height ?? 500;
-      const offsetX = (Math.random() - 0.5) * 40;
-      const offsetY = (Math.random() - 0.5) * 40;
-      const x = Math.round((window.innerWidth - width) / 2 + offsetX);
-      const y = Math.round((window.innerHeight - height) / 2 + offsetY);
+      let x: number;
+      let y: number;
+      if (config.x != null && config.y != null) {
+        x = config.x;
+        y = config.y;
+      } else {
+        const offsetX = (Math.random() - 0.5) * 40;
+        const offsetY = (Math.random() - 0.5) * 40;
+        x = Math.round((window.innerWidth - width) / 2 + offsetX);
+        y = Math.round((window.innerHeight - height) / 2 + offsetY);
+      }
 
       zCounter.current += 1;
 
@@ -54,6 +61,7 @@ export function useWindowManager(): WindowManager {
         zIndex: zCounter.current,
         isMinimized: false,
         isMaximized: false,
+        appName: config.appName,
       };
 
       return [...prev, state];

@@ -122,6 +122,8 @@ router.put('/users/:id', (req: AuthRequest, res: Response): void => {
       values.push(bcrypt.hashSync(password, 10));
     }
     if (role) {
+      const validRoles = ['admin', 'user', 'guest'];
+      if (!validRoles.includes(role)) { res.status(400).json({ error: 'invalid role.' }); return; }
       updates.push('role = ?');
       values.push(role);
     }
@@ -205,19 +207,19 @@ router.post('/invites', (req: AuthRequest, res: Response): void => {
   const validRoles = ['admin', 'user', 'guest'];
   const role = validRoles.includes(req.body.role) ? req.body.role : 'user';
 
-  const token = crypto.randomBytes(24).toString('hex');
+  const code = `${req.user!.username}-inv-${String(crypto.randomInt(10000, 99999))}`;
   const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString().replace('T', ' ').replace('Z', '').split('.')[0]!;
 
   db.prepare(
     'INSERT INTO invite_links (id, created_by, role, expires_at) VALUES (?, ?, ?, ?)'
-  ).run(token, req.user!.userId, role, expiresAt);
+  ).run(code, req.user!.userId, role, expiresAt);
 
   res.status(201).json({
     invite: {
-      id: token,
+      id: code,
       role,
       expires_at: expiresAt,
-      url: `https://mynig.ga/?invite=${token}`,
+      url: `https://mynig.ga/?invite=${code}`,
     },
   });
 });

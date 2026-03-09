@@ -7,6 +7,7 @@ export function useMailNotifications() {
   useEffect(() => {
     // Dynamic import to avoid circular deps — socket may not be connected
     let cleanup: (() => void) | null = null;
+    let unmounted = false;
 
     import("@/lib/socket").then(({ getSocketIfConnected }) => {
       const socket = getSocketIfConnected();
@@ -22,9 +23,13 @@ export function useMailNotifications() {
 
       socket.on("mail:new", handler);
       cleanup = () => socket.off("mail:new", handler);
+
+      // If already unmounted by the time promise resolves, clean up immediately
+      if (unmounted) cleanup();
     }).catch(() => { /* no socket */ });
 
     return () => {
+      unmounted = true;
       if (cleanup) cleanup();
     };
   }, [playMailSound, showBrowserNotification]);

@@ -101,7 +101,7 @@ export function MailReviewPanel() {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: "12px", flex: 1, overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-          <button className="admin-btn" onClick={() => { setSelectedUser(null); setEmails([]); setExpandedId(null); setExpandedEmail(null); }}>
+          <button className="btn" onClick={() => { setSelectedUser(null); setEmails([]); setExpandedId(null); setExpandedEmail(null); }}>
             back
           </button>
           <span style={{ fontSize: "13px", color: "var(--text-muted)" }}>
@@ -165,7 +165,7 @@ export function MailReviewPanel() {
                       <td style={{ textAlign: "center", fontSize: "11px" }}>{email.is_read ? "yes" : "no"}</td>
                       <td>
                         <button
-                          className="admin-btn"
+                          className="btn"
                           style={{ fontSize: "11px", padding: "2px 8px", color: "var(--error)", borderColor: "rgba(248,113,113,0.3)" }}
                           onClick={(e) => { e.stopPropagation(); void handleDeleteEmail(email.id); }}
                         >
@@ -228,14 +228,14 @@ export function MailReviewPanel() {
                 <td style={{ whiteSpace: "nowrap", fontSize: "11px" }}>{addr.created_at}</td>
                 <td style={{ display: "flex", gap: "4px" }}>
                   <button
-                    className="admin-btn"
+                    className="btn"
                     style={{ fontSize: "11px", padding: "2px 8px" }}
                     onClick={() => void handleView(addr.user_id, addr.username, addr.address)}
                   >
                     view
                   </button>
                   <button
-                    className="admin-btn"
+                    className="btn"
                     style={{ fontSize: "11px", padding: "2px 8px", color: "var(--error)", borderColor: "rgba(248,113,113,0.3)" }}
                     onClick={() => void handleDeleteAddress(addr.id, addr.address)}
                   >

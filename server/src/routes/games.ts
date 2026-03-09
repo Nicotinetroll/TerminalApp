@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import db from '../db.js';
 import { authMiddleware, AuthRequest } from '../middleware.js';
+import { broadcastEvent } from '../socket.js';
 
 const router = Router();
 
@@ -129,6 +130,11 @@ router.post('/scores', authMiddleware, (req: AuthRequest, res: Response): void =
 
   if (easter_egg) {
     response.easter_egg = easter_egg;
+  }
+
+  // Broadcast new #1 record
+  if (rank === 1) {
+    broadcastEvent({ type: 'record', message: `🏆 new all-time record in ${game}! someone is built different.` });
   }
 
   // Bonus roasts based on rank

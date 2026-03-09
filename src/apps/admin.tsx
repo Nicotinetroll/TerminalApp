@@ -14,6 +14,7 @@ export const app: AppModule = {
       component: AdminPanel,
       width: 800,
       height: 550,
+      appName: "admin",
     });
     return { text: "admin panel opened. don't break shit." };
   },

@@ -10,8 +10,40 @@ import { MailReviewPanel } from "./MailReviewPanel";
 import { SettingsPanel } from "./SettingsPanel";
 import { CodePanel } from "./CodePanel";
 import { AiLogPanel } from "./AiLogPanel";
+import { CasinoAdminPanel } from "./CasinoAdminPanel";
+import { NigditAdminPanel } from "./NigditAdminPanel";
 
-type View = "list" | "create" | "edit" | "invites" | "chats" | "emails" | "settings" | "codes" | "ai-logs";
+type View = "list" | "create" | "edit" | "invites" | "chats" | "emails" | "settings" | "codes" | "ai-logs" | "casino" | "nigdit";
+
+const NAV: { view: View; label: string }[] = [
+  { view: "list",     label: "users" },
+  { view: "casino",   label: "casino" },
+  { view: "nigdit",   label: "nigdit" },
+  { view: "invites",  label: "invites" },
+  { view: "codes",    label: "codes" },
+  { view: "chats",    label: "whispers" },
+  { view: "emails",   label: "mail" },
+  { view: "ai-logs",  label: "ai logs" },
+  { view: "settings", label: "config" },
+];
+
+const VIEW_TITLES: Record<View, string> = {
+  list: "users",
+  create: "create user",
+  edit: "edit user",
+  invites: "invite links",
+  codes: "access codes",
+  chats: "chat logs",
+  emails: "mail mgmt",
+  settings: "global settings",
+  "ai-logs": "nigga AI logs",
+  casino: "casino admin",
+  nigdit: "nigdit admin",
+};
+
+function sidebarView(v: View): View {
+  return v === "create" || v === "edit" ? "list" : v;
+}
 
 export function AdminPanel({ user }: WindowContentProps) {
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -105,131 +137,98 @@ export function AdminPanel({ user }: WindowContentProps) {
     setView("edit");
   }, []);
 
+  const activeNav = sidebarView(view);
+  const title = view === "edit" ? `edit: ${editingUser?.username ?? ""}` : VIEW_TITLES[view];
+
   return (
     <div className="admin-panel">
-      <div className="admin-header">
-        <h2>
-          {view === "list" && "users"}
-          {view === "create" && "create user"}
-          {view === "edit" && `edit: ${editingUser?.username ?? ""}`}
-          {view === "invites" && "invite links"}
-          {view === "codes" && "access codes"}
-          {view === "chats" && "chat logs"}
-          {view === "emails" && "mail mgmt"}
-          {view === "settings" && "global settings"}
-          {view === "ai-logs" && "nigga AI logs"}
-        </h2>
-        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          {status && (
-            <span className={`admin-status${status.isError ? " error" : ""}`}>
-              {status.text}
-            </span>
-          )}
+      <nav className="admin-sidebar">
+        {NAV.map(item => (
+          <button
+            key={item.view}
+            className={`admin-nav-item${activeNav === item.view ? " admin-nav-active" : ""}`}
+            onClick={() => {
+              setView(item.view);
+              if (item.view !== "list") setEditingUser(null);
+            }}
+          >
+            <span className="admin-nav-label">{item.label}</span>
+          </button>
+        ))}
+        <div className="admin-nav-spacer" />
+        <button
+          className="admin-nav-item admin-nav-create"
+          onClick={() => setView("create")}
+        >
+          <span className="admin-nav-label">+ new</span>
+        </button>
+      </nav>
+
+      <div className="admin-content">
+        <div className="admin-content-header">
+          <h2>{title}</h2>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            {(view === "create" || view === "edit") && (
+              <button className="btn" onClick={() => { setView("list"); setEditingUser(null); }}>
+                ← users
+              </button>
+            )}
+            {status && (
+              <span className={`admin-status${status.isError ? " error" : ""}`}>
+                {status.text}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="admin-content-body">
           {view === "list" && (
-            <>
-              <button className="admin-btn" onClick={() => setView("settings")}>
-                settings
-              </button>
-              <button className="admin-btn" onClick={() => setView("emails")}>
-                mail
-              </button>
-              <button className="admin-btn" onClick={() => setView("ai-logs")}>
-                nigga logs
-              </button>
-              <button className="admin-btn" onClick={() => setView("chats")}>
-                whispers
-              </button>
-              <button className="admin-btn" onClick={() => setView("codes")}>
-                codes
-              </button>
-              <button className="admin-btn" onClick={() => setView("invites")}>
-                invite links
-              </button>
-              <button className="admin-btn admin-btn-primary" onClick={() => setView("create")}>
-                + new user
-              </button>
-            </>
+            <UserTable
+              users={users}
+              loading={loading}
+              currentUsername={user.username}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              onStatus={showStatus}
+            />
           )}
-          {view === "invites" && (
-            <button className="admin-btn" onClick={() => setView("list")}>
-              back to users
-            </button>
+
+          {view === "create" && (
+            <UserForm
+              mode="create"
+              onSubmit={(username, password, role) => void handleCreate(username, password, role)}
+              onCancel={() => setView("list")}
+            />
           )}
-          {view === "codes" && (
-            <button className="admin-btn" onClick={() => setView("list")}>
-              back to users
-            </button>
+
+          {view === "edit" && editingUser && (
+            <UserForm
+              mode="edit"
+              initialUser={editingUser}
+              onSubmit={(username, password, role) => {
+                const updates: { username?: string; password?: string; role?: string } = {};
+                if (username !== editingUser.username) updates.username = username;
+                if (password) updates.password = password;
+                if (role !== editingUser.role) updates.role = role;
+                void handleUpdate(editingUser.id, updates);
+              }}
+              onCancel={() => {
+                setView("list");
+                setEditingUser(null);
+              }}
+            />
           )}
-          {view === "ai-logs" && (
-            <button className="admin-btn" onClick={() => setView("list")}>
-              back to users
-            </button>
-          )}
-          {view === "chats" && (
-            <button className="admin-btn" onClick={() => setView("list")}>
-              back to users
-            </button>
-          )}
-          {view === "emails" && (
-            <button className="admin-btn" onClick={() => setView("list")}>
-              back to users
-            </button>
-          )}
-          {view === "settings" && (
-            <button className="admin-btn" onClick={() => setView("list")}>
-              back to users
-            </button>
-          )}
+
+          {view === "invites" && <InvitePanel />}
+          {view === "codes" && <CodePanel />}
+          {view === "ai-logs" && <AiLogPanel />}
+          {view === "chats" && <ChatLogPanel />}
+          {view === "emails" && <MailReviewPanel />}
+          {view === "settings" && <SettingsPanel />}
+          {view === "casino" && <CasinoAdminPanel />}
+          {view === "nigdit" && <NigditAdminPanel />}
         </div>
       </div>
-
-      {view === "list" && (
-        <UserTable
-          users={users}
-          loading={loading}
-          currentUsername={user.username}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-        />
-      )}
-
-      {view === "create" && (
-        <UserForm
-          mode="create"
-          onSubmit={(username, password, role) => void handleCreate(username, password, role)}
-          onCancel={() => setView("list")}
-        />
-      )}
-
-      {view === "edit" && editingUser && (
-        <UserForm
-          mode="edit"
-          initialUser={editingUser}
-          onSubmit={(username, password, role) => {
-            const updates: { username?: string; password?: string; role?: string } = {};
-            if (username !== editingUser.username) updates.username = username;
-            if (password) updates.password = password;
-            if (role !== editingUser.role) updates.role = role;
-            void handleUpdate(editingUser.id, updates);
-          }}
-          onCancel={() => {
-            setView("list");
-            setEditingUser(null);
-          }}
-        />
-      )}
-
-      {view === "invites" && <InvitePanel />}
-
-      {view === "codes" && <CodePanel />}
-
-      {view === "ai-logs" && <AiLogPanel />}
-
-      {view === "chats" && <ChatLogPanel />}
-
-      {view === "emails" && <MailReviewPanel />}
-
-      {view === "settings" && <SettingsPanel />}
     </div>
   );
 }

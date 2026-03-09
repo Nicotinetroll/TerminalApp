@@ -1,8 +1,12 @@
 import type { Server as HttpServer } from 'http';
+import type Database from 'better-sqlite3';
 import { Server } from 'socket.io';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import db from './db.js';
+
+// Properly typed statement that accepts variadic binding params
+type Stmt = Database.Statement<unknown[]>;
 
 const LOBBY_ID = 'open';
 const RATE_LIMIT_WINDOW = 5000;
@@ -65,32 +69,32 @@ try {
 // ── Prepared statements (lazy-init to avoid race with ALTER TABLE migrations) ──
 
 let _stmtsReady = false;
-let stmtInsertRoom: ReturnType<typeof db.prepare>;
-let stmtInsertParticipant: ReturnType<typeof db.prepare>;
-let stmtUpdateHandle: ReturnType<typeof db.prepare>;
-let stmtGetParticipantWithTimestamp: ReturnType<typeof db.prepare>;
-let stmtGetParticipant: ReturnType<typeof db.prepare>;
-let stmtGetRoomParticipants: ReturnType<typeof db.prepare>;
-let stmtInsertMessage: ReturnType<typeof db.prepare>;
-let stmtGetMessages: ReturnType<typeof db.prepare>;
-let stmtGetMessageById: ReturnType<typeof db.prepare>;
-let stmtGetUserRooms: ReturnType<typeof db.prepare>;
-let stmtGetLastMessage: ReturnType<typeof db.prepare>;
-let stmtRoomExists: ReturnType<typeof db.prepare>;
-let stmtCleanupMessages: ReturnType<typeof db.prepare>;
-let stmtCleanupEmptyRooms: ReturnType<typeof db.prepare>;
-let stmtUpsertReaction: ReturnType<typeof db.prepare>;
-let stmtRemoveReaction: ReturnType<typeof db.prepare>;
-let stmtGetReactions: ReturnType<typeof db.prepare>;
-let stmtGetUserReaction: ReturnType<typeof db.prepare>;
-let stmtGetMessageReactionsForRoom: ReturnType<typeof db.prepare>;
-let stmtGetUserReactionsForRoom: ReturnType<typeof db.prepare>;
-let stmtGetMessageRoom: ReturnType<typeof db.prepare>;
-let stmtInsertDmRequest: ReturnType<typeof db.prepare>;
-let stmtGetPendingRequests: ReturnType<typeof db.prepare>;
-let stmtGetRequest: ReturnType<typeof db.prepare>;
-let stmtUpdateRequestStatus: ReturnType<typeof db.prepare>;
-let stmtCheckExistingRequest: ReturnType<typeof db.prepare>;
+let stmtInsertRoom: Stmt;
+let stmtInsertParticipant: Stmt;
+let stmtUpdateHandle: Stmt;
+let stmtGetParticipantWithTimestamp: Stmt;
+let stmtGetParticipant: Stmt;
+let stmtGetRoomParticipants: Stmt;
+let stmtInsertMessage: Stmt;
+let stmtGetMessages: Stmt;
+let stmtGetMessageById: Stmt;
+let stmtGetUserRooms: Stmt;
+let stmtGetLastMessage: Stmt;
+let stmtRoomExists: Stmt;
+let stmtCleanupMessages: Stmt;
+let stmtCleanupEmptyRooms: Stmt;
+let stmtUpsertReaction: Stmt;
+let stmtRemoveReaction: Stmt;
+let stmtGetReactions: Stmt;
+let stmtGetUserReaction: Stmt;
+let stmtGetMessageReactionsForRoom: Stmt;
+let stmtGetUserReactionsForRoom: Stmt;
+let stmtGetMessageRoom: Stmt;
+let stmtInsertDmRequest: Stmt;
+let stmtGetPendingRequests: Stmt;
+let stmtGetRequest: Stmt;
+let stmtUpdateRequestStatus: Stmt;
+let stmtCheckExistingRequest: Stmt;
 
 function initStatements(): void {
   if (_stmtsReady) return;
@@ -280,6 +284,21 @@ let ioInstance: Server | null = null;
 
 export function getIO(): Server | null {
   return ioInstance;
+}
+
+export function getOnlineUsers(): { username: string; role: string }[] {
+  const seen = new Map<number, { username: string; role: string }>();
+  for (const u of onlineUsers.values()) {
+    if (!seen.has(u.userId)) {
+      seen.set(u.userId, { username: u.username, role: u.role });
+    }
+  }
+  return Array.from(seen.values());
+}
+
+export function broadcastEvent(data: { type: string; message: string }): void {
+  if (!ioInstance) return;
+  ioInstance.emit('global:event', data);
 }
 
 export function emitToUser(userId: number, event: string, data: unknown): void {

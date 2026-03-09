@@ -154,6 +154,7 @@ export function useTerminal(user: User, userId: string | null, onLogout: () => v
     isProcessing,
     execute,
     clearHistory,
+    print,
     fs: fsRef.current,
     cmdHistoryRef,
     windowManager,

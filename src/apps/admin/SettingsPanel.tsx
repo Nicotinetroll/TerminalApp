@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useGlobalSettings } from "@/hooks/useGlobalSettings";
 
 const SOUND_OPTIONS = [
@@ -6,6 +6,11 @@ const SOUND_OPTIONS = [
   { value: "blip", label: "blip" },
   { value: "knock", label: "knock" },
   { value: "none", label: "none (silent)" },
+];
+
+const ALL_SHORTCUT_APPS = [
+  "mail", "whisper", "cloud", "nigdit", "memes", "paste", "profile", "games",
+  "slots", "coinflip", "ascii", "admin", "stats",
 ];
 
 export function SettingsPanel() {
@@ -110,6 +115,14 @@ export function SettingsPanel() {
           onChange={(v) => void handleNumber("handle_refresh_hours", v)}
         />
       </div>
+
+      <ShortcutBarSection
+        settings={settings}
+        updateSetting={updateSetting}
+        saving={saving}
+        setSaving={setSaving}
+        showStatus={showStatus}
+      />
     </div>
   );
 }
@@ -128,7 +141,7 @@ function ToggleRow({ label, sublabel, enabled, saving, onToggle }: {
         {sublabel && <div style={{ fontSize: 11, color: "var(--text-ghost)", marginTop: 2 }}>{sublabel}</div>}
       </div>
       <button
-        className="admin-btn"
+        className="btn"
         onClick={onToggle}
         disabled={saving}
         style={{
@@ -169,6 +182,119 @@ function SelectRow({ label, value, options, saving, onChange }: {
   );
 }
 
+function ShortcutBarSection({ settings, updateSetting, saving, setSaving, showStatus }: {
+  settings: Record<string, string>;
+  updateSetting: (key: string, value: string) => Promise<void>;
+  saving: string | null;
+  setSaving: (s: string | null) => void;
+  showStatus: (text: string) => void;
+}) {
+  const currentApps = useMemo(() => {
+    try {
+      const raw = settings["shortcut_apps"];
+      return raw ? JSON.parse(raw) as string[] : [];
+    } catch {
+      return [];
+    }
+  }, [settings]);
+
+  const save = async (next: string[]) => {
+    setSaving("shortcut_apps");
+    await updateSetting("shortcut_apps", JSON.stringify(next));
+    setSaving(null);
+    showStatus("shortcut bar updated");
+  };
+
+  const handleToggle = async (appName: string) => {
+    const next = currentApps.includes(appName)
+      ? currentApps.filter((a: string) => a !== appName)
+      : [...currentApps, appName];
+    await save(next);
+  };
+
+  const handleMove = async (appName: string, dir: -1 | 1) => {
+    const idx = currentApps.indexOf(appName);
+    if (idx < 0) return;
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= currentApps.length) return;
+    const next = [...currentApps];
+    next.splice(idx, 1);
+    next.splice(newIdx, 0, appName);
+    await save(next);
+  };
+
+  // Show enabled apps first (in their order), then disabled apps
+  const enabledApps = currentApps.filter((a: string) => ALL_SHORTCUT_APPS.includes(a));
+  const disabledApps = ALL_SHORTCUT_APPS.filter((a) => !currentApps.includes(a));
+
+  return (
+    <div style={{ marginTop: 24 }}>
+      <div style={{ fontSize: 12, color: "var(--text-ghost)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
+        shortcut bar
+      </div>
+      <div style={{ fontSize: 11, color: "var(--text-ghost)", marginBottom: 10 }}>
+        apps shown in the desktop shortcut bar. use arrows to reorder.
+      </div>
+
+      {/* Enabled apps — shown in order with move buttons */}
+      {enabledApps.length > 0 && (
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ fontSize: 10, color: "var(--text-ghost)", textTransform: "uppercase", marginBottom: 4 }}>active</div>
+          {enabledApps.map((appName, idx) => (
+            <div key={appName} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid var(--border-subtle)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                  <button
+                    className="btn"
+                    onClick={() => void handleMove(appName, -1)}
+                    disabled={saving === "shortcut_apps" || idx === 0}
+                    style={{ padding: "0 4px", fontSize: 9, lineHeight: 1, border: "none", color: idx === 0 ? "var(--text-ghost)" : "var(--text-muted)" }}
+                  >▲</button>
+                  <button
+                    className="btn"
+                    onClick={() => void handleMove(appName, 1)}
+                    disabled={saving === "shortcut_apps" || idx === enabledApps.length - 1}
+                    style={{ padding: "0 4px", fontSize: 9, lineHeight: 1, border: "none", color: idx === enabledApps.length - 1 ? "var(--text-ghost)" : "var(--text-muted)" }}
+                  >▼</button>
+                </div>
+                <span style={{ fontSize: 13, color: "var(--text-primary)" }}>{appName}</span>
+              </div>
+              <button
+                className="btn"
+                onClick={() => void handleToggle(appName)}
+                disabled={saving === "shortcut_apps"}
+                style={{ minWidth: 50, fontSize: 11, padding: "2px 8px", background: "var(--accent-soft)", color: "var(--accent)", borderColor: "var(--accent-mid)" }}
+              >
+                {saving === "shortcut_apps" ? "..." : "on"}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Disabled apps */}
+      {disabledApps.length > 0 && (
+        <div>
+          <div style={{ fontSize: 10, color: "var(--text-ghost)", textTransform: "uppercase", marginBottom: 4, marginTop: 8 }}>available</div>
+          {disabledApps.map((appName) => (
+            <div key={appName} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid var(--border-subtle)" }}>
+              <span style={{ fontSize: 13, color: "var(--text-muted)", marginLeft: 28 }}>{appName}</span>
+              <button
+                className="btn"
+                onClick={() => void handleToggle(appName)}
+                disabled={saving === "shortcut_apps"}
+                style={{ minWidth: 50, fontSize: 11, padding: "2px 8px" }}
+              >
+                {saving === "shortcut_apps" ? "..." : "off"}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function NumberRow({ label, sublabel, value, saving, onChange }: {
   label: string;
   sublabel?: string;
@@ -196,7 +322,7 @@ function NumberRow({ label, sublabel, value, saving, onChange }: {
           style={{ width: 80, textAlign: "center" }}
         />
         <button
-          className="admin-btn admin-btn-primary"
+          className="btn btn-primary"
           onClick={() => onChange(local)}
           disabled={saving || local === value}
           style={{ padding: "4px 10px" }}

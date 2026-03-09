@@ -46,9 +46,13 @@ router.put('/filesystem', (req: AuthRequest, res: Response): void => {
 
   const serialized = JSON.stringify(filesystem);
 
-  // Role-based storage limit
+  // Role-based storage limit (factoring in slots bonus/deficit)
   const role = req.user!.role;
-  const limit = STORAGE_LIMITS[role] ?? STORAGE_LIMITS['guest']!;
+  const baseLimit = STORAGE_LIMITS[role] ?? STORAGE_LIMITS['guest']!;
+  const slotsRow = db.prepare('SELECT bonus_bytes FROM slots_balance WHERE user_id = ?').get(userId) as
+    | { bonus_bytes: number } | undefined;
+  const bonusBytes = slotsRow?.bonus_bytes ?? 0;
+  const limit = baseLimit === 0 ? 0 : Math.max(0, baseLimit + bonusBytes);
   const sizeBytes = Buffer.byteLength(serialized, 'utf8');
 
   if (limit > 0 && sizeBytes > limit) {
@@ -80,12 +84,12 @@ router.put('/filesystem', (req: AuthRequest, res: Response): void => {
 router.get('/settings', (req: AuthRequest, res: Response): void => {
   const userId = req.user!.userId;
 
-  const row = db.prepare('SELECT theme_name, command_history FROM user_settings WHERE user_id = ?').get(userId) as
-    | { theme_name: string; command_history: string }
+  const row = db.prepare('SELECT theme_name, command_history, auto_open_apps, window_layouts FROM user_settings WHERE user_id = ?').get(userId) as
+    | { theme_name: string; command_history: string; auto_open_apps: string; window_layouts: string }
     | undefined;
 
   if (!row) {
-    res.json({ theme_name: 'claude', command_history: [] });
+    res.json({ theme_name: 'claude', command_history: [], auto_open_apps: [], window_layouts: {} });
     return;
   }
 
@@ -96,35 +100,59 @@ router.get('/settings', (req: AuthRequest, res: Response): void => {
     commandHistory = [];
   }
 
+  let autoOpenApps: unknown[];
+  try {
+    autoOpenApps = JSON.parse(row.auto_open_apps);
+  } catch {
+    autoOpenApps = [];
+  }
+
+  let windowLayouts: unknown;
+  try {
+    windowLayouts = JSON.parse(row.window_layouts);
+  } catch {
+    windowLayouts = {};
+  }
+
   res.json({
     theme_name: row.theme_name,
     command_history: commandHistory,
+    auto_open_apps: autoOpenApps,
+    window_layouts: windowLayouts,
   });
 });
 
 // PUT /api/sync/settings
 router.put('/settings', (req: AuthRequest, res: Response): void => {
   const userId = req.user!.userId;
-  const { theme_name, command_history } = req.body;
+  const { theme_name, command_history, auto_open_apps, window_layouts } = req.body;
 
   // Get current settings or defaults
-  const existing = db.prepare('SELECT theme_name, command_history FROM user_settings WHERE user_id = ?').get(userId) as
-    | { theme_name: string; command_history: string }
+  const existing = db.prepare('SELECT theme_name, command_history, auto_open_apps, window_layouts FROM user_settings WHERE user_id = ?').get(userId) as
+    | { theme_name: string; command_history: string; auto_open_apps: string; window_layouts: string }
     | undefined;
 
   const newThemeName = theme_name ?? existing?.theme_name ?? 'claude';
   const newCommandHistory = command_history !== undefined
     ? JSON.stringify(command_history)
     : existing?.command_history ?? '[]';
+  const newAutoOpenApps = auto_open_apps !== undefined
+    ? JSON.stringify(auto_open_apps)
+    : existing?.auto_open_apps ?? '[]';
+  const newWindowLayouts = window_layouts !== undefined
+    ? JSON.stringify(window_layouts)
+    : existing?.window_layouts ?? '{}';
 
   db.prepare(`
-    INSERT INTO user_settings (user_id, theme_name, command_history, updated_at)
-    VALUES (?, ?, ?, datetime('now'))
+    INSERT INTO user_settings (user_id, theme_name, command_history, auto_open_apps, window_layouts, updated_at)
+    VALUES (?, ?, ?, ?, ?, datetime('now'))
     ON CONFLICT(user_id) DO UPDATE SET
       theme_name = excluded.theme_name,
       command_history = excluded.command_history,
+      auto_open_apps = excluded.auto_open_apps,
+      window_layouts = excluded.window_layouts,
       updated_at = excluded.updated_at
-  `).run(userId, newThemeName, newCommandHistory);
+  `).run(userId, newThemeName, newCommandHistory, newAutoOpenApps, newWindowLayouts);
 
   res.json({ ok: true });
 });
@@ -139,9 +167,13 @@ router.get('/stats', (req: AuthRequest, res: Response): void => {
     | undefined;
 
   const used = row ? Buffer.byteLength(row.filesystem, 'utf8') : 0;
-  const limit = STORAGE_LIMITS[role] ?? STORAGE_LIMITS['guest']!;
+  const baseLimit = STORAGE_LIMITS[role] ?? STORAGE_LIMITS['guest']!;
+  const slotsRow = db.prepare('SELECT bonus_bytes, bytebucks FROM slots_balance WHERE user_id = ?').get(userId) as
+    | { bonus_bytes: number; bytebucks: number } | undefined;
+  const bonusBytes = slotsRow?.bonus_bytes ?? 0;
+  const limit = baseLimit === 0 ? 0 : Math.max(0, baseLimit + bonusBytes);
 
-  res.json({ used, limit, role });
+  res.json({ used, limit, role, bonus_bytes: bonusBytes, niggabytes: slotsRow?.bytebucks ?? 0 });
 });
 
 export default router;

@@ -148,7 +148,7 @@ export function CodePanel() {
     <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "12px" }}>
       <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
         <button
-          className="admin-btn admin-btn-primary"
+          className="btn btn-primary"
           onClick={() => setShowForm(!showForm)}
         >
           {showForm ? "cancel" : "+ new code"}
@@ -221,7 +221,7 @@ export function CodePanel() {
               {availableApps.map((app) => (
                 <button
                   key={app}
-                  className="admin-btn"
+                  className="btn"
                   style={{
                     fontSize: "11px",
                     padding: "3px 10px",
@@ -244,7 +244,7 @@ export function CodePanel() {
           </div>
 
           <button
-            className="admin-btn admin-btn-primary"
+            className="btn btn-primary"
             disabled={creating}
             onClick={() => void handleCreate()}
             style={{ alignSelf: "flex-start" }}
@@ -336,7 +336,7 @@ export function CodePanel() {
                     <td>{formatDate(c.created_at)}</td>
                     <td style={{ textAlign: "right" }}>
                       <button
-                        className="admin-btn admin-btn-danger"
+                        className="btn btn-danger"
                         style={{ fontSize: "12px", padding: "3px 8px" }}
                         onClick={() => void handleDelete(c.id)}
                       >

@@ -172,7 +172,7 @@ export function CloudPanel(props: CloudProps) {
 
   if (!currentNode || currentNode.type !== "directory") {
     return (
-      <div className="admin-panel">
+      <div className="panel-view">
         <div className="admin-empty">
           path not found. how did you even get here?
         </div>
@@ -181,9 +181,9 @@ export function CloudPanel(props: CloudProps) {
   }
 
   return (
-    <div className="admin-panel" data-version={version}>
+    <div className="panel-view" data-version={version}>
       {/* Header */}
-      <div className="admin-header">
+      <div className="panel-view-header">
         <h2>cloud browser</h2>
         <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
           {status && (
@@ -234,7 +234,7 @@ export function CloudPanel(props: CloudProps) {
         flexWrap: "wrap",
       }}>
         <button
-          className="admin-btn"
+          className="btn"
           onClick={navigateUp}
           disabled={currentPath === "/"}
           title="go up"
@@ -242,13 +242,13 @@ export function CloudPanel(props: CloudProps) {
           .. up
         </button>
         <button
-          className="admin-btn admin-btn-primary"
+          className="btn btn-primary"
           onClick={() => fileInputRef.current?.click()}
         >
           upload
         </button>
         <button
-          className="admin-btn"
+          className="btn"
           onClick={() => setNewFolderName(newFolderName === null ? "" : null)}
         >
           new folder
@@ -277,7 +277,7 @@ export function CloudPanel(props: CloudProps) {
               autoFocus
             />
             <button
-              className="admin-btn admin-btn-primary"
+              className="btn btn-primary"
               style={{ padding: "4px 10px" }}
               onClick={() => void handleCreateFolder()}
               disabled={!newFolderName.trim()}
@@ -285,7 +285,7 @@ export function CloudPanel(props: CloudProps) {
               create
             </button>
             <button
-              className="admin-btn"
+              className="btn"
               style={{ padding: "4px 10px" }}
               onClick={() => setNewFolderName(null)}
             >
@@ -335,13 +335,13 @@ export function CloudPanel(props: CloudProps) {
             </div>
             <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
               <button
-                className="admin-btn"
+                className="btn"
                 onClick={() => setDeleteTarget(null)}
               >
                 nah keep it
               </button>
               <button
-                className="admin-btn admin-btn-danger"
+                className="btn btn-danger"
                 onClick={() => void confirmDelete()}
               >
                 delete it

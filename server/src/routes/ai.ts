@@ -1,46 +1,12 @@
 import { Router, Response } from 'express';
 import db from '../db.js';
 import { authMiddleware, adminMiddleware, AuthRequest } from '../middleware.js';
+import { callGroq, checkUserRate } from '../lib/groq.js';
+import type { GroqMessage } from '../lib/groq.js';
 
 const router = Router();
 
-// Rate limit: per-user, 20 requests per minute
-const userRateLimit = new Map<number, number[]>();
-
-function checkUserRate(userId: number): boolean {
-  const now = Date.now();
-  const windowMs = 60_000;
-  const maxRequests = 20;
-  const attempts = (userRateLimit.get(userId) ?? []).filter((t) => now - t < windowMs);
-  if (attempts.length >= maxRequests) return false;
-  attempts.push(now);
-  userRateLimit.set(userId, attempts);
-  return true;
-}
-
-// Cleanup every 5 min
-setInterval(() => {
-  const now = Date.now();
-  for (const [uid, times] of userRateLimit) {
-    const fresh = times.filter((t) => now - t < 60_000);
-    if (fresh.length === 0) userRateLimit.delete(uid);
-    else userRateLimit.set(uid, fresh);
-  }
-}, 5 * 60_000);
-
-interface GroqMessage {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
-}
-
-interface GroqChoice {
-  message: { role: string; content: string };
-}
-
-interface GroqResponse {
-  choices: GroqChoice[];
-  error?: { message: string };
-}
+// ── Types ──
 
 interface DbMessage {
   role: string;
@@ -68,6 +34,72 @@ interface AdminMessage {
   content: string;
   created_at: string;
 }
+
+// ── Web Search ──
+
+interface DDGResponse {
+  Abstract?: string;
+  AbstractSource?: string;
+  AbstractURL?: string;
+  Answer?: string;
+  AnswerType?: string;
+  RelatedTopics?: Array<{ Text?: string; FirstURL?: string; Topics?: Array<{ Text?: string }> }>;
+  Results?: Array<{ Text?: string; FirstURL?: string }>;
+}
+
+async function searchWeb(query: string): Promise<string> {
+  try {
+    const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    const data = await res.json() as DDGResponse;
+
+    const parts: string[] = [];
+
+    if (data.Abstract) {
+      parts.push(`${data.Abstract} (Source: ${data.AbstractSource ?? 'unknown'}, URL: ${data.AbstractURL ?? ''})`);
+    }
+    if (data.Answer) {
+      parts.push(`Direct answer: ${data.Answer}`);
+    }
+    if (data.Results) {
+      for (const r of data.Results.slice(0, 3)) {
+        if (r.Text) parts.push(`- ${r.Text}`);
+      }
+    }
+    if (data.RelatedTopics) {
+      for (const t of data.RelatedTopics.slice(0, 6)) {
+        if (t.Text) parts.push(`- ${t.Text}`);
+        // Nested topics
+        if (t.Topics) {
+          for (const sub of t.Topics.slice(0, 2)) {
+            if (sub.Text) parts.push(`  - ${sub.Text}`);
+          }
+        }
+      }
+    }
+
+    return parts.length > 0 ? parts.join('\n') : 'No results found for this query. Use your own knowledge.';
+  } catch (err) {
+    console.error('Web search error:', err);
+    return 'Search failed — use your own knowledge to answer.';
+  }
+}
+
+// Tool definitions for Groq
+const SEARCH_TOOLS = [{
+  type: 'function' as const,
+  function: {
+    name: 'web_search',
+    description: 'Search the web for current information, facts, definitions, or anything you want to verify or research. Use this when the user asks about current events, specific facts, people, places, technical info, or anything you want to double-check.',
+    parameters: {
+      type: 'object' as const,
+      properties: {
+        query: { type: 'string' as const, description: 'The search query — be specific and concise' }
+      },
+      required: ['query']
+    }
+  }
+}];
 
 // POST /api/ai/chat
 router.post('/chat', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
@@ -142,29 +174,8 @@ router.post('/chat', authMiddleware, async (req: AuthRequest, res: Response): Pr
       ...history.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
     ];
 
-    // Call Groq API
-    const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages,
-        max_tokens: 1024,
-        temperature: 0.9,
-      }),
-    });
-
-    if (!groqRes.ok) {
-      const errBody = await groqRes.text();
-      console.error('Groq API error:', groqRes.status, errBody);
-      res.status(502).json({ error: 'the AI had a brain fart. groq is having a moment. try again.' });
-      return;
-    }
-
-    const groqData = await groqRes.json() as GroqResponse;
+    // First call — with tools enabled so the model can search if needed
+    let groqData = await callGroq(apiKey, messages, { tools: SEARCH_TOOLS, toolChoice: 'auto' });
 
     if (groqData.error) {
       console.error('Groq API error:', groqData.error.message);
@@ -172,9 +183,58 @@ router.post('/chat', authMiddleware, async (req: AuthRequest, res: Response): Pr
       return;
     }
 
-    const reply = groqData.choices?.[0]?.message?.content ?? 'i got nothing. brain empty.';
+    const firstChoice = groqData.choices?.[0];
+    let reply: string;
 
-    // Insert assistant message
+    // Handle tool calls — execute search and re-call
+    if (firstChoice?.message?.tool_calls && firstChoice.message.tool_calls.length > 0) {
+      const toolCalls = firstChoice.message.tool_calls;
+
+      // Add the assistant's tool call message
+      messages.push({
+        role: 'assistant',
+        content: firstChoice.message.content,
+        tool_calls: toolCalls,
+      });
+
+      // Execute each tool call
+      for (const tc of toolCalls) {
+        let toolResult = 'Unknown tool.';
+
+        if (tc.function.name === 'web_search') {
+          try {
+            const args = JSON.parse(tc.function.arguments) as { query?: string };
+            const query = args.query ?? trimmed;
+            console.log(`[AI] web_search: "${query}" (user: ${user.username})`);
+            toolResult = await searchWeb(query);
+          } catch {
+            toolResult = 'Failed to parse search query. Answer from your own knowledge.';
+          }
+        }
+
+        messages.push({
+          role: 'tool',
+          content: toolResult,
+          tool_call_id: tc.id,
+        });
+      }
+
+      // Second call — with search results, no tools (to get final answer)
+      groqData = await callGroq(apiKey, messages);
+
+      if (groqData.error) {
+        console.error('Groq API error (second call):', groqData.error.message);
+        res.status(502).json({ error: 'AI brain damage on the second try. rough day.' });
+        return;
+      }
+
+      reply = groqData.choices?.[0]?.message?.content ?? 'searched but brain still empty. sorry.';
+    } else {
+      // No tool calls — direct response
+      reply = firstChoice?.message?.content ?? 'i got nothing. brain empty.';
+    }
+
+    // Insert assistant message (only the final text reply)
     db.prepare('INSERT INTO ai_messages (conversation_id, role, content) VALUES (?, ?, ?)').run(
       conversation.id, 'assistant', reply
     );

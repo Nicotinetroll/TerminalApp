@@ -3,11 +3,11 @@ import type { WindowContentProps } from "@/types/terminal";
 import type { GameScore, GameScoreSubmitResult } from "@/lib/api";
 import { getAllLeaderboards, submitScore, ApiError } from "@/lib/api";
 import { SnakeGame } from "./SnakeGame";
-import { Game2048 } from "./Game2048";
+import { FlappyBird } from "./FlappyBird";
 import { MinesweeperGame } from "./MinesweeperGame";
 import { Leaderboard } from "./Leaderboard";
 
-type GameId = "snake" | "2048" | "minesweeper";
+type GameId = "snake" | "flappy" | "minesweeper";
 type View = "selector" | GameId;
 
 interface GameCard {
@@ -20,7 +20,7 @@ interface GameCard {
 
 const GAMES: GameCard[] = [
   { id: "snake", name: "SNAKE", key: "1", desc: "eat. grow. die. repeat.", icon: "~" },
-  { id: "2048", name: "2048", key: "2", desc: "slide tiles. merge brains.", icon: "#" },
+  { id: "flappy", name: "FLAPPY", key: "2", desc: "flap or die. mostly die.", icon: ">" },
   { id: "minesweeper", name: "MINESWEEPER", key: "3", desc: "click wrong = die.", icon: "*" },
 ];
 
@@ -54,7 +54,7 @@ export function GamesPanel({ user }: WindowContentProps) {
 
     const handler = (e: KeyboardEvent) => {
       if (e.key === "1") setView("snake");
-      else if (e.key === "2") setView("2048");
+      else if (e.key === "2") setView("flappy");
       else if (e.key === "3") setView("minesweeper");
     };
 
@@ -129,11 +129,11 @@ export function GamesPanel({ user }: WindowContentProps) {
     );
   }
 
-  if (view === "2048") {
+  if (view === "flappy") {
     return (
       <div className="games-panel">
-        <Game2048
-          onGameOver={(score, meta) => handleGameOver("2048", score, meta)}
+        <FlappyBird
+          onGameOver={(score, meta) => handleGameOver("flappy", score, meta)}
           onBack={handleBackToMenu}
         />
       </div>

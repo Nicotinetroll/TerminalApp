@@ -87,7 +87,7 @@ export function PasswordForm({ onSuccess, onError }: Props) {
       <div style={{ display: "flex", gap: "8px", marginTop: "20px" }}>
         <button
           type="submit"
-          className="admin-btn admin-btn-primary"
+          className="btn btn-primary"
           disabled={!canSubmit}
         >
           {submitting ? "changing..." : "change password"}

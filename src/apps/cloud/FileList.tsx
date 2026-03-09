@@ -71,7 +71,7 @@ export function FileList({ node, onNavigate, onDownload, onDelete }: Props) {
                 <div style={{ display: "flex", gap: "4px" }}>
                   {!isDir && (
                     <button
-                      className="admin-btn"
+                      className="btn"
                       style={{ padding: "2px 8px", fontSize: "12px" }}
                       onClick={() => onDownload(name, child)}
                       title="download"
@@ -80,7 +80,7 @@ export function FileList({ node, onNavigate, onDownload, onDelete }: Props) {
                     </button>
                   )}
                   <button
-                    className="admin-btn admin-btn-danger"
+                    className="btn btn-danger"
                     style={{ padding: "2px 8px", fontSize: "12px" }}
                     onClick={() => onDelete(name, child)}
                     title="delete"

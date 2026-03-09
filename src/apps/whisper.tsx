@@ -14,6 +14,7 @@ export const app: AppModule = {
       component: WhisperPanel,
       width: 800,
       height: 600,
+      appName: "whisper",
     });
     return { text: "entering the void..." };
   },

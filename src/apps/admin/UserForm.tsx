@@ -61,10 +61,10 @@ export function UserForm({ mode, initialUser, onSubmit, onCancel }: Props) {
       </div>
 
       <div style={{ display: "flex", gap: "8px", marginTop: "20px" }}>
-        <button type="submit" className="admin-btn admin-btn-primary" disabled={!canSubmit}>
+        <button type="submit" className="btn btn-primary" disabled={!canSubmit}>
           {mode === "create" ? "create this mf" : "save changes"}
         </button>
-        <button type="button" className="admin-btn" onClick={onCancel}>
+        <button type="button" className="btn" onClick={onCancel}>
           nah, go back
         </button>
       </div>

@@ -14,6 +14,7 @@ export const app: AppModule = {
       component: CloudPanel,
       width: 850,
       height: 600,
+      appName: "cloud",
       props: {
         fs: terminal.fs,
         cwd: terminal.cwd,

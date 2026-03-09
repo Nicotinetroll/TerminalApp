@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { WindowContentProps } from "@/types/terminal";
 import type { AuthUser, StorageStats } from "@/lib/api";
 import { getSession, getStorageStats, createUserInvite, ApiError } from "@/lib/api";
@@ -16,10 +16,16 @@ export function ProfilePanel({ user: _windowUser }: WindowContentProps) {
   const [status, setStatus] = useState<{ text: string; isError: boolean } | null>(null);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [inviteLoading, setInviteLoading] = useState(false);
+  const statusTimer = useRef<ReturnType<typeof setTimeout>>(null);
+
+  useEffect(() => {
+    return () => { if (statusTimer.current) clearTimeout(statusTimer.current); };
+  }, []);
 
   const showStatus = useCallback((text: string, isError = false) => {
     setStatus({ text, isError });
-    setTimeout(() => setStatus(null), 3000);
+    if (statusTimer.current) clearTimeout(statusTimer.current);
+    statusTimer.current = setTimeout(() => setStatus(null), 3000);
   }, []);
 
   const loadData = useCallback(async () => {
@@ -48,7 +54,7 @@ export function ProfilePanel({ user: _windowUser }: WindowContentProps) {
     try {
       const invite = await createUserInvite();
       setInviteUrl(invite.url);
-      await navigator.clipboard.writeText(invite.url);
+      try { await navigator.clipboard.writeText(invite.url); } catch { /* clipboard blocked */ }
       showStatus("invite link copied to clipboard");
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "couldn't generate invite";
@@ -60,13 +66,13 @@ export function ProfilePanel({ user: _windowUser }: WindowContentProps) {
 
   const handleCopyInvite = useCallback(async () => {
     if (!inviteUrl) return;
-    await navigator.clipboard.writeText(inviteUrl);
+    try { await navigator.clipboard.writeText(inviteUrl); } catch { /* clipboard blocked */ }
     showStatus("copied to clipboard");
   }, [inviteUrl, showStatus]);
 
   if (loading) {
     return (
-      <div className="admin-panel">
+      <div className="panel-view">
         <div className="admin-loading">
           <span className="spinner" />
           loading your existence...
@@ -77,15 +83,15 @@ export function ProfilePanel({ user: _windowUser }: WindowContentProps) {
 
   if (!authUser) {
     return (
-      <div className="admin-panel">
+      <div className="panel-view">
         <div className="admin-empty">couldn't load profile. do you even exist?</div>
       </div>
     );
   }
 
   return (
-    <div className="admin-panel">
-      <div className="admin-header">
+    <div className="panel-view">
+      <div className="panel-view-header">
         <h2>
           {view === "overview" && "profile"}
           {view === "password" && "change password"}
@@ -98,14 +104,14 @@ export function ProfilePanel({ user: _windowUser }: WindowContentProps) {
           )}
           {view === "overview" ? (
             <button
-              className="admin-btn admin-btn-primary"
+              className="btn btn-primary"
               onClick={() => setView("password")}
             >
               change password
             </button>
           ) : (
             <button
-              className="admin-btn"
+              className="btn"
               onClick={() => setView("overview")}
             >
               back to profile
@@ -116,51 +122,15 @@ export function ProfilePanel({ user: _windowUser }: WindowContentProps) {
 
       {view === "overview" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "24px", flex: 1, overflow: "auto" }}>
-          <ProfileInfo user={authUser} />
+          <ProfileInfo
+            user={authUser}
+            niggabytes={stats?.niggabytes}
+            inviteUrl={inviteUrl}
+            inviteLoading={inviteLoading}
+            onGenerateInvite={() => void handleGenerateInvite()}
+            onCopyInvite={() => void handleCopyInvite()}
+          />
           {stats && <StorageBar stats={stats} />}
-          {authUser.role !== "guest" && (
-            <div>
-              <div style={{ fontSize: "12px", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "8px" }}>
-                invite a friend
-              </div>
-              <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-                <button
-                  className="admin-btn admin-btn-primary"
-                  disabled={inviteLoading}
-                  onClick={() => void handleGenerateInvite()}
-                >
-                  {inviteLoading ? "generating..." : "generate invite link"}
-                </button>
-                {inviteUrl && (
-                  <>
-                    <code style={{
-                      fontSize: "12px",
-                      color: "var(--text-muted)",
-                      background: "var(--bg-primary)",
-                      padding: "4px 8px",
-                      borderRadius: "4px",
-                      maxWidth: "280px",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}>
-                      {inviteUrl}
-                    </code>
-                    <button
-                      className="admin-btn"
-                      style={{ fontSize: "12px", padding: "4px 10px" }}
-                      onClick={() => void handleCopyInvite()}
-                    >
-                      copy
-                    </button>
-                  </>
-                )}
-              </div>
-              <div style={{ fontSize: "11px", color: "var(--text-ghost)", marginTop: "6px" }}>
-                link expires in 1 hour. new user gets "user" role.
-              </div>
-            </div>
-          )}
         </div>
       )}
 

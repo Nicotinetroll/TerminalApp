@@ -3,12 +3,14 @@ import type { AppPhase } from "@/types/terminal";
 import { useAuth, type LoginResult } from "@/hooks/useAuth";
 import { LoginScreen } from "@/components/LoginScreen";
 import { Terminal } from "@/components/Terminal";
+import { PasteViewer } from "@/components/PasteViewer";
 import { registerWithInvite } from "@/lib/api";
 
 export default function App() {
   const [phase, setPhase] = useState<AppPhase>("login");
   const [inviteToken, setInviteToken] = useState<string | null>(null);
   const [roomToken, setRoomToken] = useState<string | null>(null);
+  const [pasteId, setPasteId] = useState<string | null>(null);
   const {
     user,
     userId,
@@ -25,11 +27,15 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     const token = params.get("invite");
     const room = params.get("room");
+    const paste = params.get("paste");
     if (token) {
       setInviteToken(token);
     }
     if (room) {
       setRoomToken(room);
+    }
+    if (paste) {
+      setPasteId(paste);
     }
     if (token || room) {
       window.history.replaceState({}, "", window.location.pathname);
@@ -80,6 +86,10 @@ export default function App() {
     },
     [setUserFromRegister]
   );
+
+  if (pasteId) {
+    return <PasteViewer pasteId={pasteId} onClose={() => { setPasteId(null); window.history.replaceState({}, "", window.location.pathname); }} />;
+  }
 
   if (isLoading) {
     return null;

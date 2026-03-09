@@ -19,8 +19,9 @@ import { rm } from "./rm";
 import { run } from "./run";
 import { applist } from "./applist";
 import { ai as chat } from "./ai";
+import { who } from "./who";
 
 export function registerAllCommands() {
-  const cmds = [help, clear, echo, whoami, date, sysinfo, theme, logout, pwd, cd, ls, cat, mkdir, touch, write, rm, run, applist, chat];
+  const cmds = [help, clear, echo, whoami, date, sysinfo, theme, logout, pwd, cd, ls, cat, mkdir, touch, write, rm, run, applist, chat, who];
   for (const cmd of cmds) register(cmd);
 }

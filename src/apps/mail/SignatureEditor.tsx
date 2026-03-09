@@ -38,7 +38,7 @@ export function SignatureEditor({ addresses, onUpdated, onClose, showStatus }: P
     <div className="mail-signature-editor">
       <div className="mail-signature-header">
         <h3>signatures</h3>
-        <button className="admin-btn" onClick={onClose}>close</button>
+        <button className="btn" onClick={onClose}>close</button>
       </div>
 
       {addresses.length > 1 && (
@@ -69,7 +69,7 @@ export function SignatureEditor({ addresses, onUpdated, onClose, showStatus }: P
           appended to new emails from {selectedAddr?.full}
         </span>
         <button
-          className="admin-btn admin-btn-primary"
+          className="btn btn-primary"
           onClick={() => void handleSave()}
           disabled={saving}
         >

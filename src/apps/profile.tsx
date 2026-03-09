@@ -14,6 +14,7 @@ export const app: AppModule = {
       component: ProfilePanel,
       width: 650,
       height: 550,
+      appName: "profile",
     });
     return { text: "opening your life story..." };
   },

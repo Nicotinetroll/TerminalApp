@@ -3,7 +3,7 @@ import { GamesPanel } from "./games/GamesPanel";
 
 export const app: AppModule = {
   name: "games",
-  description: "retro arcade — snake, 2048, minesweeper",
+  description: "retro arcade — snake, flappy bird, minesweeper",
   run(_args, terminal) {
     terminal.openWindow({
       id: "games-arcade",
@@ -13,6 +13,7 @@ export const app: AppModule = {
       height: 600,
       minWidth: 500,
       minHeight: 450,
+      appName: "games",
     });
     return { text: "loading the arcade... prepare to waste your life." };
   },

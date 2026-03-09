@@ -204,14 +204,14 @@ export function ComposeView({ addresses, replyTo, forwardData, draftId: initialD
       <div className="mail-compose-header">
         <h3>{replyTo ? "reply" : forwardData ? "forward" : "new email"}</h3>
         <div className="mail-compose-actions">
-          <button className="admin-btn" onClick={() => void handleSaveDraft()} disabled={sending}>
+          <button className="btn" onClick={() => void handleSaveDraft()} disabled={sending}>
             save draft
           </button>
-          <button className="admin-btn" onClick={onCancel} disabled={sending}>
+          <button className="btn" onClick={onCancel} disabled={sending}>
             cancel
           </button>
           <button
-            className="admin-btn admin-btn-primary"
+            className="btn btn-primary"
             onClick={() => void handleSend()}
             disabled={sending || !to.trim() || !body.trim()}
           >

@@ -13,6 +13,7 @@ export const app: AppModule = {
       height: 600,
       minWidth: 500,
       minHeight: 400,
+      appName: "ascii",
     });
     return { text: "loading the pixel shredder..." };
   },

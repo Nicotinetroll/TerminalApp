@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import { sfx } from "./sounds";
 
 interface MinesweeperProps {
   onGameOver: (score: number, metadata?: Record<string, unknown>) => void;
@@ -49,7 +50,6 @@ function createBoard(rows: number, cols: number, mines: number, safeR: number, s
     Array.from({ length: cols }, () => ({ mine: false, revealed: false, flagged: false, adjacent: 0 }))
   );
 
-  // Place mines avoiding safe cell and its neighbors
   const safeSet = new Set<string>();
   for (let dr = -1; dr <= 1; dr++) {
     for (let dc = -1; dc <= 1; dc++) {
@@ -67,7 +67,6 @@ function createBoard(rows: number, cols: number, mines: number, safeR: number, s
     }
   }
 
-  // Calculate adjacency
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       if (board[r]![c]!.mine) continue;
@@ -94,6 +93,11 @@ export function MinesweeperGame({ onGameOver, onBack }: MinesweeperProps) {
   const [timer, setTimer] = useState(0);
   const [endMsg, setEndMsg] = useState("");
   const [revealed, setRevealed] = useState(0);
+  const [shaking, setShaking] = useState(false);
+  const [flashing, setFlashing] = useState(false);
+  const [hitMine, setHitMine] = useState<string | null>(null);
+  const [revealedMines, setRevealedMines] = useState<Set<string>>(new Set());
+  const [flashCells, setFlashCells] = useState<Set<string>>(new Set());
   const timerRef = useRef<ReturnType<typeof setInterval>>(null);
   const gameOverRef = useRef(false);
 
@@ -103,10 +107,14 @@ export function MinesweeperGame({ onGameOver, onBack }: MinesweeperProps) {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, []);
 
+  const triggerShake = useCallback(() => {
+    setShaking(true);
+    setTimeout(() => setShaking(false), 400);
+  }, []);
+
   const startGame = (diff: Difficulty) => {
     setDifficulty(diff);
     const cfg = CONFIGS[diff];
-    // Create empty board first (mines placed on first click)
     const emptyBoard: CellState[][] = Array.from({ length: cfg.rows }, () =>
       Array.from({ length: cfg.cols }, () => ({ mine: false, revealed: false, flagged: false, adjacent: 0 }))
     );
@@ -117,13 +125,19 @@ export function MinesweeperGame({ onGameOver, onBack }: MinesweeperProps) {
     setTimer(0);
     setRevealed(0);
     setEndMsg("");
+    setShaking(false);
+    setFlashing(false);
+    setHitMine(null);
+    setRevealedMines(new Set());
+    setFlashCells(new Set());
     gameOverRef.current = false;
     if (timerRef.current) clearInterval(timerRef.current);
   };
 
-  const floodReveal = useCallback((b: CellState[][], r: number, c: number, rows: number, cols: number): number => {
+  const floodReveal = useCallback((b: CellState[][], r: number, c: number, rows: number, cols: number): { count: number; cells: string[] } => {
     const stack: [number, number][] = [[r, c]];
     let count = 0;
+    const cells: string[] = [];
     while (stack.length > 0) {
       const [cr, cc] = stack.pop()!;
       if (cr < 0 || cr >= rows || cc < 0 || cc >= cols) continue;
@@ -131,6 +145,7 @@ export function MinesweeperGame({ onGameOver, onBack }: MinesweeperProps) {
       if (cell.revealed || cell.flagged || cell.mine) continue;
       cell.revealed = true;
       count++;
+      cells.push(`${cr},${cc}`);
       if (cell.adjacent === 0) {
         for (let dr = -1; dr <= 1; dr++) {
           for (let dc = -1; dc <= 1; dc++) {
@@ -140,7 +155,7 @@ export function MinesweeperGame({ onGameOver, onBack }: MinesweeperProps) {
         }
       }
     }
-    return count;
+    return { count, cells };
   }, []);
 
   const handleClick = (r: number, c: number) => {
@@ -149,10 +164,8 @@ export function MinesweeperGame({ onGameOver, onBack }: MinesweeperProps) {
     let currentBoard = board;
 
     if (firstClick) {
-      // Place mines now with first click safety
       currentBoard = createBoard(config.rows, config.cols, config.mines, r, c);
       setFirstClick(false);
-      // Start timer
       timerRef.current = setInterval(() => setTimer(t => t + 1), 1000);
     }
 
@@ -160,12 +173,44 @@ export function MinesweeperGame({ onGameOver, onBack }: MinesweeperProps) {
     if (cell.revealed || cell.flagged) return;
 
     if (cell.mine) {
-      // Reveal all mines
       gameOverRef.current = true;
       const newBoard = currentBoard.map(row => row.map(cell => ({ ...cell })));
-      for (const row of newBoard) for (const c of row) if (c.mine) c.revealed = true;
+
+      const minePositions: string[] = [];
+      for (let mr = 0; mr < config.rows; mr++) {
+        for (let mc = 0; mc < config.cols; mc++) {
+          if (newBoard[mr]![mc]!.mine) {
+            newBoard[mr]![mc]!.revealed = true;
+            if (mr !== r || mc !== c) {
+              minePositions.push(`${mr},${mc}`);
+            }
+          }
+        }
+      }
+
       setBoard(newBoard);
       setGameOver(true);
+      setHitMine(`${r},${c}`);
+      setFlashing(true);
+      setTimeout(() => setFlashing(false), 150);
+      setTimeout(() => triggerShake(), 150);
+      sfx.boom();
+
+      // Stagger mine reveals by distance for cascade
+      const sorted = minePositions.sort((a, b) => {
+        const [ar, ac] = a.split(",").map(Number);
+        const [br, bc] = b.split(",").map(Number);
+        const distA = Math.abs(ar! - r) + Math.abs(ac! - c);
+        const distB = Math.abs(br! - r) + Math.abs(bc! - c);
+        return distA - distB;
+      });
+
+      sorted.forEach((pos, i) => {
+        setTimeout(() => {
+          setRevealedMines(prev => new Set([...prev, pos]));
+        }, (i + 1) * 60);
+      });
+
       if (timerRef.current) clearInterval(timerRef.current);
       const msgs = LOSE_MESSAGES;
       setEndMsg(msgs[Math.floor(Math.random() * msgs.length)]!);
@@ -173,12 +218,18 @@ export function MinesweeperGame({ onGameOver, onBack }: MinesweeperProps) {
       return;
     }
 
+    sfx.click();
     const newBoard = currentBoard.map(row => row.map(cell => ({ ...cell })));
-    const newRevealed = revealed + floodReveal(newBoard, r, c, config.rows, config.cols);
+    const { count, cells } = floodReveal(newBoard, r, c, config.rows, config.cols);
+    const newRevealed = revealed + count;
     setBoard(newBoard);
     setRevealed(newRevealed);
 
-    // Check win
+    if (cells.length > 0) {
+      setFlashCells(new Set(cells));
+      setTimeout(() => setFlashCells(new Set()), 400);
+    }
+
     const totalSafe = config.rows * config.cols - config.mines;
     if (newRevealed >= totalSafe) {
       gameOverRef.current = true;
@@ -187,6 +238,7 @@ export function MinesweeperGame({ onGameOver, onBack }: MinesweeperProps) {
       if (timerRef.current) clearInterval(timerRef.current);
       const msgs = WIN_MESSAGES;
       setEndMsg(msgs[Math.floor(Math.random() * msgs.length)]!);
+      sfx.win();
       const finalScore = totalSafe * config.multiplier;
       onGameOver(finalScore, { difficulty, time: timer, won: true });
     }
@@ -197,12 +249,12 @@ export function MinesweeperGame({ onGameOver, onBack }: MinesweeperProps) {
     if (gameOverRef.current || !board) return;
     const cell = board[r]![c]!;
     if (cell.revealed) return;
+    sfx.flag();
     const newBoard = board.map(row => row.map(cell => ({ ...cell })));
     newBoard[r]![c]!.flagged = !newBoard[r]![c]!.flagged;
     setBoard(newBoard);
   };
 
-  // Difficulty selector
   if (!difficulty || !board || !config) {
     return (
       <div className="games-container">
@@ -231,7 +283,8 @@ export function MinesweeperGame({ onGameOver, onBack }: MinesweeperProps) {
   const flagCount = board.flat().filter(c => c.flagged).length;
 
   return (
-    <div className="games-container">
+    <div className={`games-container${shaking ? " games-shake" : ""}`}>
+      {flashing && <div className="games-death-flash" />}
       <div className="games-hud">
         <button className="games-back-btn" onClick={onBack}>&lt; back</button>
         <span className="games-hud-title">MINESWEEPER</span>
@@ -260,19 +313,25 @@ export function MinesweeperGame({ onGameOver, onBack }: MinesweeperProps) {
         }}
       >
         {board.map((row, r) =>
-          row.map((cell, c) => (
-            <div
-              key={`${r}-${c}`}
-              className={`mines-cell${cell.revealed ? " mines-revealed" : ""}${cell.revealed && cell.mine ? " mines-mine" : ""}${cell.flagged && !cell.revealed ? " mines-flagged" : ""}`}
-              data-adjacent={cell.revealed && !cell.mine && cell.adjacent > 0 ? cell.adjacent : undefined}
-              onClick={() => handleClick(r, c)}
-              onContextMenu={(e) => handleRightClick(e, r, c)}
-            >
-              {cell.revealed && cell.mine ? "*" :
-               cell.flagged && !cell.revealed ? "F" :
-               cell.revealed && cell.adjacent > 0 ? cell.adjacent : ""}
-            </div>
-          ))
+          row.map((cell, c) => {
+            const key = `${r},${c}`;
+            const isHitMine = hitMine === key;
+            const isCascadeMine = cell.revealed && cell.mine && !isHitMine && revealedMines.has(key);
+            const isFlash = flashCells.has(key);
+            return (
+              <div
+                key={`${r}-${c}`}
+                className={`mines-cell${cell.revealed ? " mines-revealed" : ""}${cell.revealed && cell.mine ? " mines-mine" : ""}${cell.flagged && !cell.revealed ? " mines-flagged" : ""}${isHitMine ? " mines-explode" : ""}${isCascadeMine ? " mines-cascade" : ""}${isFlash ? " mines-reveal-flash" : ""}`}
+                data-adjacent={cell.revealed && !cell.mine && cell.adjacent > 0 ? cell.adjacent : undefined}
+                onClick={() => handleClick(r, c)}
+                onContextMenu={(e) => handleRightClick(e, r, c)}
+              >
+                {cell.revealed && cell.mine ? "*" :
+                 cell.flagged && !cell.revealed ? "F" :
+                 cell.revealed && cell.adjacent > 0 ? cell.adjacent : ""}
+              </div>
+            );
+          })
         )}
       </div>
 

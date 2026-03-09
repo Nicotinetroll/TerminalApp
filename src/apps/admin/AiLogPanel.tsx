@@ -94,7 +94,7 @@ export function AiLogPanel() {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: "12px", flex: 1, overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <button className="admin-btn" onClick={() => { setSelectedMessages(null); setSelectedConvo(null); }}>
+          <button className="btn" onClick={() => { setSelectedMessages(null); setSelectedConvo(null); }}>
             back
           </button>
           <span style={{ fontSize: "13px", color: "var(--accent)" }}>
@@ -185,7 +185,7 @@ export function AiLogPanel() {
                 <td style={{ whiteSpace: "nowrap", fontSize: "11px" }}>{formatDate(convo.updated_at)}</td>
                 <td>
                   <button
-                    className="admin-btn"
+                    className="btn"
                     style={{ fontSize: "11px", padding: "2px 8px" }}
                     onClick={() => void handleSelectConvo(convo)}
                   >
