@@ -1,4 +1,5 @@
 import type { AuthUser } from "@/lib/api";
+import { checkAppAccess } from "@/core/appRestrictions";
 
 interface Props {
   user: AuthUser;
@@ -70,7 +71,7 @@ export function ProfileInfo({
               </td>
             </tr>
           )}
-          {user.role !== "guest" && onGenerateInvite && (
+          {user.role !== "guest" && onGenerateInvite && checkAppAccess("feature:invites", user.role) && (
             <tr>
               <td style={{ color: "var(--text-muted)" }}>invite</td>
               <td>
@@ -104,7 +105,7 @@ export function ProfileInfo({
               </td>
             </tr>
           )}
-          {user.role !== "guest" && onGenerateTransfer && (
+          {user.role !== "guest" && onGenerateTransfer && checkAppAccess("feature:transfers", user.role) && (
             <tr>
               <td style={{ color: "var(--text-muted)" }}>upload link</td>
               <td>

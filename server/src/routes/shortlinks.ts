@@ -16,7 +16,7 @@ const RESERVED_SLUGS = new Set([
 ]);
 
 function generateSlug(): string {
-  return crypto.randomBytes(3).toString('base64url'); // 4 chars
+  return crypto.randomBytes(3).toString('hex').slice(0, 4); // 4 lowercase hex chars
 }
 
 // ── List user's links ──
@@ -62,7 +62,7 @@ router.post('/', authMiddleware as RequestHandler, ((req: AuthRequest, res: Resp
   // Block self-referencing links
   try {
     const parsed = new URL(url);
-    if (parsed.hostname === 'mynig.ga' || parsed.hostname === 'www.mynig.ga') {
+    if (parsed.hostname === 'mynig.ga' || parsed.hostname.endsWith('.mynig.ga')) {
       res.status(400).json({ error: "you can't shorten your own domain you absolute genius" });
       return;
     }
@@ -101,14 +101,31 @@ router.post('/', authMiddleware as RequestHandler, ((req: AuthRequest, res: Resp
     do {
       slug = generateSlug();
       attempts++;
-    } while (db.prepare('SELECT id FROM shortlinks WHERE slug = ?').get(slug) && attempts < 10);
+    } while (
+      (db.prepare('SELECT id FROM shortlinks WHERE slug = ?').get(slug) || RESERVED_SLUGS.has(slug))
+      && attempts < 10
+    );
+    if (attempts >= 10 && db.prepare('SELECT id FROM shortlinks WHERE slug = ?').get(slug)) {
+      res.status(500).json({ error: 'failed to generate slug. try again.' });
+      return;
+    }
   }
 
   const linkTitle = (title && typeof title === 'string') ? title.trim().slice(0, 200) : '';
 
-  const result = db.prepare(
-    'INSERT INTO shortlinks (user_id, slug, target_url, title) VALUES (?, ?, ?, ?)'
-  ).run(user.userId, slug, url, linkTitle);
+  let result;
+  try {
+    result = db.prepare(
+      'INSERT INTO shortlinks (user_id, slug, target_url, title) VALUES (?, ?, ?, ?)'
+    ).run(user.userId, slug, url, linkTitle);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : '';
+    if (msg.includes('UNIQUE')) {
+      res.status(409).json({ error: `slug "${slug}" already taken` });
+      return;
+    }
+    throw err;
+  }
 
   const link = db.prepare('SELECT * FROM shortlinks WHERE id = ?').get(result.lastInsertRowid) as {
     id: number; slug: string; target_url: string; title: string;

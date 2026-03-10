@@ -1,6 +1,6 @@
 // Module-level store for app role restrictions.
 // Synced from global_settings by a component inside GlobalSettingsProvider.
-// Read by run.ts to enforce access before opening apps.
+// Read by run.ts, AppShortcutBar, MobileAppBar, ProfileInfo.
 
 const ROLE_LEVEL: Record<string, number> = {
   guest: 0,
@@ -11,7 +11,6 @@ const ROLE_LEVEL: Record<string, number> = {
 };
 
 let restrictions: Record<string, string> = {};
-let accessDeniedHandler: ((app: string, requiredRole: string) => void) | null = null;
 
 export function setAppRestrictions(r: Record<string, string>): void {
   restrictions = r;
@@ -35,12 +34,4 @@ export function checkAppAccess(appName: string, userRole: string): boolean {
 
 export function getRoleLevel(role: string): number {
   return ROLE_LEVEL[role] ?? 0;
-}
-
-export function setAccessDeniedHandler(handler: ((app: string, requiredRole: string) => void) | null): void {
-  accessDeniedHandler = handler;
-}
-
-export function triggerAccessDenied(app: string, requiredRole: string): void {
-  accessDeniedHandler?.(app, requiredRole);
 }

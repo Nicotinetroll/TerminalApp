@@ -17,7 +17,6 @@ import { GlobalSettingsProvider } from "@/hooks/useGlobalSettings";
 import { useMailNotifications } from "@/hooks/useMailNotifications";
 import { useParallaxButtons } from "@/hooks/useParallaxButtons";
 import { GlobalEventToast } from "./GlobalEventToast";
-import { AccessDeniedToast } from "./AccessDeniedToast";
 import { AppRestrictionSync } from "./AppRestrictionSync";
 import type { GlobalEvent } from "@/hooks/useGlobalEvents";
 import * as api from "@/lib/api";
@@ -160,9 +159,6 @@ export function Terminal({ user, userId, onLogout, roomToken }: Props) {
     void execute(`run ${name}`);
   }, [execute]);
 
-  const handleJoinClub = useCallback(() => {
-    void execute("run joinclub");
-  }, [execute]);
 
   // Save all current window layouts (debounced)
   const saveLayouts = useCallback(() => {
@@ -198,7 +194,6 @@ export function Terminal({ user, userId, onLogout, roomToken }: Props) {
     <AppRestrictionSync />
     <MailNotificationListener />
     <GlobalEventToast onEvent={handleGlobalEvent} />
-    <AccessDeniedToast onJoinClub={handleJoinClub} />
     <div className="terminal-page screen-flicker font-mono">
       <div className="terminal-backdrop-content">
       <LogoHeader

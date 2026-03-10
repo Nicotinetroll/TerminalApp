@@ -1,4 +1,5 @@
 import { useGlobalSettings } from "@/hooks/useGlobalSettings";
+import { checkAppAccess } from "@/core/appRestrictions";
 
 interface AppDef {
   name: string;
@@ -51,6 +52,9 @@ export function AppShortcutBar({ onRunApp, userRole }: Props) {
     .map((name) => ALL_APPS.find((a) => a.name === name))
     .filter((app): app is AppDef => {
       if (!app) return false;
+      // Check dynamic admin restrictions first
+      if (!checkAppAccess(app.name, userRole)) return false;
+      // Then check hardcoded minRole
       if (!app.minRole) return true;
       return level >= (ROLE_LEVEL[app.minRole] ?? 99);
     });

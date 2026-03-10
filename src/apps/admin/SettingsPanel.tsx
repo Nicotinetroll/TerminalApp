@@ -18,6 +18,11 @@ const RESTRICTABLE_APPS = [
   "slots", "coinflip", "shortlinks", "ascii",
 ];
 
+const RESTRICTABLE_FEATURES: { key: string; label: string; desc: string }[] = [
+  { key: "feature:transfers", label: "upload links", desc: "generate public upload links in profile" },
+  { key: "feature:invites", label: "invite links", desc: "generate invite codes in profile" },
+];
+
 const ROLE_OPTIONS = [
   { value: "", label: "everyone" },
   { value: "user", label: "user" },
@@ -353,6 +358,7 @@ function AppAccessSection({ settings, updateSetting, saving, setSaving, showStat
         set minimum role required to open each app. users below the required role will see a "join club" prompt.
       </div>
 
+      <div style={{ fontSize: 10, color: "var(--text-ghost)", textTransform: "uppercase", marginBottom: 4 }}>apps</div>
       {RESTRICTABLE_APPS.map((appName) => (
         <div key={appName} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 0", borderBottom: "1px solid var(--border-subtle)" }}>
           <span style={{ fontSize: 13, color: "var(--text-primary)" }}>{appName}</span>
@@ -360,6 +366,27 @@ function AppAccessSection({ settings, updateSetting, saving, setSaving, showStat
             className="admin-select"
             value={restrictions[appName] ?? ""}
             onChange={(e) => void handleChange(appName, e.target.value)}
+            disabled={saving === "app_restrictions"}
+            style={{ width: 110 }}
+          >
+            {ROLE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </div>
+      ))}
+
+      <div style={{ fontSize: 10, color: "var(--text-ghost)", textTransform: "uppercase", marginBottom: 4, marginTop: 16 }}>features</div>
+      {RESTRICTABLE_FEATURES.map((feat) => (
+        <div key={feat.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 0", borderBottom: "1px solid var(--border-subtle)" }}>
+          <div>
+            <div style={{ fontSize: 13, color: "var(--text-primary)" }}>{feat.label}</div>
+            <div style={{ fontSize: 10, color: "var(--text-ghost)" }}>{feat.desc}</div>
+          </div>
+          <select
+            className="admin-select"
+            value={restrictions[feat.key] ?? ""}
+            onChange={(e) => void handleChange(feat.key, e.target.value)}
             disabled={saving === "app_restrictions"}
             style={{ width: 110 }}
           >

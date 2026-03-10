@@ -1,6 +1,6 @@
 import type { CommandDef } from "@/types/terminal";
 import { loadApp, listAppNames } from "@/core/appLoader";
-import { checkAppAccess, getAppMinRole, triggerAccessDenied } from "@/core/appRestrictions";
+import { checkAppAccess, getAppMinRole } from "@/core/appRestrictions";
 
 const ADMIN_ONLY_APPS = ["admin", "stats"];
 
@@ -28,22 +28,29 @@ export const run: CommandDef = {
       };
     }
 
-    // Permission check for code users
+    // Permission check for code users — deny by default unless explicitly allowed
     if (terminal.user.role === "code") {
-      const blocked = ["cloud", "mail"];
+      const blocked = ["cloud", "mail", "admin", "stats"];
       if (blocked.includes(appName)) {
         return { text: "access denied. code users can't touch that shit.", isError: true };
       }
-      if (terminal.user.permissions && !terminal.user.permissions.includes(appName)) {
-        return { text: "access denied. your code doesn't unlock this app, bitch.", isError: true };
+      const allowed = terminal.user.permissions ?? [];
+      if (!allowed.includes(appName)) {
+        return { text: "access denied. your code doesn't unlock this app.", isError: true };
       }
-    }
-
-    // Role-based app restriction check (configured in admin settings)
-    if (!checkAppAccess(appName, terminal.user.role)) {
+      // Code user passed permission check — skip dynamic restriction
+    } else if (!checkAppAccess(appName, terminal.user.role)) {
+      // Role-based app restriction check (configured in admin settings)
       const minRole = getAppMinRole(appName) ?? "club";
-      triggerAccessDenied(appName, minRole);
-      return { text: `${appName} requires ${minRole} membership.`, isError: true };
+      if (minRole === "admin") {
+        return { text: "admin only. fuck off.", isError: true };
+      }
+      // Auto-open joinclub for non-admin restrictions
+      const joinclub = await loadApp("joinclub");
+      if (joinclub) {
+        return joinclub.run([], terminal);
+      }
+      return { text: `${appName} requires higher membership.`, isError: true };
     }
 
     const app = await loadApp(appName);

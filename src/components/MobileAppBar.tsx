@@ -1,3 +1,5 @@
+import { checkAppAccess } from "@/core/appRestrictions";
+
 interface AppDef {
   name: string;
   icon: string;
@@ -29,6 +31,9 @@ export function MobileAppBar({ onRunApp, userRole }: Props) {
   const level = ROLE_LEVEL[userRole] ?? 0;
 
   const visible = APPS.filter((app) => {
+    // Check dynamic admin restrictions first
+    if (!checkAppAccess(app.name, userRole)) return false;
+    // Then check hardcoded minRole
     if (!app.minRole) return true;
     return level >= (ROLE_LEVEL[app.minRole] ?? 99);
   });

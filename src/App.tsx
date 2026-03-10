@@ -35,7 +35,7 @@ export default function App() {
     const path = window.location.pathname;
 
     // Path-based shortlink routing: /s/{slug}
-    const shortlinkMatch = path.match(/^\/s\/([a-z0-9_-]{2,32})$/);
+    const shortlinkMatch = path.match(/^\/s\/([a-zA-Z0-9_-]{2,32})$/);
     if (shortlinkMatch) {
       setShortlinkSlug(shortlinkMatch[1]!);
       return;
