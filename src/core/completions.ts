@@ -36,12 +36,15 @@ export function getCommandSuggestions(partial: string): Suggestion[] {
 /**
  * Get argument-level suggestions based on which command is being typed.
  */
+const ADMIN_ONLY_APPS = ["admin", "stats"];
+
 export function getArgSuggestions(
   cmdName: string,
   partial: string,
   fs: FileSystemNode,
   cwd: string,
-  username: string
+  username: string,
+  role = "user"
 ): Suggestion[] {
   switch (cmdName) {
     case "theme":
@@ -84,15 +87,17 @@ export function getArgSuggestions(
           };
         });
 
-    case "run":
-      return listAppNames()
-        .filter((n) => n.startsWith(partial))
-        .map((n) => ({
-          value: n,
-          label: n,
-          description: "app",
-          category: "app",
-        }));
+    case "run": {
+      const apps = listAppNames()
+        .filter((n) => role === "admin" ? true : !ADMIN_ONLY_APPS.includes(n))
+        .filter((n) => n.startsWith(partial));
+      return apps.map((n) => ({
+        value: n,
+        label: n,
+        description: "app",
+        category: "app",
+      }));
+    }
 
     default:
       return [];

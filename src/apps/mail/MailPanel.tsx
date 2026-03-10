@@ -10,7 +10,7 @@ import { ComposeView } from "./ComposeView";
 import { SignatureEditor } from "./SignatureEditor";
 import { SetupGuide } from "./SetupGuide";
 
-type View = "list" | "read" | "compose" | "signatures" | "setup";
+type View = "list" | "read" | "compose" | "signatures" | "settings";
 
 export function MailPanel({ user: _user, windowId, windowManager }: WindowContentProps) {
   const [addresses, setAddresses] = useState<EmailAddress[]>([]);
@@ -20,12 +20,13 @@ export function MailPanel({ user: _user, windowId, windowManager }: WindowConten
   const [folder, setFolder] = useState("inbox");
   const [view, setView] = useState<View>("list");
   const [selectedEmailId, setSelectedEmailId] = useState<number | null>(null);
-  const [replyTo, setReplyTo] = useState<{ to: string; subject: string; in_reply_to?: string } | null>(null);
+  const [replyTo, setReplyTo] = useState<{ to: string; subject: string; in_reply_to?: string; from?: string } | null>(null);
   const [forwardData, setForwardData] = useState<{ subject: string; body: string } | null>(null);
   const [editingDraftId, setEditingDraftId] = useState<number | undefined>(undefined);
   const [status, setStatus] = useState<{ text: string; isError: boolean } | null>(null);
   const [listRefreshKey, setListRefreshKey] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [showMobileMore, setShowMobileMore] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
   const showStatus = useCallback((text: string, isError = false) => {
@@ -119,9 +120,7 @@ export function MailPanel({ user: _user, windowId, windowManager }: WindowConten
           handleCompose();
           break;
         case "r":
-          if (view === "read") {
-            e.preventDefault();
-          }
+          // reply handled by MailView's own keydown handler
           break;
         case "Escape":
           if (view !== "list") {
@@ -149,10 +148,9 @@ export function MailPanel({ user: _user, windowId, windowManager }: WindowConten
     if (folder === "drafts") {
       try {
         const draft = await getEmail(id);
-        setReplyTo(null);
-        setForwardData(null);
-        setEditingDraftId(id);
+        setReplyTo({ to: draft.to_address ?? "", subject: draft.subject, from: draft.from_address });
         setForwardData({ subject: draft.subject, body: draft.body ?? "" });
+        setEditingDraftId(id);
         setView("compose");
       } catch {
         showStatus("couldn't load draft", true);
@@ -164,7 +162,7 @@ export function MailPanel({ user: _user, windowId, windowManager }: WindowConten
     void refreshStats();
   }, [refreshStats, folder, showStatus]);
 
-  const handleCompose = useCallback((reply?: { to: string; subject: string; in_reply_to?: string }) => {
+  const handleCompose = useCallback((reply?: { to: string; subject: string; in_reply_to?: string; from?: string }) => {
     setReplyTo(reply ?? null);
     setForwardData(null);
     setEditingDraftId(undefined);
@@ -193,6 +191,7 @@ export function MailPanel({ user: _user, windowId, windowManager }: WindowConten
     setFolder(f);
     setView("list");
     setSelectedEmailId(null);
+    setShowMobileMore(false);
   }, []);
 
   const handleSignatureUpdated = useCallback((addrId: number, signature: string) => {
@@ -269,9 +268,10 @@ export function MailPanel({ user: _user, windowId, windowManager }: WindowConten
           onFolderChange={handleFolderChange}
           onCompose={() => handleCompose()}
           onAddressDeleted={handleAddressDeleted}
+          onAddressClaimed={handleAddressClaimed}
           onFoldersChanged={() => void refreshFolders()}
           onEditSignatures={() => setView("signatures")}
-          onSetupGuide={() => setView("setup")}
+          onSetupGuide={() => setView("settings")}
           showStatus={showStatus}
         />
         <div className="mail-main">
@@ -324,14 +324,121 @@ export function MailPanel({ user: _user, windowId, windowManager }: WindowConten
               showStatus={showStatus}
             />
           )}
-          {view === "setup" && (
+          {view === "settings" && (
             <SetupGuide
               addresses={addresses}
               onClose={handleBack}
+              onPasswordSet={(addrId) => {
+                setAddresses(prev => prev.map(a => a.id === addrId ? { ...a, has_mail_password: true } : a));
+              }}
+              showStatus={showStatus}
             />
           )}
         </div>
       </div>
+
+      {/* Mobile FAB — compose button */}
+      {view === "list" && (
+        <button
+          className="mail-mobile-fab"
+          onClick={() => { setShowMobileMore(false); handleCompose(); }}
+          aria-label="Compose"
+        >
+          +
+        </button>
+      )}
+
+      {/* Mobile "more" bottom sheet */}
+      {showMobileMore && (
+        <div className="mail-mobile-more" onClick={() => setShowMobileMore(false)}>
+          <div className="mail-mobile-more-sheet" onClick={e => e.stopPropagation()}>
+            <div className="mail-mobile-more-section">
+              <div className="mail-mobile-more-label">folders</div>
+              <button
+                className={`mail-mobile-more-item${folder === "trash" ? " active" : ""}`}
+                onClick={() => handleFolderChange("trash")}
+              >
+                <span className="mail-mobile-more-icon">x</span>
+                <span>trash</span>
+                {(stats?.stats["trash"]?.total ?? 0) > 0 && (
+                  <span className="mail-mobile-more-badge">{stats?.stats["trash"]?.total}</span>
+                )}
+              </button>
+              {customFolders.map(f => (
+                <button
+                  key={f.id}
+                  className={`mail-mobile-more-item${folder === f.name ? " active" : ""}`}
+                  onClick={() => handleFolderChange(f.name)}
+                >
+                  <span className="mail-mobile-more-icon">#</span>
+                  <span>{f.name}</span>
+                  {(stats?.stats[f.name]?.unread ?? 0) > 0 && (
+                    <span className="mail-mobile-more-badge">{stats?.stats[f.name]?.unread}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+            <div className="mail-mobile-more-section">
+              <div className="mail-mobile-more-label">settings</div>
+              <button
+                className="mail-mobile-more-item"
+                onClick={() => { setShowMobileMore(false); setView("signatures"); }}
+              >
+                <span className="mail-mobile-more-icon">~</span>
+                <span>signatures</span>
+              </button>
+              <button
+                className="mail-mobile-more-item"
+                onClick={() => { setShowMobileMore(false); setView("settings"); }}
+              >
+                <span className="mail-mobile-more-icon">$</span>
+                <span>imap setup</span>
+              </button>
+            </div>
+            <div className="mail-mobile-more-section">
+              <div className="mail-mobile-more-label">addresses</div>
+              {addresses.map(addr => (
+                <div key={addr.id} className="mail-mobile-more-item mail-mobile-more-addr">
+                  <span className="mail-mobile-more-icon">@</span>
+                  <span>{addr.full}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile bottom nav */}
+      <nav className="mail-mobile-nav">
+        {([
+          { id: "inbox", icon: ">", label: "inbox" },
+          { id: "starred", icon: "*", label: "starred" },
+          { id: "sent", icon: "<", label: "sent" },
+          { id: "drafts", icon: "~", label: "drafts" },
+          { id: "_more", icon: "#", label: "more" },
+        ] as const).map(tab => {
+          const isMore = tab.id === "_more";
+          const isActive = isMore ? showMobileMore : (folder === tab.id && view === "list" && !showMobileMore);
+          const unread = !isMore ? (stats?.stats[tab.id]?.unread ?? 0) : 0;
+          return (
+            <button
+              key={tab.id}
+              className={`mail-mobile-nav-tab${isActive ? " active" : ""}`}
+              onClick={() => {
+                if (isMore) {
+                  setShowMobileMore(p => !p);
+                } else {
+                  handleFolderChange(tab.id);
+                }
+              }}
+            >
+              <span className="mail-mobile-nav-icon">{tab.icon}</span>
+              <span className="mail-mobile-nav-label">{tab.label}</span>
+              {unread > 0 && <span className="mail-mobile-nav-badge">{unread}</span>}
+            </button>
+          );
+        })}
+      </nav>
     </div>
   );
 }

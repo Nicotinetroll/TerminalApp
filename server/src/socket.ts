@@ -46,10 +46,12 @@ try {
   console.log('[whisper] migrated: added reply_to column');
 }
 
-// Fix reactions PK to (message_id, user_id)
+// Fix reactions PK to (message_id, user_id) — only if old 3-col PK detected
 try {
-  const info = db.prepare("PRAGMA table_info(chat_reactions)").all() as { name: string }[];
-  if (info.length > 0) {
+  const info = db.prepare("PRAGMA table_info(chat_reactions)").all() as { name: string; pk: number }[];
+  const pkCols = info.filter(c => c.pk > 0);
+  // Only migrate if old schema had 3+ PK columns (message_id, user_id, emoji)
+  if (pkCols.length >= 3) {
     db.exec(`
       DROP TABLE IF EXISTS chat_reactions;
       CREATE TABLE chat_reactions (

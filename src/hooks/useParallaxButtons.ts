@@ -7,8 +7,14 @@ import { useEffect } from "react";
  */
 export function useParallaxButtons() {
   useEffect(() => {
+    function getBtn(e: MouseEvent): HTMLElement | null {
+      const t = e.target;
+      if (!(t instanceof Element)) return null;
+      return t.closest<HTMLElement>(".btn");
+    }
+
     function onMove(e: MouseEvent) {
-      const btn = (e.target as HTMLElement).closest<HTMLElement>(".btn");
+      const btn = getBtn(e);
       if (!btn || btn.hasAttribute("disabled")) return;
 
       const rect = btn.getBoundingClientRect();
@@ -27,13 +33,13 @@ export function useParallaxButtons() {
     }
 
     function onLeave(e: MouseEvent) {
-      const btn = (e.target as HTMLElement).closest<HTMLElement>(".btn");
+      const btn = getBtn(e);
       if (!btn) return;
       btn.style.transform = "";
     }
 
     function onClick(e: MouseEvent) {
-      const btn = (e.target as HTMLElement).closest<HTMLElement>(".btn");
+      const btn = getBtn(e);
       if (!btn || btn.hasAttribute("disabled")) return;
       btn.style.transform = "scale(0.96)";
       requestAnimationFrame(() => {

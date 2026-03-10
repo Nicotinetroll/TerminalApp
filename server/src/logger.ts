@@ -38,7 +38,10 @@ export function captureConsole(): void {
 
 // ── HTTP request logging ──
 
+const NOISY_PATHS = ['/api/admin/logs', '/api/admin/stats'];
+
 export function logHttp(method: string, path: string, status: number, ms: number, username?: string): void {
+  if (NOISY_PATHS.some(p => path.startsWith(p))) return;
   const who = username ? ` [${username}]` : '';
   push('http', `${method} ${path} ${status} ${ms}ms${who}`, { method, path, status, ms, username });
 }

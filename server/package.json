@@ -9,6 +9,9 @@
     "create-user": "tsx src/create-user.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1005.0",
+    "@aws-sdk/s3-request-presigner": "^3.1005.0",
+    "archiver": "^7.0.1",
     "bcryptjs": "^3.0.2",
     "better-sqlite3": "^11.9.1",
     "cors": "^2.8.5",
@@ -21,6 +24,7 @@
     "socket.io": "^4.8.3"
   },
   "devDependencies": {
+    "@types/archiver": "^7.0.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/better-sqlite3": "^7.6.13",
     "@types/cors": "^2.8.19",

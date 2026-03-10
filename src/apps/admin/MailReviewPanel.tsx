@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Fragment } from "react";
 import {
   getAdminEmailAddresses,
   deleteAdminEmailAddress,
@@ -135,9 +135,8 @@ export function MailReviewPanel() {
               </thead>
               <tbody>
                 {emails.map((email) => (
-                  <>
+                  <Fragment key={email.id}>
                     <tr
-                      key={email.id}
                       style={{ cursor: "pointer", opacity: email.is_read ? 0.7 : 1 }}
                       onClick={() => void handleExpandEmail(email.id)}
                     >
@@ -191,7 +190,7 @@ export function MailReviewPanel() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 ))}
               </tbody>
             </table>

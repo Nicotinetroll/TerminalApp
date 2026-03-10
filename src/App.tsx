@@ -4,6 +4,9 @@ import { useAuth, type LoginResult } from "@/hooks/useAuth";
 import { LoginScreen } from "@/components/LoginScreen";
 import { Terminal } from "@/components/Terminal";
 import { PasteViewer } from "@/components/PasteViewer";
+import { PublicPasteCreate } from "@/components/PublicPasteCreate";
+import { PublicUpload } from "@/components/PublicUpload";
+import { ShortlinkRedirect } from "@/components/ShortlinkRedirect";
 import { registerWithInvite } from "@/lib/api";
 
 export default function App() {
@@ -11,6 +14,10 @@ export default function App() {
   const [inviteToken, setInviteToken] = useState<string | null>(null);
   const [roomToken, setRoomToken] = useState<string | null>(null);
   const [pasteId, setPasteId] = useState<string | null>(null);
+  const [pasteCreate, setPasteCreate] = useState(false);
+  const [forkId, setForkId] = useState<string | null>(null);
+  const [uploadId, setUploadId] = useState<string | null>(null);
+  const [shortlinkSlug, setShortlinkSlug] = useState<string | null>(null);
   const {
     user,
     userId,
@@ -22,21 +29,60 @@ export default function App() {
     setUserFromRegister,
   } = useAuth();
 
-  // Detect ?invite=TOKEN and ?room=ROOM_ID on mount
+  // Detect path-based and query-based routes on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const path = window.location.pathname;
+
+    // Path-based shortlink routing: /s/{slug}
+    const shortlinkMatch = path.match(/^\/s\/([a-z0-9_-]{2,32})$/);
+    if (shortlinkMatch) {
+      setShortlinkSlug(shortlinkMatch[1]!);
+      return;
+    }
+
+    // Path-based transfer routing: /t/{id}
+    const uploadMatch = path.match(/^\/t\/([a-f0-9]{32})$/);
+    if (uploadMatch) {
+      setUploadId(uploadMatch[1]!);
+      return;
+    }
+
+    // Legacy /upload/{id} → redirect to /t/{id}
+    const legacyUpload = path.match(/^\/upload\/([a-f0-9]{32})$/);
+    if (legacyUpload) {
+      window.location.replace(`/t/${legacyUpload[1]!}`);
+      return;
+    }
+
+    // Path-based paste routing: /paste or /paste/{id}
+    const pasteMatch = path.match(/^\/paste(?:\/(.+))?$/);
+    if (pasteMatch) {
+      const id = pasteMatch[1];
+      if (id) {
+        setPasteId(id);
+      } else {
+        // /paste with ?fork=id support
+        const fork = params.get("fork");
+        if (fork) setForkId(fork);
+        setPasteCreate(true);
+      }
+      return;
+    }
+
+    // Legacy query-based paste: ?paste={id} → redirect to /paste/{id}
+    const legacyPaste = params.get("paste");
+    if (legacyPaste) {
+      window.history.replaceState({}, "", `/paste/${legacyPaste}`);
+      setPasteId(legacyPaste);
+      return;
+    }
+
+    // Other query params
     const token = params.get("invite");
     const room = params.get("room");
-    const paste = params.get("paste");
-    if (token) {
-      setInviteToken(token);
-    }
-    if (room) {
-      setRoomToken(room);
-    }
-    if (paste) {
-      setPasteId(paste);
-    }
+    if (token) setInviteToken(token);
+    if (room) setRoomToken(room);
     if (token || room) {
       window.history.replaceState({}, "", window.location.pathname);
     }
@@ -87,8 +133,70 @@ export default function App() {
     [setUserFromRegister]
   );
 
+  const navigateToPaste = (id: string) => {
+    setPasteCreate(false);
+    setForkId(null);
+    setPasteId(id);
+    window.history.replaceState({}, "", `/paste/${id}`);
+  };
+
+  const navigateToCreate = (parentId?: string) => {
+    setPasteId(null);
+    setForkId(parentId ?? null);
+    setPasteCreate(true);
+    window.history.replaceState({}, "", parentId ? `/paste?fork=${parentId}` : "/paste");
+  };
+
+  const navigateHome = () => {
+    setPasteId(null);
+    setPasteCreate(false);
+    setForkId(null);
+    setUploadId(null);
+    setShortlinkSlug(null);
+    window.history.replaceState({}, "", "/");
+  };
+
+  // Public shortlink redirect
+  if (shortlinkSlug) {
+    return (
+      <ShortlinkRedirect
+        slug={shortlinkSlug}
+        onClose={navigateHome}
+      />
+    );
+  }
+
+  // Public upload page
+  if (uploadId) {
+    return (
+      <PublicUpload
+        transferId={uploadId}
+        onClose={navigateHome}
+      />
+    );
+  }
+
+  // Public paste create page
+  if (pasteCreate) {
+    return (
+      <PublicPasteCreate
+        forkId={forkId}
+        onClose={navigateHome}
+        onViewPaste={navigateToPaste}
+      />
+    );
+  }
+
+  // Public paste viewer
   if (pasteId) {
-    return <PasteViewer pasteId={pasteId} onClose={() => { setPasteId(null); window.history.replaceState({}, "", window.location.pathname); }} />;
+    return (
+      <PasteViewer
+        pasteId={pasteId}
+        onClose={navigateHome}
+        onFork={navigateToCreate}
+        onViewPaste={navigateToPaste}
+      />
+    );
   }
 
   if (isLoading) {

@@ -4,14 +4,9 @@ import db from '../db.js';
 import { authMiddleware, adminMiddleware } from '../middleware.js';
 import type { AuthRequest } from '../middleware.js';
 import { broadcastEvent } from '../socket.js';
+import { STORAGE_LIMITS, getEffectiveLimit } from '../constants.js';
 
 const router = Router();
-
-const STORAGE_LIMITS: Record<string, number> = {
-  admin: 0,
-  user: 500 * 1024 * 1024,
-  guest: 50 * 1024 * 1024,
-};
 
 // ── Theme system ──
 // All themes share the same weight distribution and multiplier tiers.
@@ -93,12 +88,6 @@ function getRTPTarget(): number {
       const val = parseFloat(row.value);
       return Math.max(80, Math.min(99, val || 92));
     }
-    const legacy = db.prepare("SELECT value FROM global_settings WHERE key = 'slots_win_chance'").get() as { value: string } | undefined;
-    if (legacy) {
-      const oldVal = parseInt(legacy.value, 10) || 30;
-      const mappedRTP = Math.max(80, Math.min(99, Math.round(82 + (oldVal / 80) * 17)));
-      return mappedRTP;
-    }
     return 92;
   } catch { return 92; }
 }
@@ -112,7 +101,7 @@ function getScaledWeights(rtpTarget: number): { tier: SymbolTier; weight: number
   // At RTP 92: ratio = 1.00  → no change
   // At RTP 99: ratio ≈ 1.21  → winning weights grow 21%, fillers shrink
   const deviation = (rtpTarget - NEUTRAL_RTP) / (99 - NEUTRAL_RTP); // -1.7..+1.0
-  const frequencyScale = 1 + deviation * 0.3; // 0.49..1.30 — how much to boost winning symbols
+  const frequencyScale = Math.max(0.4, 1 + deviation * 0.45); // more aggressive scaling
 
   const scaled = TIER_WEIGHTS.map(tw => {
     let weight: number;
@@ -144,7 +133,7 @@ function weightedSymbol(theme: ThemeConfig, scaledWeights: { tier: SymbolTier; w
 // At neutral RTP (92) this returns 1.0.
 function getPayoutFactor(rtpTarget: number): number {
   const deviation = (rtpTarget - NEUTRAL_RTP) / (99 - NEUTRAL_RTP);
-  return 1 + deviation * 0.15; // 0.745..1.15
+  return Math.max(0.5, 1 + deviation * 0.25); // more aggressive payout scaling
 }
 
 // 5 paylines on a 3x3 grid  [col, row] pairs
@@ -170,31 +159,34 @@ function getSymbolTier(sym: string, theme: ThemeConfig): string {
   return 'filler2';
 }
 
+// Multi-line combo: hitting multiple paylines multiplies total payout
+// This creates the dopamine spikes — rare multi-line hits pay BIG
+const COMBO_MULTIPLIERS = [0, 1, 1.5, 2.5, 4, 10]; // index = number of winning lines
+
 function getLineMultiplier(syms: string[], theme: ThemeConfig): { multiplier: number; result: string } {
   const [a, b, c] = syms as [string, string, string];
 
-  // Three of a kind
+  // Three of a kind — big payouts, these create the spikes
   if (a === b && b === c) {
     const tier = getSymbolTier(a, theme);
     switch (tier) {
-      case 'jackpot':  return { multiplier: 25, result: 'jackpot' };
-      case 'premium1': return { multiplier: 15, result: 'triple_premium1' };
-      case 'premium2': return { multiplier: 10, result: 'triple_premium2' };
-      case 'premium3': return { multiplier: 8,  result: 'triple_premium3' };
+      case 'jackpot':  return { multiplier: 50,  result: 'jackpot' };
+      case 'premium1': return { multiplier: 25,  result: 'triple_premium1' };
+      case 'premium2': return { multiplier: 15,  result: 'triple_premium2' };
+      case 'premium3': return { multiplier: 10,  result: 'triple_premium3' };
       case 'mid1':
-      case 'mid2':     return { multiplier: 5,  result: 'triple_match' };
-      default:         return { multiplier: 3,  result: 'triple_match' };
+      case 'mid2':     return { multiplier: 5,   result: 'triple_match' };
+      default:         return { multiplier: 3,   result: 'triple_match' };
     }
   }
 
-  // Pair detection — only premium symbols pay
+  // Pair detection — only top premium symbols pay
   const pair = (a === b) ? a : (a === c) ? a : (b === c) ? b : null;
   if (pair) {
     const tier = getSymbolTier(pair, theme);
     switch (tier) {
-      case 'jackpot':  return { multiplier: 2,   result: 'pair_premium' };
-      case 'premium1': return { multiplier: 1.5, result: 'pair_premium' };
-      case 'premium2': return { multiplier: 1,   result: 'pair_match' };
+      case 'jackpot':  return { multiplier: 3, result: 'pair_premium' };
+      case 'premium1': return { multiplier: 2, result: 'pair_premium' };
       default: break;
     }
   }
@@ -277,12 +269,6 @@ function freeSpinsForScatters(count: number): number {
   return 0;
 }
 
-function getEffectiveLimit(role: string, bonusBytes: number): number {
-  const base = STORAGE_LIMITS[role] ?? STORAGE_LIMITS['guest']!;
-  if (base === 0) return 0;
-  return Math.max(0, base + bonusBytes);
-}
-
 const WIN_MESSAGES = [
   "nice pull.",
   "cha-ching bitch.",
@@ -302,6 +288,14 @@ const MULTI_WIN_MESSAGES = [
   "absolute carnage.",
   "house is sweating.",
   "MULTI BANGER.",
+];
+
+const MEGA_COMBO_MESSAGES = [
+  "MEGA COMBO.",
+  "THE MACHINE IS CRYING.",
+  "ABSOLUTE CARNAGE.",
+  "WHAT THE FUCK.",
+  "YOU BROKE IT.",
 ];
 
 const JACKPOT_MESSAGES = [
@@ -541,6 +535,9 @@ router.post('/spin', (req: AuthRequest, res: Response): void => {
   const scaledWeights = getScaledWeights(rtpTarget);
   const payoutFactor = getPayoutFactor(rtpTarget);
 
+  // Entire spin in a transaction to prevent double-spend race conditions
+  db.transaction(() => {
+
   const balance = db.prepare(
     'SELECT bonus_bytes, total_won, total_lost, spins, free_spins, bytebucks, bonus_state FROM slots_balance WHERE user_id = ?'
   ).get(userId) as { bonus_bytes: number; total_won: number; total_lost: number; spins: number; free_spins: number; bytebucks: number; bonus_state: string | null } | undefined;
@@ -588,7 +585,9 @@ router.post('/spin', (req: AuthRequest, res: Response): void => {
 
   // Check all 5 paylines (with RTP-adjusted payouts)
   const wins = checkPaylines(grid, effectiveBetBytes, payoutFactor, theme);
-  const totalPayout = wins.reduce((sum, w) => sum + w.payout_bytes, 0);
+  const rawPayout = wins.reduce((sum, w) => sum + w.payout_bytes, 0);
+  const comboMultiplier = wins.length >= 2 ? (COMBO_MULTIPLIERS[Math.min(wins.length, 5)] ?? 1) : 1;
+  const totalPayout = Math.floor(rawPayout * comboMultiplier);
   const hasJackpot = wins.some(w => w.result === 'jackpot');
 
   // Check for scatter → free spins
@@ -627,7 +626,7 @@ router.post('/spin', (req: AuthRequest, res: Response): void => {
   if (effectiveCurrency === 'niggabytes') {
     // NB mode: bet_mb treated as NB units
     if (isFreeSpin) {
-      newNB = currentNB + effectiveBet * (totalPayout > 0 ? Math.ceil(totalPayout / effectiveBetBytes) : 0);
+      newNB = currentNB + (totalPayout > 0 ? Math.ceil((totalPayout / effectiveBetBytes) * effectiveBet) : 0);
     } else if (totalPayout > 0) {
       const nbWin = Math.ceil((totalPayout / effectiveBetBytes) * effectiveBet) - effectiveBet;
       newNB = currentNB + nbWin;
@@ -696,8 +695,10 @@ router.post('/spin', (req: AuthRequest, res: Response): void => {
     message = `${freeSpinsAwarded} FREE + ${wins.length} lines.`;
   } else if (freeSpinsAwarded > 0) {
     message = `${freeSpinsAwarded} FREE SPINS.`;
+  } else if (wins.length >= 3) {
+    message = `${wins.length}x ${comboMultiplier}x ${pickRandom(MEGA_COMBO_MESSAGES)}`;
   } else if (wins.length > 1 && !isPairOnly) {
-    message = `${wins.length}x ${pickRandom(MULTI_WIN_MESSAGES)}`;
+    message = `${wins.length}x ${comboMultiplier}x ${pickRandom(MULTI_WIN_MESSAGES)}`;
   } else if (wins.length > 1) {
     message = `${wins.length}x ${pickRandom(PAIR_MESSAGES)}`;
   } else if (wins.length === 1 && isPairOnly) {
@@ -747,14 +748,21 @@ router.post('/spin', (req: AuthRequest, res: Response): void => {
   // Broadcast global events
   if (hasJackpot) {
     broadcastEvent({ type: 'jackpot', message: '🚨 someone just hit the JACKPOT. the house is crying rn' });
+  } else if (wins.length >= 4) {
+    broadcastEvent({ type: 'big_win', message: `🔥 someone just hit ${wins.length} lines (${comboMultiplier}x COMBO). absolute carnage.` });
   } else if (wins.length >= 3) {
-    broadcastEvent({ type: 'big_win', message: `🔥 someone just hit ${wins.length} lines at once. absolute carnage.` });
+    broadcastEvent({ type: 'big_win', message: `🔥 ${wins.length}-line combo just dropped. house is sweating.` });
   }
 
   const newEffectiveLimit = getEffectiveLimit(role, newBonusBytes);
   const fsRow2 = db.prepare('SELECT filesystem FROM user_filesystems WHERE user_id = ?').get(userId) as
     | { filesystem: string } | undefined;
   const usedNow = fsRow2 ? Buffer.byteLength(fsRow2.filesystem, 'utf8') : 0;
+
+  const histStats2 = db.prepare(
+    `SELECT COUNT(*) as total, SUM(CASE WHEN result != 'lose' THEN 1 ELSE 0 END) as wins FROM slots_history WHERE user_id = ?`
+  ).get(userId) as { total: number; wins: number };
+  const winRate = histStats2.total > 0 ? histStats2.wins / histStats2.total : 0;
 
   // Build bonus response object
   const bonusResponse = activeBonus ? {
@@ -764,6 +772,22 @@ router.post('/spin', (req: AuthRequest, res: Response): void => {
     tier: activeBonus.tier,
     multiplier: activeBonus.multiplier,
     spins_remaining: activeBonus.spins_remaining,
+    spins_total: activeBonus.spins_total,
+    total_bonus: activeBonus.total_bonus,
+    hits_this_spin: bonusHitsThisSpin,
+    hit_payout: bonusHitPayout,
+    bet_mb: activeBonus.bet_mb,
+    currency: activeBonus.currency,
+  } : null;
+
+  // When bonus ends, send the final accumulated total (including last spin's hits)
+  const bonusFinalResponse = bonusEnded && activeBonus ? {
+    type: activeBonus.type,
+    symbol: activeBonus.symbol,
+    emoji: getEmojiForSymbol(theme, activeBonus.symbol),
+    tier: activeBonus.tier,
+    multiplier: activeBonus.multiplier,
+    spins_remaining: 0,
     spins_total: activeBonus.spins_total,
     total_bonus: activeBonus.total_bonus,
     hits_this_spin: bonusHitsThisSpin,
@@ -802,11 +826,13 @@ router.post('/spin', (req: AuthRequest, res: Response): void => {
     free_spins_awarded: freeSpinsAwarded,
     free_spins_remaining: newFreeSpins,
     has_jackpot: hasJackpot,
+    combo_multiplier: comboMultiplier,
     message,
     currency: effectiveCurrency,
     nb_balance: newNB,
     bonus: bonusEnded ? null : (bonusResponse ?? bonusAwardedResponse),
     bonus_awarded: bonusAwardedResponse,
+    bonus_final: bonusFinalResponse,
     balance: {
       bonus_bytes: newBonusBytes,
       effective_limit: newEffectiveLimit,
@@ -817,14 +843,11 @@ router.post('/spin', (req: AuthRequest, res: Response): void => {
       total_won: newTotalWon,
       total_lost: newTotalLost,
       spins: newSpins,
-      win_rate: (() => {
-        const h = db.prepare(
-          `SELECT COUNT(*) as total, SUM(CASE WHEN result != 'lose' THEN 1 ELSE 0 END) as wins FROM slots_history WHERE user_id = ?`
-        ).get(userId) as { total: number; wins: number };
-        return h.total > 0 ? h.wins / h.total : 0;
-      })(),
+      win_rate: winRate,
     },
   });
+
+  })(); // end spin transaction
 });
 
 // GET /api/slots/history
@@ -906,10 +929,10 @@ router.delete('/admin/reset/:userId', adminMiddleware, (req: AuthRequest, res: R
   }
 
   db.prepare(`
-    INSERT INTO slots_balance (user_id, bonus_bytes, total_won, total_lost, spins, free_spins, bonus_state, updated_at)
-    VALUES (?, 0, 0, 0, 0, 0, NULL, datetime('now'))
+    INSERT INTO slots_balance (user_id, bonus_bytes, total_won, total_lost, spins, free_spins, bytebucks, bonus_state, updated_at)
+    VALUES (?, 0, 0, 0, 0, 0, 0, NULL, datetime('now'))
     ON CONFLICT(user_id) DO UPDATE SET
-      bonus_bytes = 0, total_won = 0, total_lost = 0, spins = 0, free_spins = 0, bonus_state = NULL, updated_at = datetime('now')
+      bonus_bytes = 0, total_won = 0, total_lost = 0, spins = 0, free_spins = 0, bytebucks = 0, bonus_state = NULL, updated_at = datetime('now')
   `).run(targetId);
 
   db.prepare('DELETE FROM slots_history WHERE user_id = ?').run(targetId);

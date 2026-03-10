@@ -10,7 +10,19 @@ const SOUND_OPTIONS = [
 
 const ALL_SHORTCUT_APPS = [
   "mail", "whisper", "cloud", "nigdit", "memes", "paste", "profile", "games",
-  "slots", "coinflip", "ascii", "admin", "stats",
+  "slots", "coinflip", "shortlinks", "ascii", "admin", "stats",
+];
+
+const RESTRICTABLE_APPS = [
+  "mail", "whisper", "cloud", "nigdit", "memes", "paste", "profile", "games",
+  "slots", "coinflip", "shortlinks", "ascii",
+];
+
+const ROLE_OPTIONS = [
+  { value: "", label: "everyone" },
+  { value: "user", label: "user" },
+  { value: "club", label: "club" },
+  { value: "admin", label: "admin" },
 ];
 
 export function SettingsPanel() {
@@ -115,6 +127,14 @@ export function SettingsPanel() {
           onChange={(v) => void handleNumber("handle_refresh_hours", v)}
         />
       </div>
+
+      <AppAccessSection
+        settings={settings}
+        updateSetting={updateSetting}
+        saving={saving}
+        setSaving={setSaving}
+        showStatus={showStatus}
+      />
 
       <ShortcutBarSection
         settings={settings}
@@ -291,6 +311,64 @@ function ShortcutBarSection({ settings, updateSetting, saving, setSaving, showSt
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function AppAccessSection({ settings, updateSetting, saving, setSaving, showStatus }: {
+  settings: Record<string, string>;
+  updateSetting: (key: string, value: string) => Promise<void>;
+  saving: string | null;
+  setSaving: (s: string | null) => void;
+  showStatus: (text: string) => void;
+}) {
+  const restrictions = useMemo(() => {
+    try {
+      const raw = settings["app_restrictions"];
+      return raw ? JSON.parse(raw) as Record<string, string> : {};
+    } catch {
+      return {};
+    }
+  }, [settings]);
+
+  const handleChange = async (appName: string, role: string) => {
+    const next = { ...restrictions };
+    if (role) {
+      next[appName] = role;
+    } else {
+      delete next[appName];
+    }
+    setSaving("app_restrictions");
+    await updateSetting("app_restrictions", JSON.stringify(next));
+    setSaving(null);
+    showStatus(role ? `${appName} restricted to ${role}+` : `${appName} unrestricted`);
+  };
+
+  return (
+    <div style={{ marginTop: 24 }}>
+      <div style={{ fontSize: 12, color: "var(--text-ghost)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
+        app access
+      </div>
+      <div style={{ fontSize: 11, color: "var(--text-ghost)", marginBottom: 10 }}>
+        set minimum role required to open each app. users below the required role will see a "join club" prompt.
+      </div>
+
+      {RESTRICTABLE_APPS.map((appName) => (
+        <div key={appName} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 0", borderBottom: "1px solid var(--border-subtle)" }}>
+          <span style={{ fontSize: 13, color: "var(--text-primary)" }}>{appName}</span>
+          <select
+            className="admin-select"
+            value={restrictions[appName] ?? ""}
+            onChange={(e) => void handleChange(appName, e.target.value)}
+            disabled={saving === "app_restrictions"}
+            style={{ width: 110 }}
+          >
+            {ROLE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </div>
+      ))}
     </div>
   );
 }

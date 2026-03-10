@@ -2,6 +2,10 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import type { WindowContentProps } from "@/types/terminal";
 import type { SlotsBalance, SlotsSpinResult, SlotsBonusInfo } from "@/lib/api";
 import { getSlotsBalance, spinSlots, ApiError } from "@/lib/api";
+import { SlotMachine } from "./SlotMachine";
+import { slotsSfx } from "./sounds";
+import { getTheme } from "./themes";
+import { fmtMB, fmtNB } from "./format";
 
 interface LocalHistoryEntry {
   id: number;
@@ -12,26 +16,10 @@ interface LocalHistoryEntry {
   created_at: string;
   currency?: string;
 }
-import { SlotMachine } from "./SlotMachine";
-import { slotsSfx } from "./sounds";
-import { getTheme } from "./themes";
 
 const BET_OPTIONS_MB = [1, 5, 10, 25];
 const BET_OPTIONS_NB = [1, 2, 5, 10];
 const THEME = getTheme("classic");
-
-function fmtMB(bytes: number): string {
-  if (bytes === 0) return "0 MB";
-  const mb = bytes / (1024 * 1024);
-  if (mb >= 1000) return `${(mb / 1024).toFixed(1)} GB`;
-  if (mb >= 1) return `${mb.toFixed(1)} MB`;
-  return `${(bytes / 1024).toFixed(0)} KB`;
-}
-
-function fmtNB(bytes: number): string {
-  const nb = Math.round(bytes / (1024 * 1024));
-  return `${nb} NB`;
-}
 
 export function SlotsPanel({ user }: WindowContentProps) {
   const [balance, setBalance] = useState<SlotsBalance | null>(null);
@@ -200,12 +188,8 @@ export function SlotsPanel({ user }: WindowContentProps) {
 
     // 2. If bonus just ended (spins_remaining = 0 and we had an active bonus)
     if (bonusInfoRef.current && sr.bonus === null) {
-      // Show completion overlay
-      const completedBonus = { ...bonusInfoRef.current, total_bonus: sr.bonus?.total_bonus ?? bonusInfoRef.current.total_bonus };
-      // Use the last bonus response's data if available
-      if (spinResultRef.current?.bonus) {
-        completedBonus.total_bonus = spinResultRef.current.bonus.total_bonus;
-      }
+      // Use bonus_final from backend — has the correct accumulated total including last spin
+      const completedBonus = sr.bonus_final ?? bonusInfoRef.current;
       setBonusComplete(completedBonus);
       setBonusInfo(null);
       slotsSfx.bonusComplete();
@@ -402,19 +386,19 @@ export function SlotsPanel({ user }: WindowContentProps) {
             <div className="slots-payouts-list">
               <div className="slots-payouts-row slots-payouts-jackpot">
                 <span>{THEME.symbolMap[THEME.jackpot]}{THEME.symbolMap[THEME.jackpot]}{THEME.symbolMap[THEME.jackpot]}</span>
-                <span>25x</span>
+                <span>50x</span>
               </div>
               <div className="slots-payouts-row">
                 <span>{THEME.symbolMap[THEME.premium1]}{THEME.symbolMap[THEME.premium1]}{THEME.symbolMap[THEME.premium1]}</span>
-                <span>15x</span>
+                <span>25x</span>
               </div>
               <div className="slots-payouts-row">
                 <span>{THEME.symbolMap[THEME.premium2]}{THEME.symbolMap[THEME.premium2]}{THEME.symbolMap[THEME.premium2]}</span>
-                <span>10x</span>
+                <span>15x</span>
               </div>
               <div className="slots-payouts-row">
                 <span>{THEME.symbolMap[THEME.premium3]}{THEME.symbolMap[THEME.premium3]}{THEME.symbolMap[THEME.premium3]}</span>
-                <span>8x</span>
+                <span>10x</span>
               </div>
               <div className="slots-payouts-row">
                 <span>{THEME.symbolMap[THEME.mid1]}{THEME.symbolMap[THEME.mid1]}{THEME.symbolMap[THEME.mid1]} / {THEME.symbolMap[THEME.mid2]}{THEME.symbolMap[THEME.mid2]}{THEME.symbolMap[THEME.mid2]}</span>
@@ -427,15 +411,28 @@ export function SlotsPanel({ user }: WindowContentProps) {
               <div className="slots-payouts-dim-note" style={{marginTop: 6, marginBottom: 2, fontWeight: 600, fontStyle: 'normal', color: 'var(--text-secondary)'}}>PAIRS</div>
               <div className="slots-payouts-row">
                 <span>{THEME.symbolMap[THEME.jackpot]}{THEME.symbolMap[THEME.jackpot]} pair</span>
-                <span>2x</span>
+                <span>3x</span>
               </div>
               <div className="slots-payouts-row">
                 <span>{THEME.symbolMap[THEME.premium1]}{THEME.symbolMap[THEME.premium1]} pair</span>
-                <span>1.5x</span>
+                <span>2x</span>
+              </div>
+              <div className="slots-payouts-dim-note" style={{marginTop: 6, marginBottom: 2, fontWeight: 600, fontStyle: 'normal', color: 'var(--text-secondary)'}}>COMBO</div>
+              <div className="slots-payouts-row">
+                <span>2 lines</span>
+                <span>1.5x total</span>
               </div>
               <div className="slots-payouts-row">
-                <span>{THEME.symbolMap[THEME.premium2]}{THEME.symbolMap[THEME.premium2]} pair</span>
-                <span>1x</span>
+                <span>3 lines</span>
+                <span>2.5x total</span>
+              </div>
+              <div className="slots-payouts-row">
+                <span>4 lines</span>
+                <span>4x total</span>
+              </div>
+              <div className="slots-payouts-row slots-payouts-jackpot">
+                <span>5 lines</span>
+                <span>10x total</span>
               </div>
             </div>
             <div className="slots-payouts-section">
@@ -472,9 +469,9 @@ export function SlotsPanel({ user }: WindowContentProps) {
           message={message}
           messageType={messageType}
           totalPayout={spinResult?.total_payout_bytes ?? 0}
-          winCount={spinResult?.wins.length ?? 0}
           busy={busy}
           isNB={isNB}
+          comboMultiplier={spinResult?.combo_multiplier ?? 1}
           bonus={bonusInfo}
           bonusAnnounce={bonusAnnounce}
           bonusComplete={bonusComplete}

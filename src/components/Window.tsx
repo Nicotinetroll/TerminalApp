@@ -73,7 +73,7 @@ export function Window({
 
   const handleDragStart = useCallback(
     (e: React.MouseEvent) => {
-      if ((e.target as HTMLElement).closest(".window-btn")) return;
+      if (e.target instanceof Element && e.target.closest(".window-btn")) return;
       e.preventDefault();
       onFocus(win.id);
       dragRef.current = {

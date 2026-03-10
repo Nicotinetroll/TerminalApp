@@ -10,7 +10,7 @@ function formatBytes(bytes: number): string {
 
 interface Props {
   addresses: EmailAddress[];
-  replyTo: { to: string; subject: string; in_reply_to?: string } | null;
+  replyTo: { to: string; subject: string; in_reply_to?: string; from?: string } | null;
   forwardData?: { subject: string; body: string } | null;
   draftId?: number;
   onSent: () => void;
@@ -21,7 +21,15 @@ interface Props {
 export function ComposeView({ addresses, replyTo, forwardData, draftId: initialDraftId, onSent, onCancel, showStatus }: Props) {
   const [to, setTo] = useState(replyTo?.to ?? "");
   const [subject, setSubject] = useState(replyTo?.subject ?? forwardData?.subject ?? "");
-  const [fromAddr, setFromAddr] = useState(addresses[0]?.address ?? "");
+  const [fromAddr, setFromAddr] = useState(() => {
+    // Pre-select the address that received the email (for replies)
+    if (replyTo?.from) {
+      const localPart = replyTo.from.split("@")[0]?.toLowerCase();
+      const match = addresses.find(a => a.address === localPart || a.full === replyTo.from);
+      if (match) return match.address;
+    }
+    return addresses[0]?.address ?? "";
+  });
   const currentAddr = addresses.find(a => a.address === fromAddr) ?? addresses[0];
   const [fromName, setFromName] = useState(currentAddr?.display_name ?? "MyNigga");
   const [sending, setSending] = useState(false);

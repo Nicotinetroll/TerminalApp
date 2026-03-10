@@ -1,15 +1,9 @@
 import { Router, Response } from 'express';
 import db from '../db.js';
 import { authMiddleware, AuthRequest } from '../middleware.js';
+import { STORAGE_LIMITS } from '../constants.js';
 
 const router = Router();
-
-// Storage limits per role (bytes). 0 = unlimited
-const STORAGE_LIMITS: Record<string, number> = {
-  admin: 0,
-  user: 500 * 1024 * 1024,   // 500 MB
-  guest: 50 * 1024 * 1024,   // 50 MB
-};
 
 // All sync routes require authentication
 router.use(authMiddleware);

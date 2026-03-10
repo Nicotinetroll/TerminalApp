@@ -10,7 +10,12 @@ export async function loadApp(name: string): Promise<AppModule | null> {
   try {
     const mod = (await loader()) as { app?: AppModule };
     return mod.app ?? null;
-  } catch {
+  } catch (err) {
+    // Chunk 404 after deploy — force reload to get fresh assets
+    const msg = err instanceof Error ? err.message : "";
+    if (msg.includes("Failed to fetch") || msg.includes("Loading chunk") || msg.includes("404")) {
+      window.location.reload();
+    }
     return null;
   }
 }

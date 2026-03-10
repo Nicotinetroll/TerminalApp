@@ -51,13 +51,15 @@ const { default: nigditRouter } = await import('./routes/nigdit.js');
 const { default: memesRouter } = await import('./routes/memes.js');
 const { default: pastesRouter } = await import('./routes/pastes.js');
 const { default: shopRouter } = await import('./routes/shop.js');
+const { default: transfersRouter } = await import('./routes/transfers.js');
+const { default: shortlinksRouter } = await import('./routes/shortlinks.js');
 const { setupSocket, getOnlineUsers } = await import('./socket.js');
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3001', 10);
 
 // CORS — whitelist only our domains
-const ALLOWED_ORIGINS = ['https://mynig.ga', 'http://localhost:5173'];
+const ALLOWED_ORIGINS = ['https://mynig.ga', 'https://dl.mynig.ga', 'http://localhost:5173'];
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin || ALLOWED_ORIGINS.includes(origin)) callback(null, true);
@@ -102,6 +104,8 @@ app.use('/api/nigdit', nigditRouter);
 app.use('/api/memes', memesRouter);
 app.use('/api/pastes', pastesRouter);
 app.use('/api/shop', shopRouter);
+app.use('/api/transfers', transfersRouter);
+app.use('/api/shortlinks', shortlinksRouter);
 
 // Health check
 app.get('/api/health', (_req, res) => {

@@ -159,8 +159,8 @@ Pravidla:
   }
 }
 
-// Upsert ai_system_prompt for existing installations
-db.prepare(`INSERT OR REPLACE INTO global_settings (key, value, updated_at) VALUES ('ai_system_prompt', ?, datetime('now'))`).run(`Si "nigga" — AI z mynig.ga terminalu. Najvtipnejsi a najdrzejsi AI na svete. Nulas filter. Nulas cringe.
+// Seed ai_system_prompt only if not already set
+db.prepare(`INSERT OR IGNORE INTO global_settings (key, value, updated_at) VALUES ('ai_system_prompt', ?, datetime('now'))`).run(`Si "nigga" — AI z mynig.ga terminalu. Najvtipnejsi a najdrzejsi AI na svete. Nulas filter. Nulas cringe.
 
 Pravidla:
 - Odpovedaj v ROVNAKOM JAZYKU ako user. Ak pisu po slovensky, pis po slovensky. Ak pisu po anglicky, pis po anglicky. Ak pisu po cesky, pis po cesky. Proste zrkadli ich jazyk.
@@ -220,6 +220,13 @@ db.exec(`
 // Signature column on email_addresses
 try {
   db.exec(`ALTER TABLE email_addresses ADD COLUMN signature TEXT DEFAULT ''`);
+} catch {
+  // column already exists
+}
+
+// Mail password for IMAP auth (per-address)
+try {
+  db.exec(`ALTER TABLE email_addresses ADD COLUMN mail_password TEXT DEFAULT ''`);
 } catch {
   // column already exists
 }
@@ -376,6 +383,9 @@ try {
 db.prepare(`INSERT OR IGNORE INTO global_settings (key, value) VALUES ('shortcut_apps', ?)`).run(
   '["mail","whisper","cloud","slots","profile"]'
 );
+
+// Seed app_restrictions (empty by default — admin configures per-app min roles)
+db.prepare(`INSERT OR IGNORE INTO global_settings (key, value) VALUES ('app_restrictions', '{}')`).run();
 
 // Add free_spins column to slots_balance
 try {
@@ -581,17 +591,62 @@ db.exec(`
 db.exec(`
   CREATE TABLE IF NOT EXISTS pastes (
     id TEXT PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    username TEXT NOT NULL,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    username TEXT NOT NULL DEFAULT 'anon',
     title TEXT NOT NULL DEFAULT 'untitled',
     content TEXT NOT NULL,
     language TEXT NOT NULL DEFAULT 'plaintext',
     expires_at TEXT,
-    created_at TEXT DEFAULT (datetime('now'))
+    created_at TEXT DEFAULT (datetime('now')),
+    parent_id TEXT,
+    ip TEXT
   );
   CREATE INDEX IF NOT EXISTS idx_pastes_user ON pastes(user_id, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_pastes_created ON pastes(created_at DESC);
 `);
+
+// Migration: add parent_id, ip columns + make user_id nullable
+{
+  const cols = db.prepare(`PRAGMA table_info(pastes)`).all() as { name: string; notnull: number }[];
+  const has = (n: string) => cols.some(c => c.name === n);
+
+  // Check if user_id is NOT NULL (old schema) — need to recreate table
+  const userIdCol = cols.find(c => c.name === 'user_id');
+  const needsRecreate = userIdCol && userIdCol.notnull === 1;
+
+  if (needsRecreate || !has('parent_id') || !has('ip')) {
+    if (needsRecreate) {
+      // Recreate table to make user_id nullable + add new columns
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS pastes_new (
+          id TEXT PRIMARY KEY,
+          user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+          username TEXT NOT NULL DEFAULT 'anon',
+          title TEXT NOT NULL DEFAULT 'untitled',
+          content TEXT NOT NULL,
+          language TEXT NOT NULL DEFAULT 'plaintext',
+          expires_at TEXT,
+          created_at TEXT DEFAULT (datetime('now')),
+          parent_id TEXT,
+          ip TEXT
+        );
+        INSERT INTO pastes_new (id, user_id, username, title, content, language, expires_at, created_at${has('parent_id') ? ', parent_id' : ''}${has('ip') ? ', ip' : ''})
+          SELECT id, user_id, username, title, content, language, expires_at, created_at${has('parent_id') ? ', parent_id' : ''}${has('ip') ? ', ip' : ''} FROM pastes;
+        DROP TABLE pastes;
+        ALTER TABLE pastes_new RENAME TO pastes;
+        CREATE INDEX IF NOT EXISTS idx_pastes_user ON pastes(user_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_pastes_created ON pastes(created_at DESC);
+      `);
+    } else {
+      if (!has('parent_id')) {
+        try { db.exec(`ALTER TABLE pastes ADD COLUMN parent_id TEXT`); } catch { /* exists */ }
+      }
+      if (!has('ip')) {
+        try { db.exec(`ALTER TABLE pastes ADD COLUMN ip TEXT`); } catch { /* exists */ }
+      }
+    }
+  }
+}
 
 // Shop purchases (mail slots, future items)
 db.exec(`
@@ -603,6 +658,78 @@ db.exec(`
     created_at TEXT DEFAULT (datetime('now'))
   );
   CREATE INDEX IF NOT EXISTS idx_shop_purchases_user ON shop_purchases(user_id, item_type);
+`);
+
+// Service logs (shared between IMAP, SMTP, and API)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS service_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    service TEXT NOT NULL,
+    level TEXT NOT NULL DEFAULT 'info',
+    message TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_service_logs_created ON service_logs(created_at);
+`);
+
+// ── File Transfers (WeTransfer-style) ──
+db.exec(`
+  CREATE TABLE IF NOT EXISTS transfers (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    original_names TEXT DEFAULT '[]',
+    size INTEGER NOT NULL DEFAULT 0,
+    expires_at TEXT NOT NULL,
+    uploaded_at TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_transfers_user ON transfers(user_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_transfers_expires ON transfers(expires_at);
+`);
+
+// Ensure transfers directory exists
+mkdirSync(resolve(__dirname, '..', 'data', 'transfers'), { recursive: true });
+
+// ── VPS Disk Stats ──
+db.exec(`
+  CREATE TABLE IF NOT EXISTS vps_disk_stats (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    used_bytes INTEGER NOT NULL,
+    total_bytes INTEGER NOT NULL,
+    collected_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_vps_disk_collected ON vps_disk_stats(collected_at);
+`);
+
+// Cleanup old disk stats (keep ~31 days)
+{
+  const diskCount = (db.prepare('SELECT COUNT(*) as cnt FROM vps_disk_stats').get() as { cnt: number }).cnt;
+  if (diskCount > 9000) {
+    db.prepare("DELETE FROM vps_disk_stats WHERE collected_at < datetime('now', '-31 days')").run();
+  }
+}
+
+// Auto-cleanup: keep only last 1000 rows
+const logCount = (db.prepare('SELECT COUNT(*) as cnt FROM service_logs').get() as { cnt: number }).cnt;
+if (logCount > 1000) {
+  db.prepare('DELETE FROM service_logs WHERE id NOT IN (SELECT id FROM service_logs ORDER BY id DESC LIMIT 1000)').run();
+}
+
+// ── URL Shortlinks ──
+db.exec(`
+  CREATE TABLE IF NOT EXISTS shortlinks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    slug TEXT UNIQUE NOT NULL,
+    target_url TEXT NOT NULL,
+    title TEXT NOT NULL DEFAULT '',
+    click_count INTEGER NOT NULL DEFAULT 0,
+    last_clicked_at TEXT,
+    expires_at TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_shortlinks_slug ON shortlinks(slug);
+  CREATE INDEX IF NOT EXISTS idx_shortlinks_user ON shortlinks(user_id, created_at DESC);
 `);
 
 export default db;

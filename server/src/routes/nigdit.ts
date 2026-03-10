@@ -160,11 +160,13 @@ function enrichPost(p: PostRow, extras: {
   awards: { award_type: string; count: number }[];
   bookmarked: boolean;
   poll?: { options: { id: number; label: string; vote_count: number }[]; my_vote: number | null; total_votes: number } | null;
+  requestingUserId?: number;
+  requestingUserRole?: string;
 }) {
   return {
     id: p.id, user_id: p.user_id,
     username: p.is_anonymous ? (p.anon_name ?? 'anon') : p.username,
-    real_username: p.username,
+    real_username: (!p.is_anonymous || extras.requestingUserRole === 'admin' || extras.requestingUserId === p.user_id) ? p.username : undefined,
     title: p.title, body: p.body,
     body_preview: p.body.length > 120 ? p.body.slice(0, 120) + '...' : p.body,
     board: p.board, upvotes: p.upvotes, downvotes: p.downvotes,
@@ -252,6 +254,8 @@ router.get('/posts', (req: AuthRequest, res: Response) => {
     awards: awards.get(p.id) ?? [],
     bookmarked: bookmarks.has(p.id),
     poll: polls.get(p.id) ?? null,
+    requestingUserId: user.userId,
+    requestingUserRole: user.role,
   }));
 
   res.json({ posts: result, page, total: totalRow.cnt, pages: Math.ceil(totalRow.cnt / limit) });
@@ -309,6 +313,8 @@ router.get('/posts/:id', (req: AuthRequest, res: Response) => {
       awards: postAwards.get(post.id) ?? [],
       bookmarked: bookmarks.has(post.id),
       poll: polls.get(post.id) ?? null,
+      requestingUserId: user.userId,
+      requestingUserRole: user.role,
     }),
     comments: enrichedComments,
   });
@@ -383,6 +389,7 @@ router.post('/posts', upload.array('attachments', MAX_ATTACHMENTS), (req: AuthRe
   res.json({ ok: true, post: enrichPost(result.post, {
     my_vote: 0, author_aura: 0, attachments: result.attachments,
     awards: [], bookmarked: false, poll: result.poll,
+    requestingUserId: user.userId, requestingUserRole: user.role,
   }) });
 });
 
@@ -439,7 +446,7 @@ router.post('/comments', (req: AuthRequest, res: Response) => {
   if (!body || body.trim().length === 0) { res.status(400).json({ error: 'say something, coward.' }); return; }
   if (body.length > 5000) { res.status(400).json({ error: 'comment too long.' }); return; }
 
-  const post = db.prepare('SELECT id, user_id, username FROM nigdit_posts WHERE id = ?').get(post_id) as { id: number; user_id: number; username: string } | undefined;
+  const post = db.prepare('SELECT id, user_id, username, title FROM nigdit_posts WHERE id = ?').get(post_id) as { id: number; user_id: number; username: string; title: string } | undefined;
   if (!post) { res.status(404).json({ error: 'post not found' }); return; }
 
   let depth = 0;
@@ -465,7 +472,7 @@ router.post('/comments', (req: AuthRequest, res: Response) => {
     if (parent_id && parentUserId && parentUserId !== user.userId) {
       notify(parentUserId, 'reply_comment', displayName, post_id, ins.lastInsertRowid as number, `replied to your comment`);
     } else if (!parent_id && post.user_id !== user.userId) {
-      notify(post.user_id, 'reply_post', displayName, post_id, ins.lastInsertRowid as number, `commented on your post "${post.username}"`);
+      notify(post.user_id, 'reply_post', displayName, post_id, ins.lastInsertRowid as number, `commented on your post "${post.title}"`);
     }
 
     return ins;
@@ -514,13 +521,21 @@ router.delete('/comments/:id', (req: AuthRequest, res: Response) => {
   if (comment.user_id !== user.userId && user.role !== 'admin') { res.status(403).json({ error: 'not your comment' }); return; }
 
   db.transaction(() => {
-    const childCount = db.prepare('SELECT COUNT(*) as cnt FROM nigdit_comments WHERE post_id = ? AND parent_id = ?').get(comment.post_id, commentId) as { cnt: number };
-    db.prepare("DELETE FROM nigdit_votes WHERE target_type = 'comment' AND target_id = ?").run(commentId);
-    db.prepare("DELETE FROM nigdit_votes WHERE target_type = 'comment' AND target_id IN (SELECT id FROM nigdit_comments WHERE post_id = ? AND parent_id = ?)").run(comment.post_id, commentId);
-    db.prepare('DELETE FROM nigdit_awards WHERE comment_id = ?').run(commentId);
-    db.prepare('DELETE FROM nigdit_comments WHERE post_id = ? AND parent_id = ?').run(comment.post_id, commentId);
-    db.prepare('DELETE FROM nigdit_comments WHERE id = ?').run(commentId);
-    db.prepare('UPDATE nigdit_posts SET comment_count = comment_count - ? WHERE id = ?').run(1 + childCount.cnt, comment.post_id);
+    // Find all descendant comments recursively
+    const descendants = db.prepare(`
+      WITH RECURSIVE desc_ids AS (
+        SELECT id FROM nigdit_comments WHERE id = ?
+        UNION ALL
+        SELECT c.id FROM nigdit_comments c JOIN desc_ids d ON c.parent_id = d.id
+      )
+      SELECT id FROM desc_ids
+    `).all(commentId) as { id: number }[];
+    const allIds = descendants.map(d => d.id);
+    const ph = allIds.map(() => '?').join(',');
+    db.prepare(`DELETE FROM nigdit_votes WHERE target_type = 'comment' AND target_id IN (${ph})`).run(...allIds);
+    db.prepare(`DELETE FROM nigdit_awards WHERE comment_id IN (${ph})`).run(...allIds);
+    db.prepare(`DELETE FROM nigdit_comments WHERE id IN (${ph})`).run(...allIds);
+    db.prepare('UPDATE nigdit_posts SET comment_count = comment_count - ? WHERE id = ?').run(allIds.length, comment.post_id);
     recalcAura(comment.user_id);
   })();
   res.json({ ok: true });
@@ -774,8 +789,12 @@ router.put('/admin/boards/:id', adminMiddleware as import('express').RequestHand
   if (name !== undefined) {
     const clean = name.trim().toLowerCase().replace(/[^a-z0-9-_]/g, '');
     if (!clean || clean.length > 30) { res.status(400).json({ error: 'bad name' }); return; }
-    try { db.prepare('UPDATE nigdit_boards SET name = ? WHERE id = ?').run(clean, boardId); db.prepare('UPDATE nigdit_posts SET board = ? WHERE board = ?').run(clean, board.name); }
-    catch { res.status(409).json({ error: 'name taken' }); return; }
+    try {
+      db.transaction(() => {
+        db.prepare('UPDATE nigdit_boards SET name = ? WHERE id = ?').run(clean, boardId);
+        db.prepare('UPDATE nigdit_posts SET board = ? WHERE board = ?').run(clean, board.name);
+      })();
+    } catch { res.status(409).json({ error: 'name taken' }); return; }
   }
   if (description !== undefined) db.prepare('UPDATE nigdit_boards SET description = ? WHERE id = ?').run(description.trim(), boardId);
   res.json({ ok: true, boards: getBoards() });

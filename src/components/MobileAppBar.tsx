@@ -12,12 +12,13 @@ const APPS: AppDef[] = [
   { name: "games",    icon: "\uD83C\uDFAE", minRole: null },
   { name: "slots",    icon: "\uD83C\uDFB0", minRole: "user" },
   { name: "coinflip", icon: "\uD83E\uDE99", minRole: "user" },
+  { name: "shortlinks", icon: "🔗", minRole: "user" },
   { name: "ascii",    icon: "\u2593", minRole: null },
   { name: "admin",    icon: "\u2699", minRole: "admin" },
   { name: "stats",    icon: "\uD83D\uDCCA", minRole: "admin" },
 ];
 
-const ROLE_LEVEL: Record<string, number> = { guest: 0, user: 1, admin: 2 };
+const ROLE_LEVEL: Record<string, number> = { guest: 0, code: 0, user: 1, club: 2, admin: 3 };
 
 interface Props {
   onRunApp: (name: string) => void;

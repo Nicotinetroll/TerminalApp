@@ -55,7 +55,8 @@ export function UserForm({ mode, initialUser, onSubmit, onCancel }: Props) {
           onChange={(e) => setRole(e.target.value)}
         >
           <option value="admin">admin</option>
-          <option value="user">user</option>
+          <option value="club">club member</option>
+          <option value="user">member</option>
           <option value="guest">guest</option>
         </select>
       </div>

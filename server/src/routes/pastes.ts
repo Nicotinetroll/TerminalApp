@@ -9,9 +9,13 @@ const router = Router();
 
 const MAX_CONTENT_SIZE = 500 * 1024; // 500KB
 const PAGE_SIZE = 20;
+const ANON_MAX_PASTES = 10;
+const ANON_WINDOW_MS = 24 * 60 * 60 * 1000; // 24h
+
+// ── Helpers ──
 
 function generateId(): string {
-  return crypto.randomBytes(6).toString('base64url'); // 8 chars, URL safe
+  return crypto.randomBytes(6).toString('base64url');
 }
 
 function timeAgo(dateStr: string): string {
@@ -26,32 +30,164 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(days / 30)}mo ago`;
 }
 
+// Anonymous paste rate limiter (in-memory)
+const anonLimits = new Map<string, { count: number; resetAt: number }>();
+
+function checkAnonLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = anonLimits.get(ip);
+  if (!entry || now > entry.resetAt) {
+    anonLimits.set(ip, { count: 1, resetAt: now + ANON_WINDOW_MS });
+    return true;
+  }
+  if (entry.count >= ANON_MAX_PASTES) return false;
+  entry.count++;
+  return true;
+}
+
+// Cleanup old rate limit entries every hour
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of anonLimits) {
+    if (now > entry.resetAt) anonLimits.delete(ip);
+  }
+}, 60 * 60 * 1000);
+
 // Cleanup expired pastes on startup
 db.prepare("DELETE FROM pastes WHERE expires_at IS NOT NULL AND datetime(expires_at) < datetime('now')").run();
+
+// Optional auth — sets req.user if token present, but doesn't reject
+const optionalAuth: RequestHandler = (req: AuthRequest, _res, next) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith('Bearer ')) {
+    const token = authHeader.slice(7);
+    const secret = process.env.JWT_SECRET;
+    if (secret) {
+      try {
+        const decoded = jwt.verify(token, secret) as AuthPayload;
+        req.user = decoded;
+      } catch { /* ignore invalid tokens */ }
+    }
+  }
+  next();
+};
+
+// ── Shared paste type ──
+
+interface PasteRow {
+  id: string;
+  user_id: number | null;
+  username: string;
+  title: string;
+  content: string;
+  language: string;
+  expires_at: string | null;
+  created_at: string;
+  parent_id: string | null;
+  ip: string | null;
+}
+
+interface ParentRow {
+  id: string;
+  title: string;
+  content: string;
+  language: string;
+}
+
+// ── POST /public — create anonymous paste (NO auth, 6h expiry, IP-limited) ──
+router.post('/public', (req: AuthRequest, res: Response) => {
+  try {
+    const ip = req.ip ?? req.socket.remoteAddress ?? 'unknown';
+
+    if (!checkAnonLimit(ip)) {
+      res.status(429).json({ error: "10 pastes per day for anonymous. that's generous enough." });
+      return;
+    }
+
+    const { title, content, language, parent_id } = req.body as {
+      title?: string; content?: string; language?: string; parent_id?: string;
+    };
+
+    if (!content || content.trim().length === 0) {
+      res.status(400).json({ error: 'empty paste. write something first, genius.' });
+      return;
+    }
+
+    if (Buffer.byteLength(content, 'utf8') > MAX_CONTENT_SIZE) {
+      res.status(400).json({ error: "paste too large. max 500KB. this ain't github." });
+      return;
+    }
+
+    const id = generateId();
+    const pasteTitle = (title?.trim() || 'untitled').slice(0, 100);
+    const pasteLang = (language?.trim() || 'plaintext').slice(0, 30);
+    const expiresAt = new Date(Date.now() + 6 * 3600000).toISOString().replace('T', ' ').split('.')[0]!;
+
+    // Validate parent exists if forking
+    let parentId: string | null = null;
+    if (parent_id) {
+      const parent = db.prepare('SELECT id FROM pastes WHERE id = ?').get(parent_id) as { id: string } | undefined;
+      if (parent) parentId = parent.id;
+    }
+
+    db.prepare(`
+      INSERT INTO pastes (id, user_id, username, title, content, language, expires_at, parent_id, ip)
+      VALUES (?, NULL, 'anon', ?, ?, ?, ?, ?, ?)
+    `).run(id, pasteTitle, content, pasteLang, expiresAt, parentId, ip);
+
+    res.json({
+      ok: true,
+      paste: {
+        id,
+        title: pasteTitle,
+        language: pasteLang,
+        expires_at: expiresAt,
+        url: `https://mynig.ga/paste/${id}`,
+      },
+    });
+  } catch (err) {
+    console.error('[pastes] public create error:', err);
+    res.status(500).json({ error: 'failed to create paste' });
+  }
+});
 
 // ── GET /:id — public paste view (NO auth) ──
 router.get('/:id', (req: AuthRequest, res: Response) => {
   try {
     const id = req.params['id'] as string;
-    const paste = db.prepare('SELECT id, username, title, content, language, expires_at, created_at FROM pastes WHERE id = ?').get(id) as {
-      id: string; username: string; title: string; content: string; language: string; expires_at: string | null; created_at: string;
-    } | undefined;
+    const paste = db.prepare(
+      'SELECT id, user_id, username, title, content, language, expires_at, created_at, parent_id FROM pastes WHERE id = ?'
+    ).get(id) as PasteRow | undefined;
 
     if (!paste) {
       res.status(404).json({ error: 'paste not found — it expired or never existed' });
       return;
     }
 
-    // Check expiry
     if (paste.expires_at && new Date(paste.expires_at + 'Z').getTime() < Date.now()) {
       db.prepare('DELETE FROM pastes WHERE id = ?').run(id);
       res.status(404).json({ error: 'paste expired. gone like your motivation.' });
       return;
     }
 
+    // If this paste has a parent, include parent content for diff
+    let parent: ParentRow | null = null;
+    if (paste.parent_id) {
+      const p = db.prepare('SELECT id, title, content, language FROM pastes WHERE id = ?').get(paste.parent_id) as ParentRow | undefined;
+      parent = p ?? null;
+    }
+
     res.json({
       paste: {
-        ...paste,
+        id: paste.id,
+        username: paste.username,
+        title: paste.title,
+        content: paste.content,
+        language: paste.language,
+        expires_at: paste.expires_at,
+        created_at: paste.created_at,
+        parent_id: paste.parent_id,
+        parent,
         time_ago: timeAgo(paste.created_at),
       },
     });
@@ -69,13 +205,13 @@ router.get('/', authMiddleware as RequestHandler, (req: AuthRequest, res: Respon
     const offset = (page - 1) * PAGE_SIZE;
 
     const rows = db.prepare(`
-      SELECT id, title, language, expires_at, created_at
+      SELECT id, title, language, expires_at, created_at, parent_id
       FROM pastes
       WHERE user_id = ? AND (expires_at IS NULL OR datetime(expires_at) >= datetime('now'))
       ORDER BY created_at DESC
       LIMIT ? OFFSET ?
     `).all(user.userId, PAGE_SIZE + 1, offset) as {
-      id: string; title: string; language: string; expires_at: string | null; created_at: string;
+      id: string; title: string; language: string; expires_at: string | null; created_at: string; parent_id: string | null;
     }[];
 
     const hasMore = rows.length > PAGE_SIZE;
@@ -100,8 +236,8 @@ router.post('/', authMiddleware as RequestHandler, (req: AuthRequest, res: Respo
       return;
     }
 
-    const { title, content, language, expires_in } = req.body as {
-      title?: string; content: string; language?: string; expires_in?: string;
+    const { title, content, language, expires_in, parent_id } = req.body as {
+      title?: string; content: string; language?: string; expires_in?: string; parent_id?: string;
     };
 
     if (!content || content.trim().length === 0) {
@@ -110,7 +246,7 @@ router.post('/', authMiddleware as RequestHandler, (req: AuthRequest, res: Respo
     }
 
     if (Buffer.byteLength(content, 'utf8') > MAX_CONTENT_SIZE) {
-      res.status(400).json({ error: 'paste too large. max 500KB. this ain\'t github.' });
+      res.status(400).json({ error: "paste too large. max 500KB. this ain't github." });
       return;
     }
 
@@ -118,7 +254,6 @@ router.post('/', authMiddleware as RequestHandler, (req: AuthRequest, res: Respo
     const pasteTitle = (title?.trim() || 'untitled').slice(0, 100);
     const pasteLang = (language?.trim() || 'plaintext').slice(0, 30);
 
-    // Calculate expiry
     let expiresAt: string | null = null;
     if (expires_in) {
       const hours: Record<string, number> = {
@@ -130,10 +265,17 @@ router.post('/', authMiddleware as RequestHandler, (req: AuthRequest, res: Respo
       }
     }
 
+    // Validate parent
+    let parentId: string | null = null;
+    if (parent_id) {
+      const p = db.prepare('SELECT id FROM pastes WHERE id = ?').get(parent_id) as { id: string } | undefined;
+      if (p) parentId = p.id;
+    }
+
     db.prepare(`
-      INSERT INTO pastes (id, user_id, username, title, content, language, expires_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(id, user.userId, user.username, pasteTitle, content, pasteLang, expiresAt);
+      INSERT INTO pastes (id, user_id, username, title, content, language, expires_at, parent_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, user.userId, user.username, pasteTitle, content, pasteLang, expiresAt, parentId);
 
     res.json({
       ok: true,
@@ -142,7 +284,7 @@ router.post('/', authMiddleware as RequestHandler, (req: AuthRequest, res: Respo
         title: pasteTitle,
         language: pasteLang,
         expires_at: expiresAt,
-        url: `https://mynig.ga/?paste=${id}`,
+        url: `https://mynig.ga/paste/${id}`,
       },
     });
   } catch (err) {
@@ -157,7 +299,7 @@ router.delete('/:id', authMiddleware as RequestHandler, (req: AuthRequest, res: 
     const user = req.user!;
     const id = req.params['id'] as string;
 
-    const paste = db.prepare('SELECT user_id FROM pastes WHERE id = ?').get(id) as { user_id: number } | undefined;
+    const paste = db.prepare('SELECT user_id FROM pastes WHERE id = ?').get(id) as { user_id: number | null } | undefined;
     if (!paste) { res.status(404).json({ error: 'paste not found' }); return; }
 
     if (paste.user_id !== user.userId && user.role !== 'admin') {
@@ -173,31 +315,14 @@ router.delete('/:id', authMiddleware as RequestHandler, (req: AuthRequest, res: 
   }
 });
 
-// Optional auth — sets req.user if token present, but doesn't reject
-const optionalAuth: RequestHandler = (req: AuthRequest, _res, next) => {
-  const authHeader = req.headers.authorization;
-  if (authHeader?.startsWith('Bearer ')) {
-    const token = authHeader.slice(7);
-    const secret = process.env.JWT_SECRET;
-    if (secret) {
-      try {
-        const decoded = jwt.verify(token, secret) as AuthPayload;
-        req.user = decoded;
-      } catch { /* ignore invalid tokens */ }
-    }
-  }
-  next();
-};
-
 // ── POST /analyze — AI code analysis (public, rate-limited) ──
 router.post('/analyze', optionalAuth, async (req: AuthRequest, res: Response) => {
   try {
     const user = req.user;
 
-    // Rate limit: logged-in users get 20/min, anonymous gets 5/min by IP
     if (user) {
       if (!checkUserRate(user.userId)) {
-        res.status(429).json({ error: 'slow down. 20 requests per minute max. your code ain\'t that broken.' });
+        res.status(429).json({ error: "slow down. 20 requests per minute max. your code ain't that broken." });
         return;
       }
     } else {

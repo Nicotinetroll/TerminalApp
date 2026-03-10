@@ -7,9 +7,17 @@ interface Props {
   inviteLoading?: boolean;
   onGenerateInvite?: () => void;
   onCopyInvite?: () => void;
+  transferUrl?: string | null;
+  transferLoading?: boolean;
+  onGenerateTransfer?: () => void;
+  onCopyTransfer?: () => void;
 }
 
-export function ProfileInfo({ user, niggabytes, inviteUrl, inviteLoading, onGenerateInvite, onCopyInvite }: Props) {
+export function ProfileInfo({
+  user, niggabytes,
+  inviteUrl, inviteLoading, onGenerateInvite, onCopyInvite,
+  transferUrl, transferLoading, onGenerateTransfer, onCopyTransfer,
+}: Props) {
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return "the beginning of time";
     const d = new Date(dateStr + "Z");
@@ -20,12 +28,8 @@ export function ProfileInfo({ user, niggabytes, inviteUrl, inviteLoading, onGene
     });
   };
 
-  const roleBadgeClass =
-    user.role === "admin"
-      ? "role-admin"
-      : user.role === "user"
-        ? "role-user"
-        : "role-guest";
+  const roleBadgeClass = `role-${user.role}`;
+  const roleLabel = user.role === "club" ? "club member" : user.role === "user" ? "member" : user.role;
 
   const nbTag = niggabytes === 69 ? "nice." :
     niggabytes === 0 ? "broke as fuck" :
@@ -50,7 +54,7 @@ export function ProfileInfo({ user, niggabytes, inviteUrl, inviteLoading, onGene
           <tr>
             <td style={{ color: "var(--text-muted)" }}>role</td>
             <td>
-              <span className={`role-badge ${roleBadgeClass}`}>{user.role}</span>
+              <span className={`role-badge ${roleBadgeClass}`}>{roleLabel}</span>
             </td>
           </tr>
           <tr>
@@ -95,6 +99,40 @@ export function ProfileInfo({ user, niggabytes, inviteUrl, inviteLoading, onGene
                     onClick={onGenerateInvite}
                   >
                     {inviteLoading ? "generating..." : "generate link"}
+                  </button>
+                )}
+              </td>
+            </tr>
+          )}
+          {user.role !== "guest" && onGenerateTransfer && (
+            <tr>
+              <td style={{ color: "var(--text-muted)" }}>upload link</td>
+              <td>
+                {transferUrl ? (
+                  <span style={{ display: "inline-flex", gap: "6px", alignItems: "center" }}>
+                    <code style={{ fontSize: "12px", color: "var(--accent)", background: "var(--bg-primary)", padding: "2px 6px", borderRadius: "3px" }}>
+                      {transferUrl.split("/t/")[1] ?? transferUrl}
+                    </code>
+                    <button
+                      className="btn"
+                      style={{ fontSize: "11px", padding: "2px 8px" }}
+                      onClick={onCopyTransfer}
+                    >copy</button>
+                    <button
+                      className="btn"
+                      style={{ fontSize: "11px", padding: "2px 8px" }}
+                      disabled={transferLoading}
+                      onClick={onGenerateTransfer}
+                    >new</button>
+                  </span>
+                ) : (
+                  <button
+                    className="btn"
+                    style={{ fontSize: "12px", padding: "3px 10px" }}
+                    disabled={transferLoading}
+                    onClick={onGenerateTransfer}
+                  >
+                    {transferLoading ? "generating..." : "generate upload link"}
                   </button>
                 )}
               </td>

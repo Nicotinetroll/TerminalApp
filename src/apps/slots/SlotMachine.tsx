@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import type { SlotsLineWin, SlotsBonusInfo } from "@/lib/api";
 import type { SlotTheme } from "./themes";
 import { slotsSfx, slotsHaptics } from "./sounds";
+import { fmtMB, fmtNB, fmtBonusPayout } from "./format";
 
 function makeEmptyGrid(theme: SlotTheme): string[][] {
   const s = theme.symbols;
@@ -46,32 +47,15 @@ interface SlotMachineProps {
   message: string | null;
   messageType: "win" | "lose" | "jackpot" | "freespin" | "error";
   totalPayout: number;
-  winCount: number;
   busy: boolean;
   isNB?: boolean;
+  comboMultiplier: number;
   bonus: SlotsBonusInfo | null;
   bonusAnnounce: SlotsBonusInfo | null;
   bonusComplete: SlotsBonusInfo | null;
 }
 
 type Phase = "idle" | "spinning" | "stopping" | "result";
-
-function fmtMB(bytes: number): string {
-  if (bytes === 0) return "0 MB";
-  const mb = bytes / (1024 * 1024);
-  if (mb >= 1000) return `${(mb / 1024).toFixed(1)} GB`;
-  if (mb >= 1) return `${mb.toFixed(1)} MB`;
-  return `${(bytes / 1024).toFixed(0)} KB`;
-}
-
-function fmtNB(bytes: number): string {
-  return `${Math.round(bytes / (1024 * 1024))} NB`;
-}
-
-function fmtBonusPayout(bonus: SlotsBonusInfo): string {
-  if (bonus.currency === "niggabytes") return `${bonus.total_bonus} NB`;
-  return fmtMB(bonus.total_bonus);
-}
 
 // Per-symbol hunt names — the dumber the better
 const HUNT_NAMES: Record<string, string> = {
@@ -125,7 +109,7 @@ function LuckySpinCounter({ target }: { target: number }) {
 
 export function SlotMachine({
   spinId, grid, wins, hasJackpot, isFreeSpin, freeSpinsRemaining, freeSpinsAwarded, onSpinComplete,
-  theme, message, messageType, totalPayout, busy, isNB,
+  theme, message, messageType, totalPayout, busy, isNB, comboMultiplier,
   bonus, bonusAnnounce, bonusComplete,
 }: SlotMachineProps) {
   const [displayGrid, setDisplayGrid] = useState<string[][]>(() => makeEmptyGrid(theme));
@@ -285,8 +269,8 @@ export function SlotMachine({
 
             // Hunt hit detection — find cells with the bonus target symbol
             const currentBonus = bonusRef.current;
+            let huntCells = new Set<string>();
             if (currentBonus) {
-              const huntCells = new Set<string>();
               for (let c = 0; c < 3; c++) {
                 for (let r = 0; r < 3; r++) {
                   if (grid[c]?.[r] === currentBonus.symbol) {
@@ -355,13 +339,12 @@ export function SlotMachine({
               }
               setShowEffect("win");
               spawnParticles("win");
-            } else if (!currentBonus || (currentBonus && huntHitCells.size === 0)) {
-              slotsSfx.lose();
-              setShowEffect("lose");
             }
+            // No lose sound/effect — user doesn't want lose toasts
 
-            // Show message overlay
-            setShowOverlay(true);
+            // Show message overlay only for wins (not loses)
+            const isLose = !hasJackpot && freeSpinsAwarded === 0 && wins.length === 0;
+            if (!isLose) setShowOverlay(true);
             onCompleteRef.current();
 
             // Clear flash quickly
@@ -388,7 +371,6 @@ export function SlotMachine({
     "slots-machine",
     showEffect === "jackpot" ? "slots-machine-jackpot" : "",
     showEffect === "win" ? "slots-machine-win" : "",
-    showEffect === "lose" ? "slots-machine-lose" : "",
     isFreeSpin ? "slots-machine-freespin" : "",
     bonus ? "slots-machine-bonus" : "",
   ].filter(Boolean).join(" ");
@@ -413,7 +395,7 @@ export function SlotMachine({
             <div className="slots-bonus-announce-title">🎯 {getHuntName(bonusAnnounce.tier)}</div>
             <div className="slots-bonus-announce-emoji">{bonusAnnounce.emoji}</div>
             <div className="slots-bonus-announce-info">
-              hunt every {bonusAnnounce.emoji} for {bonusAnnounce.multiplier}x per hit
+              hunt every {bonusAnnounce.emoji} for <strong>{bonusAnnounce.multiplier}x</strong> per hit
             </div>
             <div className="slots-bonus-announce-spins">
               <LuckySpinCounter target={bonusAnnounce.spins_total} /> spins
@@ -527,12 +509,14 @@ export function SlotMachine({
         </div>
 
         {/* Message overlay bubble */}
-        {showOverlay && message && !busy && (
+        {showOverlay && message && !busy && messageType !== "lose" && (
           <div className={`slots-msg-overlay slots-msg-overlay-${messageType}`}>
             <div className="slots-msg-bubble">
-              <div className="slots-msg-text">{message}</div>
               {totalPayout > 0 && (
-                <div className="slots-msg-payout">+{isNB ? fmtNB(totalPayout) : fmtMB(totalPayout)}</div>
+                <div className="slots-msg-payout">
+                  +{isNB ? fmtNB(totalPayout) : fmtMB(totalPayout)}
+                  {comboMultiplier > 1 && <span className="slots-combo-badge">{comboMultiplier}x COMBO</span>}
+                </div>
               )}
             </div>
           </div>

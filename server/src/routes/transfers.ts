@@ -1,0 +1,323 @@
+import { Router, type Response } from 'express';
+import crypto from 'crypto';
+import db from '../db.js';
+import { authMiddleware, AuthRequest } from '../middleware.js';
+import { getPresignedUploadUrl, getPresignedDownloadUrl, getObjectSize, deleteObject } from '../s3.js';
+
+const EXPIRY_HOURS = 12;
+const ID_REGEX = /^[a-f0-9]{32}$/;
+
+const router = Router();
+
+function validateId(id: string): boolean {
+  return ID_REGEX.test(id);
+}
+
+/** Extract a single string param (Express 5 can return string|string[]) */
+function getParam(val: string | string[] | undefined): string | undefined {
+  return typeof val === 'string' ? val : undefined;
+}
+
+function parseNames(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try { return JSON.parse(raw) as string[]; } catch { return []; }
+}
+
+// ─── Cleanup expired transfers ───
+
+function cleanupExpired(): void {
+  const expired = db.prepare(
+    `SELECT id FROM transfers WHERE expires_at < datetime('now')`
+  ).all() as { id: string }[];
+
+  if (expired.length === 0) return;
+
+  // Delete S3 objects first, then batch-delete DB rows
+  const deletePromises = expired.map(t => deleteObject(t.id));
+  void Promise.allSettled(deletePromises).then(() => {
+    const del = db.prepare('DELETE FROM transfers WHERE id = ?');
+    db.transaction(() => {
+      for (const t of expired) del.run(t.id);
+    })();
+    console.log(`[transfers] cleaned up ${expired.length} expired transfer(s)`);
+  });
+}
+
+// Run on startup + every 30 min
+cleanupExpired();
+setInterval(cleanupExpired, 30 * 60 * 1000);
+
+// ─── POST / — create upload link (auth) ───
+
+router.post('/', authMiddleware, (req: AuthRequest, res: Response): void => {
+  const userId = req.user!.userId;
+
+  const pending = (db.prepare(
+    `SELECT COUNT(*) as cnt FROM transfers WHERE user_id = ? AND uploaded_at IS NULL AND expires_at > datetime('now')`
+  ).get(userId) as { cnt: number }).cnt;
+
+  if (pending >= 10) {
+    res.status(429).json({ error: 'you already have 10 pending upload links. chill.' });
+    return;
+  }
+
+  const id = crypto.randomBytes(16).toString('hex');
+  const expiresAt = new Date(Date.now() + EXPIRY_HOURS * 60 * 60 * 1000).toISOString().replace('T', ' ').slice(0, 19);
+
+  db.prepare(
+    'INSERT INTO transfers (id, user_id, expires_at) VALUES (?, ?, ?)'
+  ).run(id, userId, expiresAt);
+
+  const host = req.headers['x-forwarded-host'] ?? req.headers.host ?? 'mynig.ga';
+  const proto = req.headers['x-forwarded-proto'] ?? 'https';
+  const url = `${proto}://${host}/t/${id}`;
+
+  res.json({ id, url, expires_at: expiresAt });
+});
+
+// ─── GET / — list my transfers (auth) ───
+
+router.get('/', authMiddleware, (req: AuthRequest, res: Response): void => {
+  const userId = req.user!.userId;
+
+  const transfers = db.prepare(`
+    SELECT id, original_names, size, expires_at, uploaded_at, created_at
+    FROM transfers
+    WHERE user_id = ?
+    ORDER BY created_at DESC
+    LIMIT 50
+  `).all(userId) as {
+    id: string;
+    original_names: string;
+    size: number;
+    expires_at: string;
+    uploaded_at: string | null;
+    created_at: string;
+  }[];
+
+  const now = new Date();
+  const result = transfers.map(t => ({
+    ...t,
+    original_names: parseNames(t.original_names),
+    expired: new Date(t.expires_at + 'Z') < now,
+  }));
+
+  res.json({ transfers: result });
+});
+
+// ─── GET /:id — public transfer info ───
+
+router.get('/:id', (req: AuthRequest, res: Response): void => {
+  const id = getParam(req.params.id);
+  if (!id || !validateId(id)) {
+    res.status(400).json({ error: 'invalid transfer id.' });
+    return;
+  }
+
+  const transfer = db.prepare(`
+    SELECT id, original_names, size, expires_at, uploaded_at, created_at
+    FROM transfers
+    WHERE id = ?
+  `).get(id) as {
+    id: string;
+    original_names: string;
+    size: number;
+    expires_at: string;
+    uploaded_at: string | null;
+    created_at: string;
+  } | undefined;
+
+  if (!transfer) {
+    res.status(404).json({ error: 'transfer not found. maybe it expired, maybe it never existed. who knows.' });
+    return;
+  }
+
+  const expired = new Date(transfer.expires_at + 'Z') < new Date();
+
+  res.json({
+    transfer: {
+      id: transfer.id,
+      original_names: parseNames(transfer.original_names),
+      size: transfer.size,
+      expires_at: transfer.expires_at,
+      uploaded_at: transfer.uploaded_at,
+      created_at: transfer.created_at,
+      expired,
+      status: transfer.uploaded_at ? 'uploaded' : expired ? 'expired' : 'pending',
+    },
+  });
+});
+
+// ─── POST /:id/presign — get presigned S3 upload URL (public) ───
+
+router.post('/:id/presign', (req: AuthRequest, res: Response): void => {
+  const id = getParam(req.params.id);
+  if (!id || !validateId(id)) {
+    res.status(400).json({ error: 'invalid transfer id.' });
+    return;
+  }
+
+  const transfer = db.prepare(
+    `SELECT id, uploaded_at, expires_at FROM transfers WHERE id = ?`
+  ).get(id) as { id: string; uploaded_at: string | null; expires_at: string } | undefined;
+
+  if (!transfer) {
+    res.status(404).json({ error: 'transfer link not found. it\'s either expired or you made it up.' });
+    return;
+  }
+
+  if (transfer.uploaded_at) {
+    res.status(409).json({ error: 'files already uploaded to this link. one shot deal.' });
+    return;
+  }
+
+  const expired = new Date(transfer.expires_at + 'Z') < new Date();
+  if (expired) {
+    res.status(410).json({ error: 'this upload link has expired. time waits for no one.' });
+    return;
+  }
+
+  void (async () => {
+    try {
+      const uploadUrl = await getPresignedUploadUrl(id);
+      res.json({ uploadUrl });
+    } catch (err) {
+      console.error('[transfers] presign error:', err);
+      res.status(500).json({ error: 'failed to generate upload URL. S3 having a moment.' });
+    }
+  })();
+});
+
+// ─── POST /:id/complete — confirm upload completed (public) ───
+
+router.post('/:id/complete', (req: AuthRequest, res: Response): void => {
+  const id = getParam(req.params.id);
+  if (!id || !validateId(id)) {
+    res.status(400).json({ error: 'invalid transfer id.' });
+    return;
+  }
+
+  const body = req.body as { names?: string[]; size?: number } | undefined;
+  const names = body?.names ?? [];
+  const reportedSize = body?.size ?? 0;
+
+  const transfer = db.prepare(
+    `SELECT id, uploaded_at, expires_at FROM transfers WHERE id = ?`
+  ).get(id) as { id: string; uploaded_at: string | null; expires_at: string } | undefined;
+
+  if (!transfer) {
+    res.status(404).json({ error: 'transfer not found.' });
+    return;
+  }
+
+  if (transfer.uploaded_at) {
+    res.status(409).json({ error: 'already marked as uploaded.' });
+    return;
+  }
+
+  // Verify the S3 object actually exists
+  void (async () => {
+    try {
+      const s3Size = await getObjectSize(id);
+      if (s3Size === null) {
+        res.status(400).json({ error: 'no file found in S3. upload first, then confirm. duh.' });
+        return;
+      }
+
+      const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+      const result = db.prepare(
+        `UPDATE transfers SET original_names = ?, size = ?, uploaded_at = ? WHERE id = ? AND uploaded_at IS NULL`
+      ).run(JSON.stringify(names), s3Size > 0 ? s3Size : reportedSize, now, id);
+
+      if (result.changes === 0) {
+        res.status(409).json({ error: 'concurrent upload completed first.' });
+        return;
+      }
+
+      res.json({
+        ok: true,
+        files: names.length,
+        size: s3Size,
+        message: names.length === 1 ? 'file uploaded successfully.' : `${names.length} files zipped and uploaded.`,
+      });
+    } catch (err) {
+      console.error('[transfers] complete error:', err);
+      res.status(500).json({ error: 'failed to verify upload.' });
+    }
+  })();
+});
+
+// ─── GET /:id/download — redirect to presigned S3 download URL ───
+
+router.get('/:id/download', (req: AuthRequest, res: Response): void => {
+  const id = getParam(req.params.id);
+  if (!id || !validateId(id)) {
+    res.status(400).json({ error: 'invalid transfer id.' });
+    return;
+  }
+
+  const transfer = db.prepare(
+    `SELECT id, original_names, uploaded_at, expires_at FROM transfers WHERE id = ?`
+  ).get(id) as { id: string; original_names: string; uploaded_at: string | null; expires_at: string } | undefined;
+
+  if (!transfer) {
+    res.status(404).json({ error: 'transfer not found.' });
+    return;
+  }
+
+  if (!transfer.uploaded_at) {
+    res.status(404).json({ error: 'nothing uploaded yet. patience.' });
+    return;
+  }
+
+  const expired = new Date(transfer.expires_at + 'Z') < new Date();
+  if (expired) {
+    res.status(410).json({ error: 'this transfer has expired. shoulda downloaded it sooner.' });
+    return;
+  }
+
+  const downloadName = `transfer-${id.slice(0, 8)}.zip`;
+
+  void (async () => {
+    try {
+      const url = await getPresignedDownloadUrl(id, downloadName);
+      res.redirect(url);
+    } catch (err) {
+      console.error('[transfers] download presign error:', err);
+      res.status(500).json({ error: 'failed to generate download URL.' });
+    }
+  })();
+});
+
+// ─── DELETE /:id — delete transfer (auth, owner only) ───
+
+router.delete('/:id', authMiddleware, (req: AuthRequest, res: Response): void => {
+  const id = getParam(req.params.id);
+  if (!id || !validateId(id)) {
+    res.status(400).json({ error: 'invalid transfer id.' });
+    return;
+  }
+
+  const userId = req.user!.userId;
+
+  const transfer = db.prepare(
+    'SELECT id, user_id FROM transfers WHERE id = ?'
+  ).get(id) as { id: string; user_id: number } | undefined;
+
+  if (!transfer) {
+    res.status(404).json({ error: 'transfer not found.' });
+    return;
+  }
+
+  if (transfer.user_id !== userId && req.user!.role !== 'admin') {
+    res.status(403).json({ error: 'not your transfer, not your problem.' });
+    return;
+  }
+
+  void deleteObject(id);
+  db.prepare('DELETE FROM transfers WHERE id = ?').run(id);
+
+  res.json({ ok: true });
+});
+
+export default router;

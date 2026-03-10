@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
+import { execSync } from 'child_process';
 import db from '../db.js';
 import { authMiddleware, adminMiddleware, AuthRequest } from '../middleware.js';
 import { getLogs } from '../logger.js';
@@ -47,7 +48,7 @@ router.post('/users', (req: AuthRequest, res: Response): void => {
     return;
   }
 
-  const validRoles = ['admin', 'user', 'guest'];
+  const validRoles = ['admin', 'club', 'user', 'guest'];
   const userRole = validRoles.includes(role) ? role : 'user';
 
   try {
@@ -122,7 +123,7 @@ router.put('/users/:id', (req: AuthRequest, res: Response): void => {
       values.push(bcrypt.hashSync(password, 10));
     }
     if (role) {
-      const validRoles = ['admin', 'user', 'guest'];
+      const validRoles = ['admin', 'club', 'user', 'guest'];
       if (!validRoles.includes(role)) { res.status(400).json({ error: 'invalid role.' }); return; }
       updates.push('role = ?');
       values.push(role);
@@ -174,10 +175,54 @@ router.delete('/users/:id', (req: AuthRequest, res: Response): void => {
 
   try {
     const deleteUser = db.transaction(() => {
+      // Clean up all user-associated data
       db.prepare('DELETE FROM user_settings WHERE user_id = ?').run(targetId);
       db.prepare('DELETE FROM user_filesystems WHERE user_id = ?').run(targetId);
       db.prepare('UPDATE invite_links SET used_by = NULL, used_at = NULL WHERE used_by = ?').run(targetId);
       db.prepare('DELETE FROM invite_links WHERE created_by = ?').run(targetId);
+      // Casino
+      db.prepare('DELETE FROM slots_balance WHERE user_id = ?').run(targetId);
+      db.prepare('DELETE FROM slots_history WHERE user_id = ?').run(targetId);
+      db.prepare('DELETE FROM coinflip_history WHERE user_id = ?').run(targetId);
+      // Games
+      db.prepare('DELETE FROM game_scores WHERE user_id = ?').run(targetId);
+      // AI
+      db.prepare("DELETE FROM ai_messages WHERE conversation_id IN (SELECT id FROM ai_conversations WHERE user_id = ?)").run(targetId);
+      db.prepare('DELETE FROM ai_conversations WHERE user_id = ?').run(targetId);
+      // Mail
+      db.prepare("DELETE FROM email_attachments WHERE email_id IN (SELECT id FROM emails WHERE owner_id = ?)").run(targetId);
+      db.prepare('DELETE FROM emails WHERE owner_id = ?').run(targetId);
+      db.prepare('DELETE FROM email_addresses WHERE user_id = ?').run(targetId);
+      db.prepare('DELETE FROM contacts WHERE user_id = ?').run(targetId);
+      db.prepare('DELETE FROM mail_folders WHERE user_id = ?').run(targetId);
+      // Nigdit
+      db.prepare("DELETE FROM nigdit_votes WHERE target_type = 'comment' AND target_id IN (SELECT id FROM nigdit_comments WHERE user_id = ?)").run(targetId);
+      db.prepare("DELETE FROM nigdit_votes WHERE target_type = 'post' AND target_id IN (SELECT id FROM nigdit_posts WHERE user_id = ?)").run(targetId);
+      db.prepare('DELETE FROM nigdit_votes WHERE user_id = ?').run(targetId);
+      db.prepare("DELETE FROM nigdit_awards WHERE comment_id IN (SELECT id FROM nigdit_comments WHERE user_id = ?)").run(targetId);
+      db.prepare("DELETE FROM nigdit_awards WHERE post_id IN (SELECT id FROM nigdit_posts WHERE user_id = ?)").run(targetId);
+      db.prepare('DELETE FROM nigdit_awards WHERE from_user_id = ?').run(targetId);
+      db.prepare('DELETE FROM nigdit_bookmarks WHERE user_id = ?').run(targetId);
+      db.prepare('DELETE FROM nigdit_notifications WHERE user_id = ?').run(targetId);
+      db.prepare('DELETE FROM nigdit_poll_votes WHERE user_id = ?').run(targetId);
+      db.prepare('DELETE FROM nigdit_attachments WHERE post_id IN (SELECT id FROM nigdit_posts WHERE user_id = ?)').run(targetId);
+      db.prepare('DELETE FROM nigdit_comments WHERE user_id = ?').run(targetId);
+      db.prepare('DELETE FROM nigdit_posts WHERE user_id = ?').run(targetId);
+      db.prepare('DELETE FROM nigdit_aura WHERE user_id = ?').run(targetId);
+      // Memes
+      db.prepare('DELETE FROM meme_votes WHERE user_id = ?').run(targetId);
+      db.prepare("DELETE FROM meme_votes WHERE meme_id IN (SELECT id FROM memes WHERE user_id = ?)").run(targetId);
+      db.prepare('DELETE FROM memes WHERE user_id = ?').run(targetId);
+      // Chat
+      db.prepare('DELETE FROM chat_messages WHERE sender_id = ?').run(targetId);
+      db.prepare('DELETE FROM chat_participants WHERE user_id = ?').run(targetId);
+      // Pastes
+      db.prepare('DELETE FROM pastes WHERE user_id = ?').run(targetId);
+      // Shop
+      db.prepare('DELETE FROM shop_purchases WHERE user_id = ?').run(targetId);
+      // Sessions
+      db.prepare('DELETE FROM sessions WHERE user_id = ?').run(targetId);
+      // Finally, the user
       db.prepare('DELETE FROM users WHERE id = ?').run(targetId);
     });
 
@@ -204,24 +249,34 @@ interface InviteRow {
 
 // POST /api/admin/invites — create invite link
 router.post('/invites', (req: AuthRequest, res: Response): void => {
-  const validRoles = ['admin', 'user', 'guest'];
+  const validRoles = ['admin', 'club', 'user', 'guest'];
   const role = validRoles.includes(req.body.role) ? req.body.role : 'user';
 
-  const code = `${req.user!.username}-inv-${String(crypto.randomInt(10000, 99999))}`;
   const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString().replace('T', ' ').replace('Z', '').split('.')[0]!;
 
-  db.prepare(
-    'INSERT INTO invite_links (id, created_by, role, expires_at) VALUES (?, ?, ?, ?)'
-  ).run(code, req.user!.userId, role, expiresAt);
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const code = `${req.user!.username}-inv-${String(crypto.randomInt(100000, 999999))}`;
+    try {
+      db.prepare(
+        'INSERT INTO invite_links (id, created_by, role, expires_at) VALUES (?, ?, ?, ?)'
+      ).run(code, req.user!.userId, role, expiresAt);
 
-  res.status(201).json({
-    invite: {
-      id: code,
-      role,
-      expires_at: expiresAt,
-      url: `https://mynig.ga/?invite=${code}`,
-    },
-  });
+      res.status(201).json({
+        invite: {
+          id: code,
+          role,
+          expires_at: expiresAt,
+          url: `https://mynig.ga/?invite=${code}`,
+        },
+      });
+      return;
+    } catch {
+      if (attempt === 4) {
+        res.status(500).json({ error: 'failed to generate invite code. try again.' });
+        return;
+      }
+    }
+  }
 });
 
 // GET /api/admin/invites — list all invite links
@@ -256,9 +311,10 @@ router.delete('/invites/:id', (req: AuthRequest, res: Response): void => {
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
+  if (bytes < 0) return '-' + formatBytes(-bytes);
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1);
   return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]!}`;
 }
 
@@ -327,6 +383,12 @@ router.get('/stats', (_req: AuthRequest, res: Response): void => {
     "SELECT COUNT(*) as c FROM emails WHERE created_at >= date('now')"
   ).get() as { c: number }).c;
 
+  // IMAP
+  const imapTotal = (db.prepare("SELECT COUNT(*) as c FROM service_logs WHERE service = 'imap'").get() as { c: number }).c;
+  const imapLogins = (db.prepare("SELECT COUNT(*) as c FROM service_logs WHERE service = 'imap' AND message LIKE 'login:%'").get() as { c: number }).c;
+  const imapErrors = (db.prepare("SELECT COUNT(*) as c FROM service_logs WHERE service = 'imap' AND level = 'error'").get() as { c: number }).c;
+  const imapLoginFails = (db.prepare("SELECT COUNT(*) as c FROM service_logs WHERE service = 'imap' AND message LIKE 'login failed:%'").get() as { c: number }).c;
+
   // Games
   const totalScores = (db.prepare('SELECT COUNT(*) as c FROM game_scores').get() as { c: number }).c;
   const byGame = db.prepare(
@@ -362,6 +424,12 @@ router.get('/stats', (_req: AuthRequest, res: Response): void => {
       total_emails: totalEmails,
       emails_today: emailsToday,
     },
+    imap: {
+      total_events: imapTotal,
+      logins: imapLogins,
+      login_fails: imapLoginFails,
+      errors: imapErrors,
+    },
     games: {
       total_scores: totalScores,
       by_game: byGame,
@@ -371,10 +439,125 @@ router.get('/stats', (_req: AuthRequest, res: Response): void => {
   });
 });
 
-// GET /api/admin/logs — real-time server logs
+// GET /api/admin/logs — real-time server logs (API in-memory + service DB logs)
 router.get('/logs', (req: AuthRequest, res: Response): void => {
   const since = parseInt(req.query['since'] as string || '0', 10);
-  res.json({ logs: getLogs(isNaN(since) ? 0 : since) });
+  const sinceSvc = parseInt(req.query['since_svc'] as string || '0', 10);
+
+  const apiLogs = getLogs(isNaN(since) ? 0 : since);
+
+  // Service logs (IMAP, SMTP) from shared DB — filter by real DB id
+  const svcMinId = isNaN(sinceSvc) ? 0 : (sinceSvc >= 900000 ? sinceSvc - 900000 : 0);
+  const serviceLogs = db.prepare(
+    'SELECT id, service, level, message, created_at FROM service_logs WHERE id > ? ORDER BY id ASC LIMIT 200'
+  ).all(svcMinId) as { id: number; service: string; level: string; message: string; created_at: string }[];
+
+  const svcEntries = serviceLogs.map(sl => ({
+    id: 900000 + sl.id,
+    ts: sl.created_at.endsWith('Z') ? sl.created_at : sl.created_at + 'Z',
+    level: (sl.level === 'warn' ? 'warn' : sl.level === 'error' ? 'error' : 'info') as 'info' | 'warn' | 'error' | 'http',
+    message: `[${sl.service.toUpperCase()}] ${sl.message}`,
+  }));
+
+  // Merge and sort by timestamp
+  const all = [...apiLogs, ...svcEntries].sort((a, b) => a.ts.localeCompare(b.ts)).slice(-500);
+
+  res.json({ logs: all });
+});
+
+// ── VPS Disk Monitoring ──
+
+function collectDiskStats(): void {
+  try {
+    const output = execSync('df -B1 /', { encoding: 'utf8', timeout: 5000 });
+    const lines = output.trim().split('\n');
+    const dataLine = lines[1];
+    if (!dataLine) return;
+    const parts = dataLine.split(/\s+/);
+    const total = parseInt(parts[1] ?? '0', 10);
+    const used = parseInt(parts[2] ?? '0', 10);
+    if (total <= 0 || used < 0) return;
+    db.prepare('INSERT INTO vps_disk_stats (used_bytes, total_bytes) VALUES (?, ?)').run(used, total);
+  } catch {
+    // silently ignore — df might not be available in dev
+  }
+}
+
+// Collect on startup + every 5 minutes
+collectDiskStats();
+setInterval(collectDiskStats, 5 * 60 * 1000);
+
+interface DiskRow {
+  used_bytes: number;
+  total_bytes: number;
+  collected_at: string;
+}
+
+// GET /api/admin/vps-stats?range=24h|7d|30d
+router.get('/vps-stats', (req: AuthRequest, res: Response): void => {
+  const range = (req.query['range'] as string) || '24h';
+  const rangeMap: Record<string, string> = {
+    '24h': '-1 day',
+    '7d': '-7 days',
+    '30d': '-30 days',
+  };
+  const sqlRange = rangeMap[range] ?? '-1 day';
+  const validRange = rangeMap[range] ? range : '24h';
+
+  // Get current (latest) reading
+  const latest = db.prepare(
+    'SELECT used_bytes, total_bytes, collected_at FROM vps_disk_stats ORDER BY id DESC LIMIT 1'
+  ).get() as DiskRow | undefined;
+
+  if (!latest) {
+    res.json({
+      current: null,
+      history: [],
+      range: validRange,
+    });
+    return;
+  }
+
+  const freeBytes = latest.total_bytes - latest.used_bytes;
+  const usedPct = latest.total_bytes > 0 ? Math.round((latest.used_bytes / latest.total_bytes) * 1000) / 10 : 0;
+
+  // History with downsampling
+  const allRows = db.prepare(
+    `SELECT used_bytes, total_bytes, collected_at FROM vps_disk_stats
+     WHERE collected_at >= datetime('now', ?)
+     ORDER BY collected_at ASC`
+  ).all(sqlRange) as DiskRow[];
+
+  // Downsample to ~200 points max
+  const maxPoints = 200;
+  let history: { used: number; total: number; ts: string }[];
+  if (allRows.length <= maxPoints) {
+    history = allRows.map(r => ({ used: r.used_bytes, total: r.total_bytes, ts: r.collected_at }));
+  } else {
+    const step = allRows.length / maxPoints;
+    history = [];
+    for (let i = 0; i < maxPoints; i++) {
+      const r = allRows[Math.floor(i * step)]!;
+      history.push({ used: r.used_bytes, total: r.total_bytes, ts: r.collected_at });
+    }
+    // Always include the last point
+    const last = allRows[allRows.length - 1]!;
+    history.push({ used: last.used_bytes, total: last.total_bytes, ts: last.collected_at });
+  }
+
+  res.json({
+    current: {
+      used_bytes: latest.used_bytes,
+      total_bytes: latest.total_bytes,
+      free_bytes: freeBytes,
+      used_pct: usedPct,
+      used_human: formatBytes(latest.used_bytes),
+      total_human: formatBytes(latest.total_bytes),
+      free_human: formatBytes(freeBytes),
+    },
+    history,
+    range: validRange,
+  });
 });
 
 export default router;

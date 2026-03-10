@@ -96,14 +96,21 @@ export function InvitePanel() {
           disabled={creating}
           onClick={() => void handleCreate("user")}
         >
-          {creating ? "generating..." : "+ generate invite (user)"}
+          {creating ? "generating..." : "+ invite (member)"}
+        </button>
+        <button
+          className="btn"
+          disabled={creating}
+          onClick={() => void handleCreate("club")}
+        >
+          + invite (club)
         </button>
         <button
           className="btn"
           disabled={creating}
           onClick={() => void handleCreate("admin")}
         >
-          + generate invite (admin)
+          + invite (admin)
         </button>
         {status && (
           <span className={`admin-status${status.isError ? " error" : ""}`}>
@@ -137,8 +144,8 @@ export function InvitePanel() {
                       {inv.id.slice(0, 12)}...
                     </td>
                     <td>
-                      <span className={`role-badge ${inv.role === "admin" ? "role-admin" : inv.role === "user" ? "role-user" : "role-guest"}`}>
-                        {inv.role}
+                      <span className={`role-badge role-${inv.role}`}>
+                        {inv.role === "club" ? "club member" : inv.role === "user" ? "member" : inv.role}
                       </span>
                     </td>
                     <td>

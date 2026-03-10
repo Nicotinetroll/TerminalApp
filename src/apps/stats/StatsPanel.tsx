@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { WindowContentProps } from "@/types/terminal";
-import { getServerStats, ApiError } from "@/lib/api";
-import type { ServerStats } from "@/lib/api";
+import { getServerStats, getVpsStats, ApiError } from "@/lib/api";
+import type { ServerStats, VpsStats } from "@/lib/api";
 import { LogViewer } from "./LogViewer";
+import { DiskChart } from "./DiskChart";
 
 type Tab = "dashboard" | "logs";
+type DiskRange = "24h" | "7d" | "30d";
 
 export function StatsPanel(_props: WindowContentProps) {
   const [tab, setTab] = useState<Tab>("dashboard");
@@ -13,8 +15,27 @@ export function StatsPanel(_props: WindowContentProps) {
   const [loading, setLoading] = useState(true);
   const [lastFetch, setLastFetch] = useState<number>(0);
   const [ago, setAgo] = useState(0);
+  const [diskRange, setDiskRange] = useState<DiskRange>("24h");
+  const [vpsStats, setVpsStats] = useState<VpsStats | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
   const tickRef = useRef<ReturnType<typeof setInterval>>();
+  const diskIntervalRef = useRef<ReturnType<typeof setInterval>>();
+
+  const fetchVps = useCallback(async (range: DiskRange) => {
+    try {
+      const data = await getVpsStats(range);
+      setVpsStats(data);
+    } catch {
+      // silently ignore — not critical
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchVps(diskRange);
+    clearInterval(diskIntervalRef.current);
+    diskIntervalRef.current = setInterval(() => void fetchVps(diskRange), 30000);
+    return () => clearInterval(diskIntervalRef.current);
+  }, [diskRange, fetchVps]);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -182,6 +203,17 @@ export function StatsPanel(_props: WindowContentProps) {
           </div>
         </div>
 
+        {/* IMAP */}
+        <div className="stats-card">
+          <div className="stats-card-title">imap</div>
+          <div className="stats-card-body">
+            <StatRow label="events" value={String(s.imap.total_events)} />
+            <StatRow label="logins" value={String(s.imap.logins)} />
+            <StatRow label="failed logins" value={s.imap.login_fails === 0 ? "0" : `${s.imap.login_fails} (hackers?)`} />
+            <StatRow label="errors" value={s.imap.errors === 0 ? "0 (clean af)" : String(s.imap.errors)} />
+          </div>
+        </div>
+
         {/* Games */}
         <div className="stats-card">
           <div className="stats-card-title">games</div>
@@ -200,6 +232,52 @@ export function StatsPanel(_props: WindowContentProps) {
             )}
           </div>
         </div>
+
+        {/* VPS Disk */}
+        {vpsStats && vpsStats.current && (
+          <div className="stats-card">
+            <div className="stats-card-title" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span>vps disk</span>
+              <div className="stats-disk-ranges">
+                {(["24h", "7d", "30d"] as const).map((r) => (
+                  <button
+                    key={r}
+                    className={`stats-disk-range${diskRange === r ? " stats-disk-range-active" : ""}`}
+                    onClick={() => setDiskRange(r)}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="stats-card-body">
+              <StatRow label="used" value={vpsStats.current.used_human} />
+              <StatRow label="free" value={vpsStats.current.free_human} />
+              <StatRow label="total" value={vpsStats.current.total_human} />
+              <StatRow
+                label="usage"
+                value={
+                  vpsStats.current.used_pct === 69
+                    ? "69% — nice."
+                    : vpsStats.current.used_pct > 90
+                      ? `${vpsStats.current.used_pct}% — yo clean up`
+                      : `${vpsStats.current.used_pct}%`
+                }
+              />
+
+              {/* Usage bar */}
+              <div className="stats-disk-bar-container">
+                <div
+                  className={`stats-disk-bar${vpsStats.current.used_pct > 90 ? " stats-disk-bar-danger" : ""}`}
+                  style={{ width: `${Math.min(vpsStats.current.used_pct, 100)}%` }}
+                />
+              </div>
+
+              {/* Chart */}
+              <DiskChart history={vpsStats.history} range={diskRange} />
+            </div>
+          </div>
+        )}
       </div>
         </>
       )}

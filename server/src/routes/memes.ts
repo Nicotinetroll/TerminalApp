@@ -174,6 +174,8 @@ router.delete('/:id', authMiddleware as RequestHandler, (req: AuthRequest, res: 
       return;
     }
 
+    db.prepare('DELETE FROM meme_votes WHERE meme_id = ?').run(id);
+    db.prepare("DELETE FROM nigdit_notifications WHERE meme_id = ?").run(id);
     db.prepare('DELETE FROM memes WHERE id = ?').run(id);
     res.json({ ok: true });
   } catch (err) {

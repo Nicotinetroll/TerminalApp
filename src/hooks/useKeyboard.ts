@@ -13,6 +13,7 @@ interface CompletionContext {
   fs: FileSystemNode;
   cwd: string;
   username: string;
+  role: string;
 }
 
 export function useKeyboard(
@@ -55,7 +56,8 @@ export function useKeyboard(
           currentArg,
           ctx.fs,
           ctx.cwd,
-          ctx.username
+          ctx.username,
+          ctx.role
         );
         modeRef.current = "arg";
         argBaseRef.current = base;

@@ -4,14 +4,9 @@ import db from '../db.js';
 import { authMiddleware, adminMiddleware } from '../middleware.js';
 import type { AuthRequest } from '../middleware.js';
 import { broadcastEvent } from '../socket.js';
+import { STORAGE_LIMITS, getEffectiveLimit } from '../constants.js';
 
 const router = Router();
-
-const STORAGE_LIMITS: Record<string, number> = {
-  admin: 0,
-  user: 500 * 1024 * 1024,
-  guest: 50 * 1024 * 1024,
-};
 
 const MIN_BET_MB = 1;
 const MAX_BET_MB = 999;
@@ -22,12 +17,6 @@ function getWinChance(): number {
     const val = row ? parseInt(row.value, 10) : 50;
     return Math.max(5, Math.min(80, val || 50));
   } catch { return 50; }
-}
-
-function getEffectiveLimit(role: string, bonusBytes: number): number {
-  const base = STORAGE_LIMITS[role] ?? STORAGE_LIMITS['guest']!;
-  if (base === 0) return 0;
-  return Math.max(0, base + bonusBytes);
 }
 
 function pickRandom(arr: string[]): string {
@@ -201,12 +190,12 @@ router.post('/flip', (req: AuthRequest, res: Response): void => {
 
     db.prepare(`
       INSERT INTO slots_balance (user_id, bonus_bytes, total_won, total_lost, spins, bytebucks, updated_at)
-      VALUES (?, ?, ?, ?, 0, ?, datetime('now'))
+      VALUES (?, ?, 0, 0, 0, ?, datetime('now'))
       ON CONFLICT(user_id) DO UPDATE SET
         bonus_bytes = ?,
         bytebucks = ?,
         updated_at = datetime('now')
-    `).run(userId, newBonusBytes, won ? payoutBytes : 0, won ? 0 : betBytes, newNB, newBonusBytes, newNB);
+    `).run(userId, newBonusBytes, newNB, newBonusBytes, newNB);
 
     // Record in coinflip history
     db.prepare(`

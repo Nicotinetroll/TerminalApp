@@ -17,12 +17,13 @@ const ALL_APPS: AppDef[] = [
   { name: "games",    label: "games",    minRole: null },
   { name: "slots",    label: "slots",    minRole: "user" },
   { name: "coinflip", label: "coinflip", minRole: "user" },
+  { name: "shortlinks", label: "links",  minRole: "user" },
   { name: "ascii",    label: "ascii",    minRole: null },
   { name: "admin",    label: "admin",    minRole: "admin" },
   { name: "stats",    label: "stats",    minRole: "admin" },
 ];
 
-const ROLE_LEVEL: Record<string, number> = { guest: 0, code: 0, user: 1, admin: 2 };
+const ROLE_LEVEL: Record<string, number> = { guest: 0, code: 0, user: 1, club: 2, admin: 3 };
 
 interface Props {
   onRunApp: (name: string) => void;

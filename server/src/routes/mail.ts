@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { createTransport } from 'nodemailer';
-import { randomUUID } from 'crypto';
+import { randomUUID, randomBytes } from 'crypto';
+import bcrypt from 'bcryptjs';
 import { readFileSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -18,6 +19,10 @@ const DOMAIN = 'mynig.ga';
 const SEND_RATE_LIMIT = 20; // per hour per user
 const ADDRESS_REGEX = /^[a-z0-9._-]{2,32}$/;
 const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024; // 5MB per file
+
+function generateMailPassword(): string {
+  return randomBytes(6).toString('base64url'); // 8 chars, url-safe
+}
 const MAX_ATTACHMENTS = 5;
 
 // Multer config — memory storage for BLOB
@@ -83,6 +88,24 @@ function checkSendRate(userId: number): boolean {
   return true;
 }
 
+// ── Internal notification endpoint (BEFORE auth — called by SMTP/IMAP processes) ──
+router.post('/internal/mail-notify', (req: AuthRequest, res: Response): void => {
+  const ip = req.ip ?? req.socket.remoteAddress ?? '';
+  if (!ip.includes('127.0.0.1') && !ip.includes('::1') && !ip.includes('::ffff:127.0.0.1')) {
+    res.status(403).json({ error: 'localhost only' });
+    return;
+  }
+  const { userId, from, subject, to } = req.body as { userId?: number; from?: string; subject?: string; to?: string };
+  if (userId) {
+    emitToUser(userId, 'mail:new', {
+      from: from ?? 'unknown',
+      subject: subject ?? '(no subject, just vibes)',
+      to: to ?? '',
+    });
+  }
+  res.json({ ok: true });
+});
+
 // All mail routes require authentication
 router.use(authMiddleware);
 
@@ -90,9 +113,9 @@ router.use(authMiddleware);
 router.get('/addresses', (req: AuthRequest, res: Response): void => {
   const userId = req.user!.userId;
   const rows = db.prepare(
-    'SELECT id, address, display_name, signature, created_at FROM email_addresses WHERE user_id = ? ORDER BY created_at'
-  ).all(userId) as { id: number; address: string; display_name: string; signature: string; created_at: string }[];
-  res.json({ addresses: rows.map(r => ({ ...r, full: `${r.address}@${DOMAIN}` })) });
+    'SELECT id, address, display_name, signature, mail_password, created_at FROM email_addresses WHERE user_id = ? ORDER BY created_at'
+  ).all(userId) as { id: number; address: string; display_name: string; signature: string; mail_password: string; created_at: string }[];
+  res.json({ addresses: rows.map(r => ({ ...r, full: `${r.address}@${DOMAIN}`, has_mail_password: !!r.mail_password, mail_password: undefined })) });
 });
 
 // ── POST /api/mail/addresses ──
@@ -148,16 +171,23 @@ router.post('/addresses', (req: AuthRequest, res: Response): void => {
     return;
   }
 
+  const plainPassword = generateMailPassword();
+  const hashedPassword = bcrypt.hashSync(plainPassword, 10);
+
   const result = db.prepare(
-    'INSERT INTO email_addresses (user_id, address) VALUES (?, ?)'
-  ).run(userId, clean);
+    'INSERT INTO email_addresses (user_id, address, mail_password) VALUES (?, ?, ?)'
+  ).run(userId, clean, hashedPassword);
 
   res.json({
     address: {
       id: result.lastInsertRowid,
       address: clean,
       full: `${clean}@${DOMAIN}`,
+      display_name: '',
+      signature: '',
+      has_mail_password: true,
       created_at: new Date().toISOString(),
+      mail_password_plain: plainPassword,
     },
   });
 });
@@ -181,6 +211,34 @@ router.delete('/addresses/:id', (req: AuthRequest, res: Response): void => {
   db.prepare('DELETE FROM email_addresses WHERE id = ?').run(addrId);
 
   res.json({ ok: true });
+});
+
+// ── POST /api/mail/addresses/:id/set-password ──
+router.post('/addresses/:id/set-password', (req: AuthRequest, res: Response): void => {
+  const userId = req.user!.userId;
+  const addrId = parseInt(String(req.params['id']), 10);
+
+  const addr = db.prepare(
+    'SELECT id, address FROM email_addresses WHERE id = ? AND user_id = ?'
+  ).get(addrId, userId) as { id: number; address: string } | undefined;
+
+  if (!addr) {
+    res.status(404).json({ error: "nice try" });
+    return;
+  }
+
+  const { password } = req.body as { password?: string };
+  const plain = (typeof password === 'string' && password.length >= 4) ? password : generateMailPassword();
+
+  if (typeof password === 'string' && password.length > 0 && password.length < 4) {
+    res.status(400).json({ error: "4 chars minimum. we're not animals." });
+    return;
+  }
+
+  const hashed = bcrypt.hashSync(plain, 10);
+  db.prepare('UPDATE email_addresses SET mail_password = ? WHERE id = ?').run(hashed, addrId);
+
+  res.json({ mail_password_plain: plain });
 });
 
 // ── GET /api/mail/messages ──
@@ -328,6 +386,7 @@ router.delete('/messages/:id', (req: AuthRequest, res: Response): void => {
     return;
   }
 
+  db.prepare('DELETE FROM email_attachments WHERE email_id = ?').run(msgId);
   db.prepare('DELETE FROM emails WHERE id = ?').run(msgId);
   res.json({ ok: true });
 });
@@ -390,7 +449,7 @@ router.post('/send', upload.array('attachments', MAX_ATTACHMENTS), async (req: A
       return;
     }
     senderAddr = `${owned.address}@${DOMAIN}`;
-    senderName = from_name?.trim() || owned.display_name;
+    senderName = from_name?.trim() || owned.display_name || owned.address;
 
     if (from_name?.trim() && from_name.trim() !== owned.display_name) {
       db.prepare('UPDATE email_addresses SET display_name = ? WHERE id = ?').run(from_name.trim(), owned.id);
@@ -638,6 +697,7 @@ router.post('/messages/bulk', (req: AuthRequest, res: Response): void => {
       db.prepare(`UPDATE emails SET is_starred = 0 WHERE id IN (${filteredPlaceholders})`).run(...filtered);
       break;
     case 'delete':
+      db.prepare(`DELETE FROM email_attachments WHERE email_id IN (${filteredPlaceholders})`).run(...filtered);
       db.prepare(`DELETE FROM emails WHERE id IN (${filteredPlaceholders})`).run(...filtered);
       break;
     default:
@@ -935,26 +995,6 @@ router.put('/addresses/:id/signature', (req: AuthRequest, res: Response): void =
   if (!addr) { res.status(404).json({ error: 'address not found.' }); return; }
 
   db.prepare('UPDATE email_addresses SET signature = ? WHERE id = ?').run(signature ?? '', addrId);
-  res.json({ ok: true });
-});
-
-// ── Internal notification endpoint (localhost only, called by SMTP process) ──
-router.post('/internal/mail-notify', (req: AuthRequest, res: Response): void => {
-  // Only allow from localhost
-  const ip = req.ip ?? req.socket.remoteAddress ?? '';
-  if (!ip.includes('127.0.0.1') && !ip.includes('::1') && !ip.includes('::ffff:127.0.0.1')) {
-    res.status(403).json({ error: 'localhost only' });
-    return;
-  }
-
-  const { userId, from, subject, to } = req.body as { userId?: number; from?: string; subject?: string; to?: string };
-  if (userId) {
-    emitToUser(userId, 'mail:new', {
-      from: from ?? 'unknown',
-      subject: subject ?? '(no subject, just vibes)',
-      to: to ?? '',
-    });
-  }
   res.json({ ok: true });
 });
 

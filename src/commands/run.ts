@@ -1,5 +1,8 @@
 import type { CommandDef } from "@/types/terminal";
 import { loadApp, listAppNames } from "@/core/appLoader";
+import { checkAppAccess, getAppMinRole, triggerAccessDenied } from "@/core/appRestrictions";
+
+const ADMIN_ONLY_APPS = ["admin", "stats"];
 
 export const run: CommandDef = {
   name: "run",
@@ -10,7 +13,10 @@ export const run: CommandDef = {
     const appName = args[0];
 
     if (!appName) {
-      const names = listAppNames();
+      const all = listAppNames();
+      const names = terminal.user.role === "admin"
+        ? all
+        : all.filter((n) => !ADMIN_ONLY_APPS.includes(n));
       if (names.length === 0) {
         return { text: "No apps installed." };
       }
@@ -31,6 +37,13 @@ export const run: CommandDef = {
       if (terminal.user.permissions && !terminal.user.permissions.includes(appName)) {
         return { text: "access denied. your code doesn't unlock this app, bitch.", isError: true };
       }
+    }
+
+    // Role-based app restriction check (configured in admin settings)
+    if (!checkAppAccess(appName, terminal.user.role)) {
+      const minRole = getAppMinRole(appName) ?? "club";
+      triggerAccessDenied(appName, minRole);
+      return { text: `${appName} requires ${minRole} membership.`, isError: true };
     }
 
     const app = await loadApp(appName);

@@ -49,7 +49,7 @@ export class ApiError extends Error {
 export interface AuthUser {
   id: number;
   username: string;
-  role: "admin" | "user" | "guest" | "code";
+  role: "admin" | "club" | "user" | "guest" | "code";
   created_at?: string;
   permissions?: string[];
 }
@@ -86,9 +86,9 @@ export async function getSession(): Promise<AuthUser | null> {
 }
 
 export function logout(): void {
-  clearToken();
-  // Fire and forget
+  // Send request first so it has the auth header, then clear token
   void request("/auth/logout", { method: "POST" }).catch(() => {});
+  clearToken();
 }
 
 // ── Sync: Filesystem ──
@@ -276,6 +276,8 @@ export interface EmailAddress {
   display_name: string;
   signature: string;
   created_at: string;
+  has_mail_password: boolean;
+  mail_password_plain?: string;
 }
 
 export interface EmailAttachment {
@@ -321,6 +323,14 @@ export async function claimEmailAddress(address: string): Promise<EmailAddress> 
 
 export async function deleteEmailAddress(id: number): Promise<void> {
   await request(`/mail/addresses/${id}`, { method: "DELETE" });
+}
+
+export async function setMailPassword(id: number, password?: string): Promise<string> {
+  const data = await request<{ mail_password_plain: string }>(`/mail/addresses/${id}/set-password`, {
+    method: "POST",
+    body: JSON.stringify({ password: password || undefined }),
+  });
+  return data.mail_password_plain;
 }
 
 export async function getEmails(
@@ -686,6 +696,12 @@ export interface ServerStats {
     total_emails: number;
     emails_today: number;
   };
+  imap: {
+    total_events: number;
+    logins: number;
+    login_fails: number;
+    errors: number;
+  };
   games: {
     total_scores: number;
     by_game: { game: string; count: number }[];
@@ -698,6 +714,34 @@ export async function getServerStats(): Promise<ServerStats> {
   return request<ServerStats>("/admin/stats");
 }
 
+// ── VPS Disk Stats ──
+
+export interface VpsDiskCurrent {
+  used_bytes: number;
+  total_bytes: number;
+  free_bytes: number;
+  used_pct: number;
+  used_human: string;
+  total_human: string;
+  free_human: string;
+}
+
+export interface VpsDiskPoint {
+  used: number;
+  total: number;
+  ts: string;
+}
+
+export interface VpsStats {
+  current: VpsDiskCurrent | null;
+  history: VpsDiskPoint[];
+  range: string;
+}
+
+export async function getVpsStats(range: "24h" | "7d" | "30d" = "24h"): Promise<VpsStats> {
+  return request<VpsStats>(`/admin/vps-stats?range=${range}`);
+}
+
 // ── Admin: Server Logs ──
 
 export interface LogEntry {
@@ -708,8 +752,8 @@ export interface LogEntry {
   meta?: Record<string, unknown>;
 }
 
-export async function getServerLogs(sinceId = 0): Promise<LogEntry[]> {
-  const data = await request<{ logs: LogEntry[] }>(`/admin/logs?since=${sinceId}`);
+export async function getServerLogs(sinceId = 0, sinceSvc = 0): Promise<LogEntry[]> {
+  const data = await request<{ logs: LogEntry[] }>(`/admin/logs?since=${sinceId}&since_svc=${sinceSvc}`);
   return data.logs;
 }
 
@@ -872,11 +916,13 @@ export interface SlotsSpinResult {
   free_spins_awarded: number;
   free_spins_remaining: number;
   has_jackpot: boolean;
+  combo_multiplier: number;
   message: string;
   currency: string;
   nb_balance: number;
   bonus: SlotsBonusInfo | null;
   bonus_awarded: SlotsBonusInfo | null;
+  bonus_final: SlotsBonusInfo | null;
   balance: {
     bonus_bytes: number;
     effective_limit: number;
@@ -1476,6 +1522,13 @@ export async function getNigditAdminStats(): Promise<NigditAdminStats> {
 
 // ── Pastes (Code Paste Bin) ──
 
+export interface PasteParent {
+  id: string;
+  title: string;
+  content: string;
+  language: string;
+}
+
 export interface Paste {
   id: string;
   username: string;
@@ -1485,6 +1538,8 @@ export interface Paste {
   expires_at: string | null;
   created_at: string;
   time_ago: string;
+  parent_id: string | null;
+  parent: PasteParent | null;
 }
 
 export interface PasteListItem {
@@ -1494,6 +1549,7 @@ export interface PasteListItem {
   expires_at: string | null;
   created_at: string;
   time_ago: string;
+  parent_id: string | null;
 }
 
 export interface PasteCreateResult {
@@ -1515,11 +1571,40 @@ export async function createPaste(data: {
   content: string;
   language?: string;
   expires_in?: string;
+  parent_id?: string;
 }): Promise<PasteCreateResult> {
   return request("/pastes", {
     method: "POST",
     body: JSON.stringify(data),
   });
+}
+
+export async function createPublicPaste(data: {
+  title?: string;
+  content: string;
+  language?: string;
+  parent_id?: string;
+}): Promise<PasteCreateResult> {
+  const res = await fetch(`${API_BASE}/pastes/public`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, (body as { error?: string }).error ?? "create failed");
+  }
+  return res.json() as Promise<PasteCreateResult>;
+}
+
+export async function getPublicPaste(id: string): Promise<Paste> {
+  const res = await fetch(`${API_BASE}/pastes/${encodeURIComponent(id)}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, (body as { error?: string }).error ?? "paste not found");
+  }
+  const data = await res.json() as { paste: Paste };
+  return data.paste;
 }
 
 export async function deletePaste(id: string): Promise<{ ok: boolean }> {
@@ -1623,6 +1708,115 @@ export async function voteMeme(
 
 export async function deleteMeme(id: number): Promise<{ ok: boolean }> {
   return request(`/memes/${id}`, { method: "DELETE" });
+}
+
+// ── File Transfers ──
+
+export interface Transfer {
+  id: string;
+  original_names: string[];
+  size: number;
+  expires_at: string;
+  uploaded_at: string | null;
+  created_at: string;
+  expired: boolean;
+  status?: "pending" | "uploaded" | "expired";
+}
+
+export async function createTransferLink(): Promise<{ id: string; url: string; expires_at: string }> {
+  return request("/transfers", { method: "POST", body: JSON.stringify({}) });
+}
+
+export async function getMyTransfers(): Promise<Transfer[]> {
+  const data = await request<{ transfers: Transfer[] }>("/transfers");
+  return data.transfers;
+}
+
+export async function getPublicTransferInfo(id: string): Promise<Transfer> {
+  const res = await fetch(`${API_BASE}/transfers/${encodeURIComponent(id)}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, (body as { error?: string }).error ?? "transfer not found");
+  }
+  const data = await res.json() as { transfer: Transfer };
+  return data.transfer;
+}
+
+export async function deleteTransfer(id: string): Promise<{ ok: boolean }> {
+  return request(`/transfers/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export function getTransferDownloadUrl(id: string): string {
+  return `${API_BASE}/transfers/${encodeURIComponent(id)}/download`;
+}
+
+export async function getTransferPresignedUrl(id: string): Promise<{ uploadUrl: string }> {
+  const res = await fetch(`${API_BASE}/transfers/${encodeURIComponent(id)}/presign`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, (body as { error?: string }).error ?? "presign failed");
+  }
+  return res.json() as Promise<{ uploadUrl: string }>;
+}
+
+export async function confirmTransferUpload(id: string, names: string[], size: number): Promise<{ ok: boolean }> {
+  const res = await fetch(`${API_BASE}/transfers/${encodeURIComponent(id)}/complete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ names, size }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, (body as { error?: string }).error ?? "confirm failed");
+  }
+  return res.json() as Promise<{ ok: boolean }>;
+}
+
+// ── Shortlinks (URL Shortener) ──
+
+export interface Shortlink {
+  id: number;
+  slug: string;
+  target_url: string;
+  title: string;
+  click_count: number;
+  last_clicked_at: string | null;
+  expires_at: string | null;
+  created_at: string;
+}
+
+export async function getMyShortlinks(): Promise<Shortlink[]> {
+  const data = await request<{ links: Shortlink[] }>("/shortlinks");
+  return data.links;
+}
+
+export async function createShortlink(data: {
+  url: string;
+  slug?: string;
+  title?: string;
+}): Promise<Shortlink> {
+  const resp = await request<{ ok: boolean; link: Shortlink }>("/shortlinks", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+  return resp.link;
+}
+
+export async function deleteShortlink(id: number): Promise<void> {
+  await request(`/shortlinks/${id}`, { method: "DELETE" });
+}
+
+export async function resolveShortlink(slug: string): Promise<{ target_url: string }> {
+  const res = await fetch(`${API_BASE}/shortlinks/r/${encodeURIComponent(slug)}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, (body as { error?: string }).error ?? "link not found");
+  }
+  return res.json() as Promise<{ target_url: string }>;
 }
 
 export async function uploadMeme(

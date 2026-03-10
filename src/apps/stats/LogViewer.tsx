@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { getServerLogs, ApiError } from "@/lib/api";
 import type { LogEntry } from "@/lib/api";
 
-type LogLevel = "all" | "http" | "info" | "warn" | "error";
+type LogLevel = "all" | "http" | "info" | "warn" | "error" | "imap";
 
 const LEVEL_LABELS: Record<LogLevel, string> = {
   all: "all",
@@ -10,6 +10,7 @@ const LEVEL_LABELS: Record<LogLevel, string> = {
   info: "info",
   warn: "warn",
   error: "error",
+  imap: "imap",
 };
 
 function formatTime(iso: string): string {
@@ -23,21 +24,40 @@ function decorateMessage(entry: LogEntry): string {
   return msg;
 }
 
+function logsToText(entries: LogEntry[]): string {
+  return entries
+    .map((e) => `${formatTime(e.ts)} [${e.level}] ${e.message}`)
+    .join("\n");
+}
+
 export function LogViewer() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [filter, setFilter] = useState<LogLevel>("all");
   const [error, setError] = useState<string | null>(null);
+  const [copyMsg, setCopyMsg] = useState<string | null>(null);
   const sinceRef = useRef(0);
+  const svcSinceRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickyRef = useRef(true);
 
   const poll = useCallback(async () => {
     try {
-      const newLogs = await getServerLogs(sinceRef.current);
+      const newLogs = await getServerLogs(sinceRef.current, svcSinceRef.current);
       if (newLogs.length > 0) {
-        sinceRef.current = newLogs[newLogs.length - 1]!.id;
+        // Track separate max IDs for API logs (<900000) and service logs (>=900000)
+        for (const l of newLogs) {
+          if (l.id >= 900000) {
+            if (l.id > svcSinceRef.current) svcSinceRef.current = l.id;
+          } else {
+            if (l.id > sinceRef.current) sinceRef.current = l.id;
+          }
+        }
+
         setLogs((prev) => {
-          const merged = [...prev, ...newLogs];
+          const existingIds = new Set(prev.map((l) => l.id));
+          const unique = newLogs.filter((l) => !existingIds.has(l.id));
+          if (unique.length === 0) return prev;
+          const merged = [...prev, ...unique];
           return merged.length > 500 ? merged.slice(-500) : merged;
         });
       }
@@ -67,7 +87,30 @@ export function LogViewer() {
     stickyRef.current = atBottom;
   };
 
-  const filtered = filter === "all" ? logs : logs.filter((l) => l.level === filter);
+  const filtered = filter === "all"
+    ? logs
+    : filter === "imap"
+      ? logs.filter((l) => l.message.includes("[IMAP]"))
+      : logs.filter((l) => l.level === filter);
+
+  const handleCopy = () => {
+    const text = logsToText(filtered);
+    void navigator.clipboard.writeText(text).then(() => {
+      setCopyMsg("copied");
+      setTimeout(() => setCopyMsg(null), 1500);
+    });
+  };
+
+  const handleSave = () => {
+    const text = logsToText(filtered);
+    const blob = new Blob([text], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `logs-${filter}-${new Date().toISOString().slice(0, 19).replace(/:/g, "-")}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="stats-log-viewer">
@@ -83,12 +126,21 @@ export function LogViewer() {
             </button>
           ))}
         </div>
-        <button
-          className="stats-log-clear"
-          onClick={() => { setLogs([]); sinceRef.current = 0; }}
-        >
-          clear
-        </button>
+        <div className="stats-log-actions">
+          {copyMsg && <span className="stats-log-copy-msg">{copyMsg}</span>}
+          <button className="stats-log-action-btn" onClick={handleCopy} title="copy to clipboard">
+            copy
+          </button>
+          <button className="stats-log-action-btn" onClick={handleSave} title="save as .txt">
+            save
+          </button>
+          <button
+            className="stats-log-clear"
+            onClick={() => setLogs([])}
+          >
+            clear
+          </button>
+        </div>
       </div>
 
       {error && <div className="stats-error-bar">{error}</div>}

@@ -250,21 +250,31 @@ router.post('/invite', authMiddleware, (req: AuthRequest, res: Response): void =
     return;
   }
 
-  const code = `${req.user!.username}-inv-${String(crypto.randomInt(10000, 99999))}`;
   const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString().replace('T', ' ').replace('Z', '').split('.')[0]!;
 
-  db.prepare(
-    'INSERT INTO invite_links (id, created_by, role, expires_at) VALUES (?, ?, ?, ?)'
-  ).run(code, req.user!.userId, 'user', expiresAt);
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const code = `${req.user!.username}-inv-${String(crypto.randomInt(100000, 999999))}`;
+    try {
+      db.prepare(
+        'INSERT INTO invite_links (id, created_by, role, expires_at) VALUES (?, ?, ?, ?)'
+      ).run(code, req.user!.userId, 'user', expiresAt);
 
-  res.status(201).json({
-    invite: {
-      id: code,
-      role: 'user',
-      expires_at: expiresAt,
-      url: `https://mynig.ga/?invite=${code}`,
-    },
-  });
+      res.status(201).json({
+        invite: {
+          id: code,
+          role: 'user',
+          expires_at: expiresAt,
+          url: `https://mynig.ga/?invite=${code}`,
+        },
+      });
+      return;
+    } catch {
+      if (attempt === 4) {
+        res.status(500).json({ error: 'failed to generate invite code. try again.' });
+        return;
+      }
+    }
+  }
 });
 
 export default router;

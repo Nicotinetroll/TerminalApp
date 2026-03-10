@@ -49,7 +49,7 @@ export interface FileSystemNode {
 
 export interface User {
   username: string;
-  role: "admin" | "user" | "code";
+  role: "admin" | "club" | "user" | "code";
   id?: string;
   permissions?: string[];
 }

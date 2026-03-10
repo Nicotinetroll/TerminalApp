@@ -148,8 +148,8 @@ export function NigditPanel({ user }: WindowContentProps) {
 
   const handlePostUpdated = useCallback((postId: number, updates: Partial<NigditPost>) => {
     setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, ...updates } : p)));
-    if (threadPost && threadPost.id === postId) setThreadPost({ ...threadPost, ...updates });
-  }, [threadPost]);
+    setThreadPost((prev) => prev && prev.id === postId ? { ...prev, ...updates } : prev);
+  }, []);
 
   const handlePostDeleted = useCallback((postId: number) => {
     setPosts((prev) => prev.filter((p) => p.id !== postId));
@@ -157,17 +157,13 @@ export function NigditPanel({ user }: WindowContentProps) {
 
   const handleCommentAdded = useCallback((comment: NigditComment) => {
     setThreadComments((prev) => [...prev, comment]);
-    if (threadPost) {
-      setThreadPost({ ...threadPost, comment_count: threadPost.comment_count + 1 });
-    }
-  }, [threadPost]);
+    setThreadPost((prev) => prev ? { ...prev, comment_count: prev.comment_count + 1 } : prev);
+  }, []);
 
   const handleCommentDeleted = useCallback((commentId: number) => {
     setThreadComments((prev) => prev.filter((c) => c.id !== commentId));
-    if (threadPost) {
-      setThreadPost({ ...threadPost, comment_count: Math.max(0, threadPost.comment_count - 1) });
-    }
-  }, [threadPost]);
+    setThreadPost((prev) => prev ? { ...prev, comment_count: Math.max(0, prev.comment_count - 1) } : prev);
+  }, []);
 
   const handleCommentVoted = useCallback((commentId: number, score: number, myVote: number) => {
     setThreadComments((prev) =>

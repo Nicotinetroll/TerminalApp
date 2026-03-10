@@ -10,6 +10,7 @@ interface Props {
   onFolderChange: (folder: string) => void;
   onCompose: () => void;
   onAddressDeleted: (id: number) => void;
+  onAddressClaimed: (addr: EmailAddress) => void;
   onFoldersChanged: () => void;
   onEditSignatures: () => void;
   onSetupGuide: () => void;
@@ -26,7 +27,7 @@ const FOLDERS = [
 
 export function MailSidebar({
   folder, stats, addresses, customFolders, onFolderChange, onCompose,
-  onAddressDeleted, onFoldersChanged, onEditSignatures, onSetupGuide, showStatus,
+  onAddressDeleted, onAddressClaimed, onFoldersChanged, onEditSignatures, onSetupGuide, showStatus,
 }: Props) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [newAddr, setNewAddr] = useState("");
@@ -40,10 +41,15 @@ export function MailSidebar({
     if (!clean) return;
     setClaiming(true);
     try {
-      await claimEmailAddress(clean);
+      const addr = await claimEmailAddress(clean);
       setNewAddr("");
       setShowAddForm(false);
-      showStatus(`${clean}@mynig.ga claimed! refresh to see it.`);
+      onAddressClaimed(addr);
+      if (addr.mail_password_plain) {
+        showStatus(`${clean}@mynig.ga claimed! imap password: ${addr.mail_password_plain}`);
+      } else {
+        showStatus(`${clean}@mynig.ga claimed!`);
+      }
     } catch (err) {
       showStatus(err instanceof ApiError ? err.message : "couldn't claim", true);
     } finally {
@@ -247,7 +253,7 @@ export function MailSidebar({
           className="mail-address-add"
           onClick={onSetupGuide}
         >
-          setup guide
+          settings
         </button>
       </div>
     </div>

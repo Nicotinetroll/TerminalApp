@@ -5,7 +5,7 @@ import { getEmail, updateEmail, deleteEmail, downloadAttachment, ApiError } from
 interface Props {
   emailId: number;
   onBack: () => void;
-  onReply: (data: { to: string; subject: string; in_reply_to?: string }) => void;
+  onReply: (data: { to: string; subject: string; in_reply_to?: string; from?: string }) => void;
   onForward: (data: { subject: string; body: string }) => void;
   onDelete: () => void;
   showStatus: (text: string, isError?: boolean) => void;
@@ -31,7 +31,9 @@ function renderBody(text: string): string {
   let html = text
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 
   // Bold: **text** or __text__
   html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
@@ -149,6 +151,7 @@ export function MailView({ emailId, onBack, onReply, onForward, onDelete, showSt
       to: email.from_address,
       subject: reSubject,
       in_reply_to: email.message_id ?? undefined,
+      from: email.to_address,
     });
   };
 
