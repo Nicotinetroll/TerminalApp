@@ -1,0 +1,130 @@
+/* Admin panel base, cloud upload progress, sidebar */
+
+/* ── Admin Panel ── */
+
+/* Shared panel base for profile, cloud, etc. */
+.panel-view {
+  font-size: 14px;
+  color: var(--text-primary);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 20px;
+}
+
+.panel-view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.panel-view-header h2 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+/* ── Cloud upload progress ── */
+.cloud-upload-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+}
+.cloud-upload-progress-bar {
+  flex: 0 0 120px;
+  height: 6px;
+  background: var(--bg-primary);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.cloud-upload-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+.cloud-upload-progress-text {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-panel {
+  font-size: 14px;
+  color: var(--text-primary);
+  height: 100%;
+  display: flex;
+  flex-direction: row;
+}
+
+/* ── Sidebar ── */
+
+.admin-sidebar {
+  width: 90px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 6px 0;
+  border-right: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.01);
+  overflow-y: auto;
+}
+
+.admin-nav-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 6px;
+  border: none;
+  border-left: 3px solid transparent;
+  background: transparent;
+  color: var(--text-ghost);
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.admin-nav-item:hover {
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.admin-nav-active {
+  border-left-color: var(--accent);
+  color: var(--accent) !important;
+  background: var(--accent-soft) !important;
+}
+
+.admin-nav-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.admin-nav-spacer {
+  flex: 1;
+}
+
+.admin-nav-create {
+  color: var(--accent);
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 4px;
+}
+
+.admin-nav-create:hover {
+  background: var(--accent-soft) !important;
+  color: var(--accent) !important;
+}
+

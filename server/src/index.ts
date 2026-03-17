@@ -53,6 +53,8 @@ const { default: pastesRouter } = await import('./routes/pastes.js');
 const { default: shopRouter } = await import('./routes/shop.js');
 const { default: transfersRouter } = await import('./routes/transfers.js');
 const { default: shortlinksRouter } = await import('./routes/shortlinks.js');
+const { default: downloadRouter } = await import('./routes/download.js');
+const { default: blackjackRouter } = await import('./routes/blackjack.js');
 const { default: paymentsRouter, checkExpiredSubscriptions } = await import('./routes/payments.js');
 const { setupSocket, getOnlineUsers } = await import('./socket.js');
 
@@ -108,6 +110,8 @@ app.use('/api/shop', shopRouter);
 app.use('/api/transfers', transfersRouter);
 app.use('/api/shortlinks', shortlinksRouter);
 app.use('/api/payments', paymentsRouter);
+app.use('/api/download', downloadRouter);
+app.use('/api/blackjack', blackjackRouter);
 
 // Health check
 app.get('/api/health', (_req, res) => {

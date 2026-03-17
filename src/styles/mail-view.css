@@ -1,0 +1,137 @@
+/* Mail view / reader */
+
+/* ── Mail View ── */
+
+.mail-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.mail-view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.mail-view-back {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.mail-view-back:hover {
+  text-decoration: underline;
+}
+
+.mail-view-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.mail-view-action-btn {
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 11px;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: all 150ms ease;
+  white-space: nowrap;
+}
+
+.mail-view-action-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent-mid);
+}
+
+.mail-view-action-danger {
+  color: var(--error) !important;
+  border-color: rgba(255, 68, 68, 0.2) !important;
+}
+
+.mail-view-action-danger:hover {
+  background: rgba(255, 68, 68, 0.08) !important;
+  border-color: rgba(255, 68, 68, 0.4) !important;
+}
+
+.mail-view-meta {
+  padding: 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.mail-view-subject {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 10px 0;
+}
+
+.mail-view-sender-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mail-sender-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-mid);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.mail-view-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--text-muted);
+  flex: 1;
+  min-width: 0;
+}
+
+.mail-view-from {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.mail-view-to {
+  color: var(--text-ghost);
+  font-size: 11px;
+}
+
+.mail-view-date {
+  color: var(--text-ghost);
+  font-size: 11px;
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+
+.mail-view-body {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-primary);
+}

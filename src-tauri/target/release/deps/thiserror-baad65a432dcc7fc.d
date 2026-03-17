@@ -1,0 +1,14 @@
+/Users/dominik/Documents/TerminalApp/src-tauri/target/release/deps/thiserror-baad65a432dcc7fc.d: /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/lib.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/aserror.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/display.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/var.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/private.rs /Users/dominik/Documents/TerminalApp/src-tauri/target/release/build/thiserror-b957468051437f7a/out/private.rs
+
+/Users/dominik/Documents/TerminalApp/src-tauri/target/release/deps/libthiserror-baad65a432dcc7fc.rlib: /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/lib.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/aserror.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/display.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/var.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/private.rs /Users/dominik/Documents/TerminalApp/src-tauri/target/release/build/thiserror-b957468051437f7a/out/private.rs
+
+/Users/dominik/Documents/TerminalApp/src-tauri/target/release/deps/libthiserror-baad65a432dcc7fc.rmeta: /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/lib.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/aserror.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/display.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/var.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/private.rs /Users/dominik/Documents/TerminalApp/src-tauri/target/release/build/thiserror-b957468051437f7a/out/private.rs
+
+/Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/lib.rs:
+/Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/aserror.rs:
+/Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/display.rs:
+/Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/var.rs:
+/Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/private.rs:
+/Users/dominik/Documents/TerminalApp/src-tauri/target/release/build/thiserror-b957468051437f7a/out/private.rs:
+
+# env-dep:OUT_DIR=/Users/dominik/Documents/TerminalApp/src-tauri/target/release/build/thiserror-b957468051437f7a/out

@@ -1,0 +1,697 @@
+/* Public upload page, card, dropzone, file list, upload, progress, transfer list */
+
+/* ── Public Upload Page ── */
+
+.pu-page {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: var(--bg-primary);
+  overflow: auto;
+  background-image:
+    radial-gradient(ellipse 60% 50% at 50% 55%, var(--accent-soft), transparent 70%),
+    radial-gradient(circle, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 100% 100%, 24px 24px, 24px 24px, 24px 24px;
+  background-position: center, 12px 12px, 0 0, 0 0;
+}
+
+.pu-scanlines {
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.06) 2px, rgba(0,0,0,0.06) 4px);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.pu-vignette {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.45) 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.pu-content {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 100vh;
+  padding: 24px;
+  padding-top: 12vh;
+  gap: 24px;
+}
+
+/* Fixed-height wrapper — logo never moves */
+.pu-card-wrap {
+  max-width: 520px;
+  width: 100%;
+  height: 460px;
+}
+
+/* ── Card ── */
+
+.pu-card {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border: 1px solid var(--border-medium);
+  background: var(--bg-surface);
+  overflow: hidden;
+  box-shadow:
+    0 0 80px var(--accent-soft),
+    0 0 160px var(--accent-soft),
+    0 0 40px rgba(0,0,0,0.5);
+}
+
+.pu-card-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px),
+    linear-gradient(to right, rgba(255,255,255,0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255,255,255,0.02) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: 12px 12px, 0 0, 0 0;
+  pointer-events: none;
+}
+
+.pu-card-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 0%, var(--accent-soft) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.pu-card-body {
+  position: relative;
+  z-index: 2;
+  padding: 32px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* ── Typography ── */
+
+.pu-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  font-family: inherit;
+}
+
+.pu-prompt {
+  color: var(--accent);
+  margin-right: 6px;
+}
+
+.pu-subtitle {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.pu-error {
+  color: var(--error);
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+/* ── Dropzone ── */
+
+.pu-dropzone {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  border: 2px dashed var(--border-medium);
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.3s;
+  margin-bottom: 12px;
+  position: relative;
+  min-height: 80px;
+}
+
+.pu-dropzone:hover {
+  border-color: var(--accent);
+  background: rgba(218,119,86,0.03);
+  box-shadow: inset 0 0 40px rgba(218,119,86,0.05);
+}
+
+.pu-dropzone-active {
+  border-color: var(--accent) !important;
+  background: rgba(218,119,86,0.06) !important;
+  box-shadow: inset 0 0 60px rgba(218,119,86,0.08), 0 0 30px rgba(218,119,86,0.1) !important;
+}
+
+.pu-dropzone-arrow {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  font-size: 24px;
+  color: var(--text-ghost);
+  margin-bottom: 8px;
+  transition: color 0.2s;
+}
+
+.pu-dropzone-arrow span {
+  animation: pu-arrow-float 2s ease-in-out infinite;
+}
+
+.pu-dropzone-arrow span:nth-child(2) { animation-delay: 0.3s; }
+.pu-dropzone-arrow span:nth-child(3) { animation-delay: 0.6s; }
+
+@keyframes pu-arrow-float {
+  0%, 100% { transform: translateY(0); opacity: 0.4; }
+  50% { transform: translateY(-6px); opacity: 1; }
+}
+
+.pu-dropzone:hover .pu-dropzone-arrow,
+.pu-dropzone-active .pu-dropzone-arrow {
+  color: var(--accent);
+}
+
+.pu-dropzone-active .pu-dropzone-arrow span {
+  animation: pu-arrow-rush 0.5s ease-in-out infinite;
+}
+
+@keyframes pu-arrow-rush {
+  0%, 100% { transform: translateY(0); opacity: 0.6; }
+  50% { transform: translateY(-10px); opacity: 1; }
+}
+
+.pu-dropzone-text {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+/* ── File List ── */
+
+.pu-filelist {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.pu-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  font-size: 13px;
+  animation: pu-file-in 0.25s ease-out;
+}
+
+@keyframes pu-file-in {
+  from { opacity: 0; transform: translateX(-12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.pu-file-icon {
+  color: var(--accent);
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.pu-file-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+
+.pu-file-size {
+  color: var(--text-muted);
+  font-size: 12px;
+  flex-shrink: 0;
+  font-family: monospace;
+}
+
+.pu-file-rm {
+  background: none;
+  border: none;
+  color: var(--error);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0 4px;
+  line-height: 1;
+  opacity: 0.4;
+  transition: opacity 0.15s;
+}
+
+.pu-file-rm:hover { opacity: 1; }
+
+.pu-total {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 6px 8px;
+  font-family: monospace;
+}
+
+.pu-overlimit {
+  color: var(--error) !important;
+  font-weight: 600;
+}
+
+/* ── Upload Button ── */
+
+.pu-btn-full {
+  width: 100%;
+  text-decoration: none;
+  display: block;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.pu-upload-btn {
+  margin-top: 16px;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  background: var(--accent) !important;
+  color: var(--bg-primary) !important;
+  border-color: var(--accent) !important;
+  font-weight: 700;
+  box-shadow: 0 0 12px rgba(218, 119, 86, 0.35), 0 0 4px rgba(218, 119, 86, 0.2);
+  transition: all 200ms ease;
+}
+
+.pu-upload-btn:hover:not(:disabled) {
+  box-shadow: 0 0 20px rgba(218, 119, 86, 0.5), 0 0 8px rgba(218, 119, 86, 0.3);
+  filter: brightness(1.1);
+}
+
+.pu-upload-btn:disabled {
+  opacity: 0.4;
+  box-shadow: none;
+}
+
+.pu-cancel-btn {
+  margin-top: 20px;
+  color: var(--error) !important;
+  border-color: rgba(248,113,113,0.2) !important;
+}
+
+.pu-cancel-btn:hover {
+  background: rgba(248,113,113,0.08) !important;
+}
+
+/* ── Upload Progress ── */
+
+.pu-progress-zone {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  animation: pu-progress-in 0.4s ease-out;
+}
+
+@keyframes pu-progress-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.pu-percent {
+  font-size: 72px;
+  font-weight: 800;
+  color: var(--accent);
+  text-align: center;
+  font-family: monospace;
+  line-height: 1;
+  margin-bottom: 20px;
+  letter-spacing: -4px;
+  text-shadow: 0 0 30px var(--accent-soft), 0 0 60px var(--accent-soft);
+}
+
+.pu-percent-sign {
+  font-size: 32px;
+  opacity: 0.5;
+  letter-spacing: 0;
+}
+
+.pu-percent-pulse {
+  animation: pu-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pu-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.pu-bar-wrap {
+  position: relative;
+  height: 4px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  overflow: visible;
+}
+
+.pu-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #e8956e);
+  transition: width 0.5s ease;
+  position: relative;
+}
+
+.pu-bar-shine {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 60px;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3));
+  animation: pu-shine 1.5s ease-in-out infinite;
+}
+
+@keyframes pu-shine {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.8; }
+}
+
+.pu-bar-glow {
+  position: absolute;
+  top: -8px;
+  width: 20px;
+  height: 20px;
+  background: var(--accent);
+  border-radius: 50%;
+  filter: blur(10px);
+  opacity: 0.7;
+  transform: translateX(-50%);
+  transition: left 0.5s ease;
+  pointer-events: none;
+}
+
+.pu-bar-indeterminate {
+  width: 25% !important;
+  animation: pu-indeterminate 1.4s ease-in-out infinite;
+}
+
+@keyframes pu-indeterminate {
+  0%   { margin-left: 0; }
+  50%  { margin-left: 75%; }
+  100% { margin-left: 0; }
+}
+
+.pu-stats-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 14px;
+  font-family: monospace;
+}
+
+.pu-speed {
+  color: var(--accent);
+  font-weight: 700;
+  text-shadow: 0 0 8px var(--accent-soft);
+}
+
+.pu-stats-sub {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-ghost);
+  margin-top: 8px;
+}
+
+.pu-phase-label {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-ghost);
+  margin-top: 10px;
+  animation: pu-phase-fade 0.5s ease-out;
+}
+
+@keyframes pu-phase-fade {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Done State ── */
+
+.pu-done-card {
+  animation: pu-done-in 0.5s ease-out;
+}
+
+@keyframes pu-done-in {
+  from { opacity: 0; transform: scale(0.9); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.pu-done-glow {
+  background: radial-gradient(ellipse at 50% 0%, rgba(52,211,153,0.12) 0%, transparent 70%) !important;
+}
+
+.pu-done-check {
+  font-size: 56px;
+  color: var(--success);
+  text-align: center;
+  margin-bottom: 8px;
+  text-shadow: 0 0 20px rgba(52,211,153,0.4), 0 0 60px rgba(52,211,153,0.2);
+  animation: pu-check-in 0.6s ease-out;
+}
+
+@keyframes pu-check-in {
+  0%   { opacity: 0; transform: scale(0) rotate(-30deg); }
+  50%  { transform: scale(1.2) rotate(8deg); }
+  70%  { transform: scale(0.95) rotate(-3deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
+}
+
+/* ── Compress Fragments ── */
+
+.cf-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 16px;
+  overflow: hidden;
+}
+
+.cf-done {
+  animation: cf-out 0.4s ease-in 0.5s forwards;
+}
+
+@keyframes cf-out {
+  to { opacity: 0; transform: scale(0.9) translateY(-10px); }
+}
+
+.cf-grid {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 3px;
+}
+
+.cf-block {
+  aspect-ratio: 1;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border-subtle);
+  transform: translate(var(--sx, 0px), var(--sy, 0px)) scale(0.3) rotate(var(--sr, 0deg));
+  opacity: 0.08;
+  transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.cf-filled {
+  transform: translate(0, 0) scale(1) rotate(0deg);
+  opacity: 1;
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 4px var(--accent-soft);
+}
+
+.cf-complete {
+  background: var(--success) !important;
+  border-color: var(--success) !important;
+  box-shadow: 0 0 8px rgba(52,211,153,0.4) !important;
+  transition-property: background, border-color, box-shadow;
+  transition-duration: 0.3s;
+  transition-timing-function: ease;
+}
+
+.cf-bar-track {
+  height: 3px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  overflow: hidden;
+}
+
+.cf-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #e8956e);
+  transition: width 0.3s ease;
+}
+
+.cf-done .cf-bar-fill {
+  background: linear-gradient(90deg, #059669, var(--success)) !important;
+}
+
+.cf-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-family: monospace;
+}
+
+.cf-label {
+  color: var(--accent);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 11px;
+}
+
+.cf-done .cf-label {
+  color: var(--success) !important;
+}
+
+.cf-sep {
+  color: var(--text-ghost);
+}
+
+.cf-file {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+.cf-pct {
+  color: var(--accent);
+  font-weight: 700;
+  min-width: 32px;
+  text-align: right;
+}
+
+.cf-done .cf-pct {
+  color: var(--success) !important;
+}
+
+/* ── Success Flash (brief, auto-transitions to download) ── */
+
+.pu-success-zone {
+  animation: pu-success-in 0.5s ease-out;
+}
+
+@keyframes pu-success-in {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* ── Transfer List (Profile) ── */
+
+.transfer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.transfer-item {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.transfer-item.transfer-expired {
+  opacity: 0.5;
+}
+
+.transfer-item-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.transfer-status-badge {
+  font-size: 11px;
+  padding: 1px 6px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.transfer-status-pending {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.2);
+}
+
+.transfer-status-uploaded {
+  color: var(--success);
+  background: rgba(52, 211, 153, 0.1);
+  border: 1px solid rgba(52, 211, 153, 0.2);
+}
+
+.transfer-status-expired {
+  color: var(--text-ghost);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-subtle);
+}
+
+.transfer-id {
+  color: var(--text-muted);
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.transfer-time {
+  color: var(--text-ghost);
+  font-size: 11px;
+}
+
+.transfer-expires {
+  color: var(--text-ghost);
+  font-size: 11px;
+  margin-left: auto;
+}
+
+.transfer-item-files {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.transfer-filenames {
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transfer-size {
+  color: var(--text-muted);
+  font-size: 12px;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.transfer-item-actions {
+  display: flex;
+  gap: 6px;
+}
+

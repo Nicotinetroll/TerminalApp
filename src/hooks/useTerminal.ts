@@ -14,7 +14,16 @@ let commandsRegistered = false;
 export function useTerminal(user: User, userId: string | null, onLogout: () => void) {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [cwd, setCwd] = useState(() => getHomePath(user.username));
-  const [theme, setTheme] = useState<ThemeColors>(DEFAULT_THEME);
+  const [theme, setTheme] = useState<ThemeColors>(() => {
+    try {
+      const cached = localStorage.getItem("mynigga-theme");
+      if (cached) {
+        const parsed = JSON.parse(cached) as ThemeColors;
+        if (parsed.accent) return parsed;
+      }
+    } catch { /* */ }
+    return DEFAULT_THEME;
+  });
   const [isProcessing, setIsProcessing] = useState(false);
   const windowManager = useWindowManager();
   const fsRef = useRef<FileSystemNode>(createDefaultFS(user.username));
@@ -37,15 +46,15 @@ export function useTerminal(user: User, userId: string | null, onLogout: () => v
     cmdHistoryRef
   );
 
-  // Track theme name when theme changes
+  // Track theme name when theme changes + cache for instant reload
   const setThemeWithTracking = useCallback(
     (newTheme: ThemeColors) => {
       setTheme(newTheme);
-      // Find theme name by matching accent color
       const name = Object.entries(THEMES).find(
         ([, t]) => t.accent === newTheme.accent
       )?.[0];
       if (name) themeNameRef.current = name;
+      try { localStorage.setItem("mynigga-theme", JSON.stringify(newTheme)); } catch { /* */ }
       scheduleSave();
     },
     [scheduleSave]
@@ -67,6 +76,7 @@ export function useTerminal(user: User, userId: string | null, onLogout: () => v
       if (resolvedTheme) {
         setTheme(resolvedTheme);
         if (data.themeName) themeNameRef.current = data.themeName;
+        try { localStorage.setItem("mynigga-theme", JSON.stringify(resolvedTheme)); } catch { /* */ }
       }
     });
   }, [userId, loadUserData, resolveTheme]);

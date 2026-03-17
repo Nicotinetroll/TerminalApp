@@ -1,0 +1,113 @@
+/* Mail signature editor and custom folder delete */
+
+/* ── Signature Editor ── */
+
+.mail-signature-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 16px;
+  gap: 12px;
+}
+
+.mail-signature-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mail-signature-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.mail-signature-select {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.mail-signature-tab {
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 11px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.mail-signature-tab:hover {
+  border-color: var(--accent-mid);
+  color: var(--text-primary);
+}
+
+.mail-signature-tab.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.mail-signature-textarea {
+  flex: 1;
+  min-height: 120px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-medium);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  padding: 12px;
+  resize: none;
+  outline: none;
+}
+
+.mail-signature-textarea:focus {
+  border-color: var(--accent);
+}
+
+.mail-signature-textarea::placeholder {
+  color: var(--text-ghost);
+}
+
+.mail-signature-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mail-signature-hint {
+  font-size: 11px;
+  color: var(--text-ghost);
+}
+
+/* ── Custom Folder Delete ── */
+
+.mail-custom-folders-divider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 4px 14px;
+}
+
+.mail-folder-delete {
+  background: none;
+  border: none;
+  color: var(--text-ghost);
+  font-family: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  padding: 2px 4px;
+  opacity: 0;
+  transition: opacity 150ms ease, color 150ms ease;
+}
+
+.mail-folder-item:hover .mail-folder-delete {
+  opacity: 1;
+}
+
+.mail-folder-delete:hover {
+  color: var(--error);
+}

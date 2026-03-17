@@ -29,6 +29,26 @@ export default function App() {
     setUserFromRegister,
   } = useAuth();
 
+  // Dismiss preloader when app is ready
+  useEffect(() => {
+    const isPublicRoute = shortlinkSlug || uploadId || pasteCreate || pasteId;
+    if (isPublicRoute || !isLoading) {
+      const el = document.getElementById("preloader");
+      if (el) {
+        // Let the app content fade in underneath
+        const root = document.getElementById("root");
+        if (root) {
+          root.style.opacity = "0";
+          root.style.transition = "opacity 0.5s ease";
+          requestAnimationFrame(() => { root.style.opacity = "1"; });
+        }
+        // Fade out preloader
+        el.classList.add("pl-exit");
+        setTimeout(() => el.remove(), 600);
+      }
+    }
+  }, [isLoading, shortlinkSlug, uploadId, pasteCreate, pasteId]);
+
   // Detect path-based and query-based routes on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -115,6 +135,7 @@ export default function App() {
 
   const handleLogout = useCallback(() => {
     logout();
+    try { localStorage.removeItem("mynigga-theme"); } catch { /* */ }
     setPhase("login");
     setInviteToken(null);
     setRoomToken(null);

@@ -1,0 +1,259 @@
+/* ASCII art app */
+
+/* ── ASCII Art App ── */
+
+.ascii-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  font-size: 13px;
+  color: var(--text-primary);
+  overflow: hidden;
+}
+
+/* Dropzone */
+
+.ascii-dropzone {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 16px;
+  border: 2px dashed var(--border-medium);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 200ms ease;
+}
+
+.ascii-dropzone:hover,
+.ascii-dropzone-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.ascii-dropzone-icon {
+  font-size: 36px;
+  font-weight: 800;
+  color: var(--accent);
+  text-shadow: 0 0 16px var(--accent-mid);
+  line-height: 1;
+}
+
+.ascii-dropzone-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.ascii-dropzone-sub {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.ascii-dropzone-formats {
+  color: var(--text-ghost);
+  font-size: 10px;
+  margin-top: 4px;
+}
+
+/* Settings bar */
+
+.ascii-settings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-subtle);
+  align-items: center;
+}
+
+.ascii-settings-compact {
+  padding: 6px 12px;
+  gap: 8px;
+  border-top: none;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.ascii-setting {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ascii-setting label {
+  color: var(--text-muted);
+  font-size: 11px;
+  min-width: 40px;
+}
+
+.ascii-settings-compact .ascii-setting label {
+  min-width: auto;
+}
+
+.ascii-setting input[type="range"] {
+  width: 80px;
+  accent-color: var(--accent);
+  height: 4px;
+}
+
+.ascii-setting select {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-medium);
+  border-radius: 3px;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 11px;
+  padding: 3px 6px;
+  outline: none;
+}
+
+.ascii-setting select:focus {
+  border-color: var(--accent);
+}
+
+.ascii-setting select option {
+  background: var(--bg-elevated);
+}
+
+.ascii-setting-value {
+  color: var(--text-ghost);
+  font-size: 10px;
+  min-width: 24px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.ascii-setting-hint {
+  color: var(--text-ghost);
+  font-size: 10px;
+}
+
+.ascii-toggle,
+.ascii-toggle-sm {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-medium);
+  border-radius: 3px;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 11px;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.ascii-toggle-on {
+  background: var(--accent-soft);
+  border-color: var(--accent-mid);
+  color: var(--accent);
+}
+
+.ascii-toggle-sm {
+  padding: 2px 6px;
+  font-size: 10px;
+}
+
+/* Toolbar */
+
+.ascii-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.ascii-tool-btn {
+  background: none;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.ascii-tool-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent-mid);
+}
+
+.ascii-tool-btn-accent {
+  border-color: var(--accent-mid);
+  color: var(--accent);
+}
+
+.ascii-tool-btn-accent:hover {
+  background: var(--accent-soft);
+}
+
+.ascii-toolbar-file {
+  color: var(--text-secondary);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 150px;
+}
+
+.ascii-toolbar-info {
+  color: var(--text-ghost);
+  font-size: 10px;
+  margin-left: auto;
+}
+
+/* Easter egg */
+
+.ascii-easter-egg {
+  padding: 4px 12px;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--accent-mid);
+  color: var(--accent);
+  font-size: 11px;
+  font-style: italic;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+/* Output */
+
+.ascii-output-wrap {
+  flex: 1;
+  overflow: auto;
+  padding: 8px;
+  background: var(--bg-primary);
+}
+
+.ascii-output {
+  font-family: monospace;
+  font-size: 6px;
+  line-height: 1.1;
+  color: var(--accent);
+  white-space: pre;
+  margin: 0;
+  user-select: all;
+}
+
+/* Mobile */
+
+@media (max-width: 768px) {
+  .ascii-settings {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .ascii-settings-compact {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .ascii-output {
+    font-size: 4px;
+  }
+}
+

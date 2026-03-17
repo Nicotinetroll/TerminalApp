@@ -1968,6 +1968,26 @@ export async function resolveShortlink(slug: string): Promise<{ target_url: stri
   return res.json() as Promise<{ target_url: string }>;
 }
 
+// ── Media Downloader ──
+
+export interface MediaInfo {
+  title: string;
+  thumbnail: string;
+  duration: number;
+  uploader: string;
+  qualities: number[];
+  formats: string[];
+  platform: string;
+  hasQualityPicker: boolean;
+}
+
+export async function getMediaInfo(url: string): Promise<MediaInfo> {
+  return request<MediaInfo>("/download/info", {
+    method: "POST",
+    body: JSON.stringify({ url }),
+  });
+}
+
 export async function uploadMeme(
   file: File
 ): Promise<{ ok: boolean; meme: Meme }> {
@@ -1990,4 +2010,48 @@ export async function uploadMeme(
   }
 
   return res.json() as Promise<{ ok: boolean; meme: Meme }>;
+}
+
+// ── Blackjack (Solo) ──
+
+export interface BlackjackCard {
+  rank: string;
+  suit: string;
+  hidden: boolean;
+}
+
+export interface BlackjackState {
+  active?: boolean;
+  playerHand: BlackjackCard[];
+  playerValue: number;
+  dealerHand: BlackjackCard[];
+  dealerValue: number;
+  bet: number;
+  status: "playing" | "bust" | "blackjack" | "win" | "lose" | "push";
+  payout: number;
+  nb_balance: number;
+  message: string;
+}
+
+export async function getBlackjackState(): Promise<BlackjackState> {
+  return request<BlackjackState>("/blackjack/state");
+}
+
+export async function blackjackDeal(bet: number): Promise<BlackjackState> {
+  return request<BlackjackState>("/blackjack/deal", {
+    method: "POST",
+    body: JSON.stringify({ bet }),
+  });
+}
+
+export async function blackjackHit(): Promise<BlackjackState> {
+  return request<BlackjackState>("/blackjack/hit", { method: "POST" });
+}
+
+export async function blackjackStand(): Promise<BlackjackState> {
+  return request<BlackjackState>("/blackjack/stand", { method: "POST" });
+}
+
+export async function blackjackDouble(): Promise<BlackjackState> {
+  return request<BlackjackState>("/blackjack/double", { method: "POST" });
 }

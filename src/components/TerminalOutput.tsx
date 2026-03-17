@@ -43,18 +43,20 @@ function AnimatedText({ text }: { text: string }) {
   );
 }
 
-// ── AI "nigga" response — chunked burst typing + glitch ──
+// ── AI response — thinking bars + burst typing ──
 const THINK_PHRASES = [
-  "processing your bullshit...",
-  "consulting the void...",
-  "neurons firing...",
-  "loading braincells...",
-  "computing roast...",
-  "buffering wisdom...",
-  "asking the shadow realm...",
-  "waking up...",
-  "hacking the mainframe...",
-  "downloading opinions...",
+  "processing your bullshit",
+  "consulting the void",
+  "neurons firing",
+  "loading braincells",
+  "computing roast",
+  "buffering wisdom",
+  "asking the shadow realm",
+  "hacking the mainframe",
+  "downloading opinions",
+  "accessing forbidden knowledge",
+  "decrypting thoughts",
+  "querying the abyss",
 ];
 
 function AiAnimatedText({ text }: { text: string }) {
@@ -62,11 +64,10 @@ function AiAnimatedText({ text }: { text: string }) {
   const [displayed, setDisplayed] = useState("");
   const [thinkText] = useState(() => THINK_PHRASES[Math.floor(Math.random() * THINK_PHRASES.length)]!);
   const indexRef = useRef(0);
-  const rafRef = useRef(0);
 
-  // Thinking phase — brief delay then start typing
+  // Thinking → typing after a brief pause
   useEffect(() => {
-    const delay = 400 + Math.random() * 600;
+    const delay = 600 + Math.random() * 500;
     const timer = setTimeout(() => setPhase("typing"), delay);
     return () => clearTimeout(timer);
   }, []);
@@ -87,35 +88,34 @@ function AiAnimatedText({ text }: { text: string }) {
         setPhase("done");
         return;
       }
-      // Variable delay: fast normally, tiny pause at punctuation
       const char = text[indexRef.current - 1];
       const isPunc = char === "." || char === "!" || char === "?" || char === ",";
       const delay = isPunc ? 60 + Math.random() * 80 : 8 + Math.random() * 16;
       timeout = setTimeout(tick, delay);
     };
     timeout = setTimeout(tick, 50);
-    return () => { clearTimeout(timeout); cancelAnimationFrame(rafRef.current); };
+    return () => clearTimeout(timeout);
   }, [phase, text]);
 
   if (phase === "thinking") {
     return (
-      <span className="ai-thinking">
-        <span className="ai-thinking-dots">
-          <span className="ai-dot" />
-          <span className="ai-dot" />
-          <span className="ai-dot" />
+      <div className="ai-think-phase">
+        <span className="ai-think-indicator">
+          <span className="ai-think-bar" />
+          <span className="ai-think-bar" />
+          <span className="ai-think-bar" />
+          <span className="ai-think-bar" />
+          <span className="ai-think-bar" />
         </span>
-        <span className="ai-thinking-text">{thinkText}</span>
-      </span>
+        <span className="ai-think-text">{thinkText}</span>
+      </div>
     );
   }
 
   return (
-    <span>
+    <span className="ai-typed-text">
       {displayed}
-      {phase === "typing" && (
-        <span className="ai-cursor">▌</span>
-      )}
+      {phase === "typing" && <span className="ai-cursor" />}
     </span>
   );
 }
@@ -123,12 +123,8 @@ function AiAnimatedText({ text }: { text: string }) {
 // ── Block rendering ──
 function BlockContent({ block }: { block: OutputBlock }) {
   const isAi = block.label === "nigga";
-  if (block.animated && isAi) {
-    return <AiAnimatedText text={block.content} />;
-  }
-  if (block.animated) {
-    return <AnimatedText text={block.content} />;
-  }
+  if (block.animated && isAi) return <AiAnimatedText text={block.content} />;
+  if (block.animated) return <AnimatedText text={block.content} />;
   return <>{block.content}</>;
 }
 
@@ -191,16 +187,20 @@ export function TerminalOutput({ entries, homePath, username }: Props) {
               >
                 {isAi ? (
                   <>
-                    {/* AI header with glitch + icon */}
-                    <div className="ai-block-header">
-                      <span className="ai-block-icon">&#x2588;&#x2588;</span>
-                      <span className="ai-block-label" data-text={block.label}>{block.label}</span>
-                      <span className="ai-block-tag">AI</span>
-                    </div>
-                    {/* AI content */}
-                    <div className="ai-block-body">
-                      <div className="ai-block-scanline" />
-                      <BlockContent block={block} />
+                    <div className="ai-block-glow" />
+                    <div className="ai-block-inner">
+                      <div className="ai-block-accent" />
+                      <div className="ai-block-content">
+                        <div className="ai-block-header">
+                          <span className="ai-block-sigil">//</span>
+                          <span className="ai-block-label" data-text={block.label}>{block.label}</span>
+                          <span className="ai-block-tag">AI</span>
+                          <span className="ai-block-line" />
+                        </div>
+                        <div className="ai-block-body">
+                          <BlockContent block={block} />
+                        </div>
+                      </div>
                     </div>
                   </>
                 ) : (

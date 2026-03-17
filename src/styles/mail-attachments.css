@@ -1,0 +1,136 @@
+/* Mail attachments (reader + compose) */
+
+/* ── Mail Attachments (Reader) ── */
+
+.mail-attachments {
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 10px 16px;
+}
+
+.mail-attachments-label {
+  font-size: 10px;
+  color: var(--text-ghost);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+
+.mail-attachments-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mail-attachment-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-medium);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.mail-attachment-item:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.mail-attachment-icon {
+  font-size: 10px;
+  color: var(--text-ghost);
+  font-weight: 700;
+}
+
+.mail-attachment-name {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mail-attachment-size {
+  color: var(--text-ghost);
+  font-size: 10px;
+}
+
+/* ── Mail Attachments (Compose) ── */
+
+.mail-compose-attachments {
+  padding: 0 16px 8px;
+}
+
+.mail-attach-btn {
+  background: none;
+  border: 1px dashed var(--border-medium);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 12px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.mail-attach-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.mail-attach-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.mail-attached-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.mail-attached-file {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+.mail-attached-name {
+  color: var(--text-secondary);
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mail-attached-size {
+  color: var(--text-ghost);
+  font-size: 10px;
+}
+
+.mail-attached-remove {
+  background: none;
+  border: none;
+  color: var(--text-ghost);
+  font-family: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  padding: 0 2px;
+  transition: color 150ms ease;
+}
+
+.mail-attached-remove:hover {
+  color: var(--error);
+}
+

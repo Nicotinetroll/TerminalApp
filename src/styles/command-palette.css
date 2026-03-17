@@ -1,0 +1,114 @@
+/* Ctrl+K command palette */
+
+/* ══════════════════════════════════════════════════
+   ── Command Palette (Ctrl+K) ──
+   ══════════════════════════════════════════════════ */
+
+.cmd-palette-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  padding-top: min(20vh, 150px);
+  backdrop-filter: blur(2px);
+}
+
+.cmd-palette {
+  width: 520px;
+  max-width: 90vw;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-medium);
+  display: flex;
+  flex-direction: column;
+  max-height: 420px;
+  box-shadow: 0 0 60px var(--accent-soft), 0 20px 40px rgba(0, 0, 0, 0.5);
+}
+
+.cmd-palette-input {
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--bg-elevated);
+  border: none;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+  caret-color: var(--accent);
+}
+
+.cmd-palette-input::placeholder {
+  color: var(--text-ghost);
+}
+
+.cmd-palette-list {
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-ghost) transparent;
+}
+
+.cmd-palette-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.cmd-palette-item:hover,
+.cmd-palette-item--active {
+  background: var(--accent-soft);
+}
+
+.cmd-palette-item-type {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-ghost);
+  background: var(--bg-elevated);
+  padding: 2px 6px;
+  min-width: 30px;
+  text-align: center;
+}
+
+.cmd-palette-item-label {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.cmd-palette-item-desc {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin-left: auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.cmd-palette-empty {
+  padding: 20px 16px;
+  text-align: center;
+  color: var(--text-ghost);
+  font-size: 13px;
+}
+
+.cmd-palette-footer {
+  display: flex;
+  gap: 16px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 11px;
+  color: var(--text-ghost);
+}
+

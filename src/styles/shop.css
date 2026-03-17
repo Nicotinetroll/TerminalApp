@@ -1,0 +1,241 @@
+/* Shop panel, tabs, table, crypto packs, toast */
+
+/* ══════════════════════════════════════
+   Shop
+   ══════════════════════════════════════ */
+
+.shop-panel {
+  position: relative;
+}
+
+.shop-balance {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.shop-balance-label {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.shop-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 14px;
+}
+
+.shop-tab {
+  padding: 7px 14px;
+  font-size: 11px;
+  font-weight: 400;
+  font-family: inherit;
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  text-transform: lowercase;
+}
+
+.shop-tab:hover {
+  color: var(--text-secondary);
+}
+
+.shop-tab--active {
+  color: var(--text-primary);
+  border-bottom-color: var(--text-primary);
+  font-weight: 600;
+}
+
+.shop-content {
+  flex: 1;
+  overflow: auto;
+}
+
+.shop-hint {
+  font-size: 11px;
+  color: var(--text-ghost);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.shop-affordable { color: var(--text-secondary); }
+.shop-broke { color: var(--error); }
+
+/* ── Shop Table ── */
+
+.shop-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.shop-table thead th {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-ghost);
+  font-weight: 500;
+  text-align: left;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.shop-table thead th:nth-child(2),
+.shop-table thead th:nth-child(3) {
+  text-align: center;
+}
+
+.shop-table thead th:last-child {
+  text-align: right;
+  width: 70px;
+}
+
+.shop-table tbody tr {
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background 0.15s;
+}
+
+.shop-table tbody tr:hover {
+  background: var(--bg-surface);
+}
+
+.shop-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.shop-table tbody td {
+  padding: 10px 12px;
+  vertical-align: middle;
+}
+
+.shop-table tbody td:nth-child(2),
+.shop-table tbody td:nth-child(3) {
+  text-align: center;
+}
+
+.shop-table tbody td:last-child {
+  text-align: right;
+}
+
+.shop-cell-name {
+  display: block;
+  font-weight: 500;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.shop-cell-desc {
+  display: block;
+  font-size: 10px;
+  color: var(--text-ghost);
+  margin-top: 2px;
+}
+
+.shop-cell-owned {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.shop-cell-price {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.shop-maxed {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-ghost);
+}
+
+.shop-cell-action { width: 70px; }
+
+.shop-row-sold-out td { opacity: 0.4; }
+.shop-row-sold-out:hover { background: transparent !important; }
+
+/* ── Crypto Packs ── */
+
+.crypto-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 1px;
+  background: var(--border-subtle);
+  border: 1px solid var(--border-medium);
+}
+
+.crypto-pack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 18px 12px;
+  gap: 4px;
+  background: var(--bg-primary);
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+
+.crypto-pack:hover {
+  background: var(--bg-surface);
+}
+
+.crypto-pack--busy {
+  cursor: wait;
+}
+
+.crypto-pack-amount {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.crypto-pack-label {
+  font-size: 9px;
+  color: var(--text-ghost);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.crypto-pack-price {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* ── Shop Toast ── */
+
+.shop-toast {
+  position: absolute;
+  bottom: 12px;
+  left: 16px;
+  right: 16px;
+  padding: 8px 14px;
+  font-size: 12px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border-medium);
+  animation: shop-toast-in 0.2s ease;
+  pointer-events: none;
+}
+
+.shop-toast-error {
+  color: var(--error);
+  border-color: rgba(248, 113, 113, 0.2);
+  background: rgba(248, 113, 113, 0.06);
+}
+
+@keyframes shop-toast-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+

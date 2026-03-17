@@ -1,0 +1,230 @@
+/* Admin content area, tables, inputs, buttons, forms */
+
+/* ── Content area ── */
+
+.admin-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.admin-content-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.admin-content-header h2 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.admin-content-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+  min-height: 0;
+}
+
+.admin-status {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.admin-status.error {
+  background: var(--error-soft);
+  color: var(--error);
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.admin-table th {
+  text-align: left;
+  padding: 8px 12px;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--border-medium);
+}
+
+.admin-table td {
+  padding: 8px 12px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.admin-table tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.admin-table .role-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-weight: 500;
+}
+
+.admin-table .role-admin {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.admin-table .role-club {
+  background: rgba(52, 211, 153, 0.1);
+  color: #34d399;
+}
+
+.admin-table .role-classic {
+  background: rgba(167, 139, 250, 0.1);
+  color: #a78bfa;
+}
+
+.admin-table .role-user {
+  background: rgba(96, 165, 250, 0.1);
+  color: #60a5fa;
+}
+
+.admin-table .role-guest {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+}
+
+.admin-input {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-medium);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.admin-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.admin-input::placeholder {
+  color: var(--text-ghost);
+}
+
+.admin-select {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-medium);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 200ms ease;
+}
+
+.admin-select:focus {
+  border-color: var(--accent);
+}
+
+.btn {
+  padding: 6px 14px;
+  border: 1px solid var(--border-medium);
+  border-radius: 4px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease, border-color 150ms ease, transform 150ms ease;
+}
+
+.btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+.btn-primary {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent-mid);
+}
+
+.btn-primary:hover {
+  background: var(--accent-mid);
+}
+
+.btn-danger {
+  border-color: rgba(248, 113, 113, 0.2);
+  color: var(--error);
+}
+
+.btn-danger:hover {
+  background: var(--error-soft);
+}
+
+.btn:disabled,
+.btn:disabled:hover {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  border-color: var(--border-medium);
+}
+
+.btn-sm {
+  padding: 4px 14px;
+  font-size: 12px;
+  letter-spacing: 0.03em;
+}
+
+.admin-form-group {
+  margin-bottom: 14px;
+}
+
+.admin-form-group label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.admin-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.admin-loading {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-muted);
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+

@@ -1,0 +1,14 @@
+/Users/dominik/Documents/TerminalApp/src-tauri/target/release/deps/serde-3fb5cbfe19c042fe.d: /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/dominik/Documents/TerminalApp/src-tauri/target/release/build/serde-2dee0cbbccc847ee/out/private.rs
+
+/Users/dominik/Documents/TerminalApp/src-tauri/target/release/deps/libserde-3fb5cbfe19c042fe.rlib: /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/dominik/Documents/TerminalApp/src-tauri/target/release/build/serde-2dee0cbbccc847ee/out/private.rs
+
+/Users/dominik/Documents/TerminalApp/src-tauri/target/release/deps/libserde-3fb5cbfe19c042fe.rmeta: /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/dominik/Documents/TerminalApp/src-tauri/target/release/build/serde-2dee0cbbccc847ee/out/private.rs
+
+/Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs:
+/Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs:
+/Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs:
+/Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs:
+/Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs:
+/Users/dominik/Documents/TerminalApp/src-tauri/target/release/build/serde-2dee0cbbccc847ee/out/private.rs:
+
+# env-dep:OUT_DIR=/Users/dominik/Documents/TerminalApp/src-tauri/target/release/build/serde-2dee0cbbccc847ee/out

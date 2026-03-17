@@ -19,9 +19,11 @@ export function useDataSync(
 ) {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isSaving = useRef(false);
+  const dataLoaded = useRef(false);
 
   const doSave = useCallback(async () => {
-    if (!userId || isSaving.current) return;
+    // Block saves until initial data is loaded — prevents overwriting real data with empty default
+    if (!userId || isSaving.current || !dataLoaded.current) return;
     isSaving.current = true;
     try {
       await Promise.all([
@@ -39,7 +41,7 @@ export function useDataSync(
   }, [userId, fsRef, getThemeName, cmdHistoryRef]);
 
   const scheduleSave = useCallback(() => {
-    if (!userId) return;
+    if (!userId || !dataLoaded.current) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       void doSave();
@@ -80,12 +82,17 @@ export function useDataSync(
           api.loadSettings(),
         ]);
 
+        // Mark data as loaded — saves are now safe
+        dataLoaded.current = true;
+
         return {
           filesystem: fs as FileSystemNode | null,
           themeName: settings?.theme_name ?? null,
           commandHistory: settings?.command_history ?? [],
         };
       } catch {
+        // Even on error, mark as loaded so the app isn't permanently blocked
+        dataLoaded.current = true;
         return { filesystem: null, themeName: null, commandHistory: [] };
       }
     },

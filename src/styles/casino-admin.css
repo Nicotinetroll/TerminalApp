@@ -1,0 +1,745 @@
+/* Casino admin panel, detail view, balance graph, history, currency toggle, responsive */
+
+/* ── Casino Admin ── */
+
+.slots-admin {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.slots-admin-config {
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+.slots-admin-config-header {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+.slots-admin-config-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.slots-admin-config-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.slots-admin-slider {
+  flex: 1;
+  height: 4px;
+  appearance: none;
+  background: var(--border-medium);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+.slots-admin-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+}
+.slots-admin-config-val {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  min-width: 32px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.slots-admin-save-btn {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+  background: var(--accent);
+  color: var(--bg-primary);
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.slots-admin-save-btn:hover { opacity: 0.85; }
+.slots-admin-config-stats {
+  display: flex;
+  gap: 12px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  font-family: var(--font-mono);
+}
+.slots-admin-config-hint {
+  font-size: 10px;
+  color: var(--text-ghost);
+  margin-top: 4px;
+  font-style: italic;
+}
+
+.slots-admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--accent, #a78bfa);
+  padding: 2px 4px;
+}
+
+.slots-admin-count {
+  font-weight: 400;
+  font-size: 10px;
+  color: var(--text-ghost);
+  letter-spacing: 0;
+}
+
+.slots-admin-table {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 11px;
+}
+
+.slots-admin-thead {
+  display: flex;
+  gap: 6px;
+  padding: 3px 4px;
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-ghost);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.slots-admin-row {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  align-items: center;
+  border-radius: 3px;
+  transition: background 0.1s;
+}
+
+.slots-admin-row:hover { background: rgba(255,255,255,0.03); }
+
+.slots-admin-col-user {
+  flex: 1.5;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.slots-admin-col-num {
+  flex: 1;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.slots-admin-col-sm {
+  width: 38px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.slots-admin-col-act {
+  width: 50px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.slots-admin-pos { color: var(--success, #22c55e); }
+.slots-admin-neg { color: var(--error, #ef4444); }
+
+.slots-admin-role {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.slots-admin-role.role-admin {
+  background: var(--accent-soft, rgba(167,139,250,0.15));
+  color: var(--accent, #a78bfa);
+}
+
+.slots-admin-role.role-club {
+  background: rgba(52, 211, 153, 0.1);
+  color: #34d399;
+}
+
+.slots-admin-role.role-classic {
+  background: rgba(167, 139, 250, 0.1);
+  color: #a78bfa;
+}
+
+.slots-admin-role.role-user {
+  background: rgba(96, 165, 250, 0.1);
+  color: #60a5fa;
+}
+
+.slots-admin-role.role-guest {
+  background: rgba(255,255,255,0.05);
+  color: var(--text-ghost);
+}
+
+.slots-admin-reset-btn {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.slots-admin-reset-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.slots-admin-confirm {
+  display: flex;
+  gap: 3px;
+}
+
+.slots-admin-confirm-yes {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 5px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.slots-admin-confirm-no {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-ghost);
+  font-size: 9px;
+  padding: 2px 5px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.slots-admin-loading,
+.slots-admin-error,
+.slots-admin-empty {
+  padding: 24px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-ghost);
+}
+
+.slots-admin-error { color: var(--error, #ef4444); }
+
+/* ── Casino Admin Panel ── */
+
+.casino-admin-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 8px;
+}
+
+.casino-admin-tab {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text-ghost);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 8px 0;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.casino-admin-tab:hover { color: var(--text-secondary); }
+
+.casino-admin-tab-active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.casino-admin-nb-col { color: #fbbf24 !important; font-weight: 700; }
+
+.casino-admin-nb-grant {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.casino-admin-nb-input {
+  width: 48px;
+  background: var(--bg-primary);
+  border: 1px solid #fbbf24;
+  color: #fbbf24;
+  font-size: 10px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  text-align: center;
+  outline: none;
+  font-family: inherit;
+}
+
+.casino-admin-nb-input:focus {
+  box-shadow: 0 0 4px rgba(251, 191, 36, 0.3);
+}
+
+.casino-admin-grant-btn {
+  background: none;
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  color: #fbbf24;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 5px;
+  border-radius: 3px;
+  cursor: pointer;
+  margin-right: 3px;
+}
+
+.casino-admin-grant-btn:hover {
+  background: rgba(251, 191, 36, 0.1);
+  border-color: #fbbf24;
+}
+
+/* ── Casino Detail View ── */
+
+.casino-detail {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.casino-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.casino-detail-back {
+  background: none;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.casino-detail-back:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.casino-detail-username {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.casino-detail-role {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.casino-detail-role.role-admin {
+  background: var(--accent-soft, rgba(167,139,250,0.15));
+  color: var(--accent, #a78bfa);
+}
+
+.casino-detail-role.role-club {
+  background: rgba(52, 211, 153, 0.1);
+  color: #34d399;
+}
+
+.casino-detail-role.role-classic {
+  background: rgba(167, 139, 250, 0.1);
+  color: #a78bfa;
+}
+
+.casino-detail-role.role-user {
+  background: rgba(96, 165, 250, 0.1);
+  color: #60a5fa;
+}
+
+.casino-detail-role.role-guest {
+  background: rgba(255,255,255,0.05);
+  color: var(--text-ghost);
+}
+
+.casino-detail-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.casino-detail-stat {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 8px 10px;
+  text-align: center;
+}
+
+.casino-detail-stat-val {
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.casino-detail-stat-val.nb-color { color: #fbbf24; }
+.casino-detail-stat-val.win-color { color: var(--success, #22c55e); }
+.casino-detail-stat-val.lose-color { color: var(--error, #ef4444); }
+
+.casino-detail-stat-label {
+  font-size: 9px;
+  color: var(--text-ghost);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 2px;
+}
+
+/* ── Casino Balance Graph ── */
+
+.casino-graph {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 8px;
+}
+
+.casino-graph-title {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-ghost);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.casino-graph-svg {
+  width: 100%;
+  height: 140px;
+  display: block;
+}
+
+.casino-graph-empty {
+  text-align: center;
+  padding: 24px;
+  font-size: 11px;
+  color: var(--text-ghost);
+  font-style: italic;
+}
+
+/* ── Casino History Table ── */
+
+.casino-history {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.casino-history-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.casino-history-title {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-ghost);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.casino-history-toggle {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.casino-history-toggle-btn {
+  background: none;
+  border: none;
+  color: var(--text-ghost);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+  letter-spacing: 0.5px;
+}
+
+.casino-history-toggle-btn:first-child {
+  border-right: 1px solid var(--border-subtle);
+}
+
+.casino-history-toggle-active {
+  background: var(--accent);
+  color: var(--bg-primary);
+}
+
+.casino-history-toggle-nb.casino-history-toggle-active {
+  background: #fbbf24;
+}
+
+.casino-history-more {
+  display: block;
+  width: 100%;
+  background: none;
+  border: 1px dashed var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 8px;
+  margin-top: 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+}
+
+.casino-history-more:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.casino-history-scroll {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.casino-history-thead {
+  display: flex;
+  gap: 6px;
+  padding: 3px 4px;
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-ghost);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border-subtle);
+  position: sticky;
+  top: 0;
+  background: var(--bg-primary);
+  z-index: 1;
+}
+
+.casino-history-row {
+  display: flex;
+  gap: 6px;
+  padding: 3px 4px;
+  font-size: 11px;
+  align-items: center;
+  border-radius: 3px;
+  transition: background 0.1s;
+}
+
+.casino-history-row:hover { background: rgba(255,255,255,0.03); }
+.casino-history-row.win-row { color: var(--success, #22c55e); }
+.casino-history-row.lose-row { color: var(--error, #ef4444); }
+
+.casino-history-col-time {
+  width: 60px;
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--text-ghost);
+  font-variant-numeric: tabular-nums;
+}
+
+.casino-history-col-game {
+  width: 24px;
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 12px;
+}
+
+.casino-history-col-bet {
+  width: 60px;
+  flex-shrink: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.casino-history-col-result {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+}
+
+.casino-history-col-payout {
+  width: 70px;
+  flex-shrink: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* ── Currency Toggle ── */
+
+.slots-currency-toggle {
+  display: flex;
+  gap: 0;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.slots-curr-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-ghost);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 7px 0;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.slots-curr-btn:hover:not(:disabled) {
+  color: var(--text-secondary);
+}
+
+.slots-curr-btn-active {
+  color: var(--text-primary) !important;
+  border-bottom-color: var(--accent) !important;
+}
+
+.slots-curr-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* ── Admin Gear Icon ── */
+
+.slots-admin-icon {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--text-ghost);
+  font-size: 16px;
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+  z-index: 10;
+  padding: 2px 4px;
+}
+
+.slots-admin-icon:hover { opacity: 1; }
+
+/* ── Guest / loading / error ── */
+
+.slots-guest-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 16px;
+  text-align: center;
+  padding: 24px;
+}
+.slots-guest-icon {
+  font-size: 40px;
+}
+.slots-guest-title {
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--accent);
+  letter-spacing: 4px;
+}
+.slots-guest-msg {
+  font-size: 12px;
+  color: var(--text-muted);
+  max-width: 280px;
+  line-height: 1.6;
+}
+
+.slots-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 100%;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.slots-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--error, #ef4444);
+  font-size: 13px;
+  text-align: center;
+  padding: 20px;
+}
+
+/* ── Responsive ── */
+
+@media (max-width: 440px) {
+  .slots-balance-bar { gap: 6px; }
+  .slots-bal-divider { display: none; }
+  .slots-bet-btn { padding: 4px 7px; min-width: 24px; font-size: 10px; }
+  .slots-spin-btn { font-size: 11px; letter-spacing: 1px; }
+  .slots-auto-btn { padding: 4px 7px; font-size: 9px; }
+  .slots-machine { max-width: 260px; }
+  .slots-controls { gap: 4px; padding: 4px 8px 6px; }
+  .slots-top-bar { padding: 4px 8px; gap: 6px; }
+  .slots-bal-val { font-size: 11px; }
+  .slots-bal-label { font-size: 8px; }
+}
+

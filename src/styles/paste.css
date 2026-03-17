@@ -1,0 +1,965 @@
+/* Paste app: container, toolbar, list, form, viewer, public viewer, analysis, diff, public create */
+
+/* ── Paste App ── */
+
+.paste-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.paste-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-primary);
+  flex-shrink: 0;
+}
+
+.paste-toolbar-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.paste-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.paste-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.paste-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-style: italic;
+}
+
+.paste-error {
+  color: #ef4444;
+  font-size: 12px;
+  padding: 8px 12px;
+}
+
+.paste-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 12px;
+}
+
+.paste-list-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.paste-list-item:hover {
+  border-color: var(--accent-mid);
+}
+
+.paste-list-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.paste-list-meta {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-ghost);
+  flex-shrink: 0;
+}
+
+.paste-list-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.paste-meta-lang {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* Create form */
+
+.paste-form {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.paste-form-row {
+  flex-shrink: 0;
+}
+
+.paste-form-options {
+  display: flex;
+  gap: 8px;
+}
+
+.paste-input {
+  width: 100%;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-medium);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--text-primary);
+  outline: none;
+}
+
+.paste-input:focus {
+  border-color: var(--accent-mid);
+}
+
+.paste-select {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-medium);
+  border-radius: 4px;
+  padding: 5px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--text-primary);
+  outline: none;
+  cursor: pointer;
+  color-scheme: dark;
+}
+
+.paste-select:focus {
+  border-color: var(--accent);
+}
+
+.paste-select option {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.paste-textarea {
+  flex: 1;
+  width: 100%;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-medium);
+  border-radius: 4px;
+  padding: 10px;
+  font-size: 13px;
+  font-family: 'Berkeley Mono', 'JetBrains Mono', 'Fira Code', monospace;
+  color: var(--text-primary);
+  outline: none;
+  resize: none;
+  tab-size: 2;
+  line-height: 1.5;
+  min-height: 0;
+}
+
+.paste-textarea:focus {
+  border-color: var(--accent-mid);
+}
+
+.paste-form-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.paste-char-count {
+  font-size: 11px;
+  color: var(--text-ghost);
+}
+
+/* Success */
+
+.paste-success {
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.paste-success-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+}
+
+.paste-success-url {
+  display: flex;
+  gap: 8px;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.paste-success-hint {
+  font-size: 12px;
+  color: var(--text-ghost);
+  margin-top: 10px;
+}
+
+/* View */
+
+.paste-view {
+  flex: 1;
+  overflow: auto;
+  padding: 0 12px 12px;
+}
+
+.paste-view-meta {
+  font-size: 11px;
+  color: var(--text-ghost);
+  padding: 8px 0;
+}
+
+.paste-code {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 12px;
+  font-size: 13px;
+  font-family: 'Berkeley Mono', 'JetBrains Mono', 'Fira Code', monospace;
+  line-height: 1.5;
+  overflow: auto;
+  white-space: pre;
+  color: var(--text-primary);
+  tab-size: 2;
+}
+
+/* ── Public Paste Viewer ── */
+
+.paste-viewer-page {
+  width: 100vw;
+  height: 100vh;
+  background: #0a0a0a;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Berkeley Mono', 'JetBrains Mono', 'Fira Code', monospace;
+  color: #e0e0e0;
+}
+
+.paste-viewer-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 20px;
+  border-bottom: 1px solid #222;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.paste-viewer-brand {
+  font-size: 14px;
+  font-weight: 700;
+  color: #a78bfa;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.paste-viewer-brand:hover {
+  color: #c4b5fd;
+}
+
+.paste-viewer-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.paste-viewer-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #e0e0e0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.paste-viewer-meta {
+  font-size: 11px;
+  color: #666;
+}
+
+.paste-viewer-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.paste-viewer-btn {
+  background: #1a1a1a;
+  border: 1px solid #333;
+  color: #ccc;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+.paste-viewer-btn:hover {
+  border-color: #a78bfa;
+  color: #fff;
+}
+
+.paste-viewer-body {
+  flex: 1;
+  overflow: auto;
+  padding: 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-ghost) transparent;
+}
+
+.paste-viewer-body::-webkit-scrollbar {
+  width: 5px;
+}
+
+.paste-viewer-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.paste-viewer-body::-webkit-scrollbar-thumb {
+  background: var(--text-ghost);
+  border-radius: 3px;
+}
+
+.paste-viewer-body::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+.paste-viewer-status {
+  padding: 40px 20px;
+  text-align: center;
+  color: #666;
+  font-size: 14px;
+}
+
+.paste-viewer-error {
+  color: #ef4444;
+}
+
+.paste-viewer-code {
+  display: flex;
+  margin: 0;
+  padding: 16px 0;
+  font-size: 13px;
+  line-height: 1.6;
+  tab-size: 2;
+  white-space: pre;
+  color: #e0e0e0;
+}
+
+.paste-viewer-lines {
+  display: flex;
+  flex-direction: column;
+  padding: 0 16px;
+  text-align: right;
+  flex-shrink: 0;
+  user-select: none;
+  border-right: 1px solid #222;
+  margin-right: 16px;
+}
+
+.paste-viewer-ln {
+  color: #444;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.paste-viewer-code code {
+  flex: 1;
+  padding-right: 20px;
+}
+
+/* ── highlight.js overrides ── */
+
+.paste-code code.hljs,
+.paste-viewer-code code.hljs {
+  background: transparent;
+  padding: 0;
+  overflow-x: visible;
+}
+
+.paste-code.hljs,
+.paste-code pre code.hljs {
+  background: transparent;
+  padding: 0;
+}
+
+.paste-code code {
+  display: block;
+}
+
+/* line numbers in paste-code (in-app viewer) */
+.paste-code .paste-viewer-lines {
+  display: flex;
+  flex-direction: column;
+  padding: 0 12px 0 0;
+  text-align: right;
+  flex-shrink: 0;
+  user-select: none;
+  border-right: 1px solid var(--border-subtle);
+  margin-right: 12px;
+}
+
+.paste-code .paste-viewer-ln {
+  color: var(--text-ghost);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.paste-code {
+  display: flex;
+}
+
+/* ── Paste Analysis Panel ── */
+
+.paste-analysis {
+  margin-top: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  overflow: hidden;
+}
+
+.paste-analysis-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-tertiary);
+}
+
+.paste-analysis-title {
+  font-weight: 600;
+  color: var(--accent);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.paste-analysis-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.paste-analysis-content {
+  padding: 12px 16px;
+  max-height: 400px;
+  overflow-y: auto;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.paste-analysis-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  padding: 16px 0;
+}
+
+.paste-analysis-error {
+  color: #ef4444;
+  padding: 8px 0;
+}
+
+.paste-analysis-result {
+  color: var(--text-primary);
+}
+
+.paste-analysis-h1 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--accent);
+  margin: 12px 0 6px 0;
+}
+
+.paste-analysis-h2 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent);
+  margin: 12px 0 4px 0;
+}
+
+.paste-analysis-h3 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 8px 0 4px 0;
+}
+
+.paste-analysis-p {
+  margin: 4px 0;
+}
+
+.paste-analysis-bullet {
+  display: flex;
+  gap: 8px;
+  margin: 3px 0;
+  padding-left: 4px;
+}
+
+.paste-analysis-bullet-dot {
+  color: var(--text-ghost);
+  flex-shrink: 0;
+  width: 16px;
+}
+
+.paste-analysis-spacer {
+  height: 8px;
+}
+
+.paste-analysis-inline-code {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-size: 12px;
+  color: var(--accent);
+}
+
+.paste-analysis-codeblock {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin: 6px 0;
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.paste-analysis-codeblock code {
+  color: var(--text-primary);
+}
+
+.paste-viewer-analysis-wrap {
+  padding: 0 20px 20px;
+}
+
+/* ── Analyze CTA Button ── */
+
+.btn-analyze {
+  background: linear-gradient(135deg, var(--accent-soft), rgba(168, 85, 247, 0.15));
+  color: var(--accent);
+  border-color: var(--accent-mid);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 12px;
+}
+
+.btn-analyze:hover {
+  background: linear-gradient(135deg, var(--accent-mid), rgba(168, 85, 247, 0.25));
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.paste-viewer-btn-cta {
+  background: linear-gradient(135deg, var(--accent-soft), rgba(168, 85, 247, 0.15)) !important;
+  color: var(--accent) !important;
+  border-color: var(--accent-mid) !important;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.paste-viewer-btn-cta:hover {
+  background: linear-gradient(135deg, var(--accent-mid), rgba(168, 85, 247, 0.25)) !important;
+  color: #fff !important;
+  border-color: var(--accent) !important;
+}
+
+/* ── Analysis panel scrollbar (themed) ── */
+
+.paste-analysis-content {
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-ghost) transparent;
+}
+
+.paste-analysis-content::-webkit-scrollbar {
+  width: 5px;
+}
+
+.paste-analysis-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.paste-analysis-content::-webkit-scrollbar-thumb {
+  background: var(--text-ghost);
+  border-radius: 3px;
+}
+
+.paste-analysis-content::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* ── Paste: Diff View ── */
+
+.paste-diff {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.paste-diff-header {
+  padding: 8px 12px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.paste-diff-stat.paste-diff-add {
+  color: #22c55e;
+}
+
+.paste-diff-stat.paste-diff-del {
+  color: #ef4444;
+}
+
+.paste-diff-lines {
+  overflow-x: auto;
+}
+
+.paste-diff-line {
+  display: flex;
+  min-height: 20px;
+  white-space: pre;
+}
+
+.paste-diff-line.paste-diff-add {
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.paste-diff-line.paste-diff-del {
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.paste-diff-line.paste-diff-same {
+  background: transparent;
+}
+
+.paste-diff-ln {
+  display: inline-block;
+  width: 42px;
+  min-width: 42px;
+  padding: 0 8px;
+  text-align: right;
+  color: var(--text-ghost);
+  user-select: none;
+  font-size: 12px;
+  border-right: 1px solid var(--border);
+}
+
+.paste-diff-marker {
+  display: inline-block;
+  width: 20px;
+  min-width: 20px;
+  text-align: center;
+  color: var(--text-ghost);
+  user-select: none;
+  font-weight: 700;
+}
+
+.paste-diff-add .paste-diff-marker {
+  color: #22c55e;
+}
+
+.paste-diff-del .paste-diff-marker {
+  color: #ef4444;
+}
+
+.paste-diff-text {
+  flex: 1;
+  padding-right: 12px;
+}
+
+/* ── Paste: Viewer extras ── */
+
+.paste-viewer-parent-link {
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+
+.paste-viewer-parent-link:hover {
+  color: #fff;
+}
+
+.paste-viewer-btn-active {
+  background: var(--accent-soft) !important;
+  border-color: var(--accent-mid) !important;
+  color: var(--accent) !important;
+}
+
+.btn-active {
+  background: var(--accent-soft);
+  border-color: var(--accent-mid);
+  color: var(--accent);
+}
+
+/* ── Paste: Public Create Form ── */
+
+.paste-public-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  max-width: 900px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.paste-public-row {
+  display: flex;
+  gap: 10px;
+}
+
+.paste-public-input {
+  flex: 1;
+  padding: 10px 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 14px;
+}
+
+.paste-public-input:focus {
+  outline: none;
+  border-color: var(--accent-mid);
+}
+
+.paste-public-select {
+  padding: 10px 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  min-width: 140px;
+}
+
+.paste-public-select:focus {
+  outline: none;
+  border-color: var(--accent-mid);
+}
+
+.paste-public-select option {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.paste-public-textarea {
+  flex: 1;
+  min-height: 300px;
+  padding: 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+  tab-size: 2;
+}
+
+.paste-public-textarea:focus {
+  outline: none;
+  border-color: var(--accent-mid);
+}
+
+.paste-public-error {
+  padding: 10px 14px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 6px;
+  color: #ef4444;
+  font-size: 13px;
+}
+
+.paste-public-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.paste-public-chars {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-right: auto;
+}
+
+.paste-public-btn {
+  padding: 8px 18px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.paste-public-btn:hover:not(:disabled) {
+  border-color: var(--accent-mid);
+  color: #fff;
+}
+
+.paste-public-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.paste-public-btn-primary {
+  background: var(--accent-soft);
+  border-color: var(--accent-mid);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.paste-public-btn-primary:hover:not(:disabled) {
+  background: var(--accent-mid);
+  color: #fff;
+}
+
+/* ── Paste: Public Success ── */
+
+.paste-public-success {
+  max-width: 500px;
+  margin: 60px auto;
+  text-align: center;
+  padding: 40px 30px;
+}
+
+.paste-public-success-icon {
+  font-size: 48px;
+  color: #22c55e;
+  margin-bottom: 16px;
+}
+
+.paste-public-success-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.paste-public-success-note {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 24px;
+}
+
+.paste-public-success-url {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.paste-public-success-url input {
+  flex: 1;
+  padding: 10px 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  text-align: center;
+}
+
+.paste-public-success-url input:focus {
+  outline: none;
+  border-color: var(--accent-mid);
+}
+
+.paste-public-success-url button {
+  padding: 10px 20px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-mid);
+  border-radius: 6px;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.paste-public-success-url button:hover {
+  background: var(--accent-mid);
+  color: #fff;
+}
+
+.paste-public-success-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.paste-public-success-actions button {
+  padding: 10px 20px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.paste-public-success-actions button:hover {
+  border-color: var(--accent-mid);
+  color: #fff;
+}
+

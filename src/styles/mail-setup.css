@@ -1,0 +1,76 @@
+/* Mail setup (first-time) */
+
+/* ── Mail Setup (first-time) ── */
+
+.mail-setup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 40px;
+  gap: 16px;
+}
+
+.mail-setup-icon {
+  font-size: 48px;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.mail-setup-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.mail-setup-desc {
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.mail-setup-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.mail-setup-input-wrap {
+  display: flex;
+  align-items: center;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-medium);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.mail-setup-input-wrap input {
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+  width: 160px;
+}
+
+.mail-setup-domain {
+  padding: 10px 12px 10px 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  user-select: none;
+}
+
+.mail-setup-hint {
+  color: var(--text-ghost);
+  font-size: 11px;
+  margin: 0;
+  text-align: center;
+}
+

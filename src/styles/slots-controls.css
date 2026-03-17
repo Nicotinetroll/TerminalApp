@@ -1,0 +1,229 @@
+/* Slots controls, bottom section, history, win rate, view toggle */
+
+/* ── Controls ── */
+
+.slots-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px 8px;
+  flex-shrink: 0;
+}
+
+.slots-bet-selector {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.slots-bet-unit {
+  font-size: 9px;
+  color: var(--text-ghost);
+  margin-left: 2px;
+  font-weight: 600;
+}
+
+.slots-bet-btn {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-medium);
+  color: var(--text-secondary);
+  padding: 5px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+  min-width: 30px;
+  text-align: center;
+}
+
+.slots-bet-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+.slots-bet-btn-active {
+  background: var(--accent-soft) !important;
+  border-color: var(--accent-mid) !important;
+  color: var(--accent) !important;
+}
+
+.slots-bet-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.slots-spin-btn {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-mid);
+  color: var(--accent);
+  padding: 5px 0;
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+  text-transform: uppercase;
+}
+
+.slots-spin-btn:hover:not(:disabled) {
+  background: var(--accent-mid);
+}
+
+.slots-spin-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.slots-spin-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.slots-spin-btn-busy {
+  animation: slots-spin-pulse 0.8s ease infinite;
+}
+
+@keyframes slots-spin-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.8; }
+}
+
+.slots-auto-btn {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-medium);
+  color: var(--text-secondary);
+  padding: 5px 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+.slots-auto-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+.slots-auto-btn-active {
+  border-color: var(--accent-mid) !important;
+  color: var(--accent) !important;
+  background: var(--accent-soft) !important;
+}
+
+.slots-auto-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* ── Bottom section ── */
+
+.slots-bottom {
+  padding: 4px 10px 6px;
+  border-top: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.slots-stats-row {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  font-size: 10px;
+  color: var(--text-ghost);
+  font-variant-numeric: tabular-nums;
+}
+
+.slots-stat-won { color: rgba(34, 197, 94, 0.6); }
+.slots-stat-lost { color: rgba(239, 68, 68, 0.5); }
+
+.slots-history {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-height: 85px;
+}
+
+.slots-history-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  padding: 1px 0;
+}
+
+.slots-h-reels {
+  min-width: 50px;
+  font-size: 12px;
+  letter-spacing: -1px;
+}
+
+.slots-h-result {
+  font-weight: 600;
+  min-width: 55px;
+  font-size: 10px;
+}
+
+.slots-h-amount {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.slots-h-win { color: var(--success, #22c55e); }
+.slots-h-jackpot { color: #fbbf24; }
+.slots-h-loss { color: var(--text-ghost); }
+
+.slots-hint {
+  text-align: center;
+  font-size: 9px;
+  color: var(--text-ghost);
+  opacity: 0.4;
+}
+
+/* ── Win rate ── */
+
+.slots-winrate {
+  color: var(--accent, #a78bfa);
+  font-weight: 600;
+}
+
+/* ── View toggle (admin) ── */
+
+.slots-view-toggle {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.slots-view-btn {
+  flex: 1;
+  padding: 6px 0;
+  background: none;
+  border: none;
+  color: var(--text-ghost);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+}
+
+.slots-view-btn:hover { color: var(--text-secondary); }
+
+.slots-view-btn-active {
+  color: var(--accent, #a78bfa);
+  border-bottom-color: var(--accent, #a78bfa);
+}
+

@@ -1,0 +1,11 @@
+/Users/dominik/Documents/TerminalApp/src-tauri/target/release/deps/rand_core-4a73a49864ba474a.d: /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.9.5/src/lib.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.9.5/src/block.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.9.5/src/impls.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.9.5/src/le.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.9.5/src/os.rs
+
+/Users/dominik/Documents/TerminalApp/src-tauri/target/release/deps/librand_core-4a73a49864ba474a.rlib: /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.9.5/src/lib.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.9.5/src/block.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.9.5/src/impls.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.9.5/src/le.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.9.5/src/os.rs
+
+/Users/dominik/Documents/TerminalApp/src-tauri/target/release/deps/librand_core-4a73a49864ba474a.rmeta: /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.9.5/src/lib.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.9.5/src/block.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.9.5/src/impls.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.9.5/src/le.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.9.5/src/os.rs
+
+/Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.9.5/src/lib.rs:
+/Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.9.5/src/block.rs:
+/Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.9.5/src/impls.rs:
+/Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.9.5/src/le.rs:
+/Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.9.5/src/os.rs:

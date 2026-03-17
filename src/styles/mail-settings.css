@@ -1,0 +1,201 @@
+/* Mail setup guide / settings */
+
+/* ── Mail Setup Guide ── */
+
+.mail-setup-guide {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 16px;
+  gap: 12px;
+}
+
+.mail-setup-content {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.mail-setup-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mail-setup-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.mail-setup-addr {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--accent);
+  padding: 8px 12px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-mid);
+  border-radius: 4px;
+  width: fit-content;
+}
+
+.mail-setup-text {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.mail-setup-text strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.mail-setup-table {
+  border-collapse: collapse;
+  font-size: 12px;
+  width: 100%;
+}
+
+.mail-setup-table td {
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.mail-setup-table td:first-child {
+  color: var(--text-muted);
+  width: 130px;
+}
+
+.mail-setup-table td:last-child {
+  color: var(--text-primary);
+  font-weight: 500;
+  font-family: inherit;
+}
+
+.mail-setup-val-na {
+  color: var(--text-ghost) !important;
+  font-style: italic;
+  font-weight: 400 !important;
+}
+
+.mail-setup-steps {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.mail-setup-steps strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.mail-setup-list {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.mail-setup-hint {
+  font-size: 11px;
+  color: var(--text-ghost);
+  font-style: italic;
+  margin: 0;
+}
+
+.mail-setup-pw-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+  gap: 8px;
+}
+
+.mail-setup-pw-addr {
+  font-size: 12px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+}
+
+.mail-setup-pw-value {
+  font-size: 12px;
+  color: var(--accent);
+  background: var(--bg-tertiary);
+  padding: 2px 6px;
+  border-radius: 3px;
+  user-select: all;
+}
+
+.mail-setup-pw-input {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.mail-setup-pw-input input {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 3px 6px;
+  border-radius: 3px;
+  width: 140px;
+}
+
+.mail-setup-pw-input input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.mail-settings-pw-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mail-settings-pw-set {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.mail-settings-pw-masked {
+  font-size: 13px;
+  color: var(--accent);
+  background: var(--bg-tertiary);
+  padding: 2px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  letter-spacing: 2px;
+  transition: background 0.15s;
+}
+
+.mail-settings-pw-masked:hover {
+  background: var(--bg-elevated);
+}
+
+.mail-settings-pw-change {
+  font-size: 10px;
+  color: var(--text-ghost);
+  background: none;
+  border: 1px solid var(--border-subtle);
+  padding: 2px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.mail-settings-pw-change:hover {
+  color: var(--text-secondary);
+  border-color: var(--text-muted);
+}
+

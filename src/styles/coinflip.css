@@ -1,0 +1,269 @@
+/* Coinflip game */
+
+/* ── Coinflip ── */
+
+.cf-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 14px;
+  gap: 0;
+  overflow: hidden;
+  font-family: inherit;
+  color: var(--text-primary);
+}
+
+.cf-center-msg {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 8px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.cf-center-title { font-size: 16px; font-weight: 700; letter-spacing: 3px; color: var(--text-primary); }
+.cf-center-sub { color: var(--text-muted); font-size: 12px; }
+.cf-err { color: var(--error); }
+
+/* Balance — single compact line */
+.cf-bal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  flex-shrink: 0;
+  height: 32px;
+}
+.cf-bal-pos { color: var(--success); }
+.cf-bal-neg { color: var(--error); }
+.cf-bal-sep { color: var(--text-ghost); font-weight: 400; }
+.cf-bal-avail { color: var(--text-secondary); font-weight: 400; }
+
+/* Coin stage */
+.cf-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: 130px;
+  perspective: 1000px;
+  position: relative;
+}
+
+.cf-coin {
+  width: 120px;
+  height: 120px;
+  position: relative;
+  transform-style: preserve-3d;
+  will-change: transform;
+  z-index: 1;
+}
+
+.cf-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  backface-visibility: hidden;
+}
+
+.cf-icon {
+  width: 56px;
+  height: 56px;
+}
+
+.cf-face-h {
+  background: var(--bg-primary);
+  border: 2px solid rgba(52, 211, 153, 0.35);
+  box-shadow: 0 0 24px rgba(52, 211, 153, 0.08);
+  color: var(--success);
+}
+
+.cf-face-t {
+  background: var(--bg-primary);
+  border: 2px solid rgba(218, 119, 86, 0.35);
+  box-shadow: 0 0 24px rgba(218, 119, 86, 0.08);
+  color: var(--accent);
+  transform: rotateY(180deg);
+}
+
+/* Shadow */
+.cf-shadow {
+  position: absolute;
+  bottom: 12%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 10px;
+  background: radial-gradient(ellipse, rgba(0,0,0,0.3) 0%, transparent 70%);
+  border-radius: 50%;
+  z-index: 0;
+  will-change: transform, opacity;
+}
+.cf-shadow-flip {
+  animation: cf-sh 0.7s ease-out;
+}
+@keyframes cf-sh {
+  0%   { transform: translateX(-50%) scale(1); opacity: 1; }
+  35%  { transform: translateX(-50%) scale(0.5); opacity: 0.3; }
+  100% { transform: translateX(-50%) scale(1); opacity: 1; }
+}
+
+/* States */
+.cf-coin { transform: rotateY(0deg); }
+.cf-coin-landed-tails { transform: rotateY(180deg); transition: none; }
+
+/* Flip — smooth GPU-accelerated, 5 rotations in 0.7s */
+.cf-coin-flipping {
+  animation: cf-spin 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes cf-spin {
+  0%   { transform: rotateY(0deg)    translateY(0)    scale(1); }
+  40%  { transform: rotateY(1080deg) translateY(-20px) scale(1.08); }
+  100% { transform: rotateY(1800deg) translateY(0)    scale(1); }
+}
+
+/* Result area — FIXED height, never shifts layout */
+.cf-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 44px;
+  justify-content: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.cf-msg {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  height: 20px;
+  line-height: 20px;
+}
+.cf-msg-idle { color: transparent; }
+.cf-msg-win { color: var(--success); }
+.cf-msg-lose { color: var(--text-muted); }
+
+.cf-pay {
+  font-size: 12px;
+  font-weight: 600;
+  height: 16px;
+  line-height: 16px;
+}
+.cf-pay-idle { color: transparent; }
+.cf-pay-win { color: var(--success); }
+.cf-pay-lose { color: var(--error); }
+
+/* Bet presets */
+.cf-bets {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 0;
+  flex-shrink: 0;
+  height: 50px;
+}
+.cf-bet {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  padding: 4px 14px;
+  border-radius: 4px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+  min-width: 56px;
+}
+.cf-bet-label { font-size: 13px; font-weight: 700; }
+.cf-bet-mb { font-size: 9px; color: var(--text-ghost); font-weight: 400; }
+.cf-bet:hover:not(:disabled) { border-color: var(--text-muted); color: var(--text-primary); }
+.cf-bet-on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.cf-bet-on .cf-bet-mb { color: var(--accent); opacity: 0.6; }
+.cf-bet:disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* Action buttons — HEADS / TAILS */
+.cf-actions {
+  display: flex;
+  gap: 6px;
+  padding: 4px 0 10px;
+  flex-shrink: 0;
+  height: 50px;
+}
+.cf-go-icon {
+  width: 28px;
+  height: 28px;
+}
+.cf-go {
+  flex: 1;
+  padding: 6px 0;
+  border: 1px solid;
+  border-radius: 6px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  background: var(--bg-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cf-go-h { color: var(--success); border-color: rgba(52, 211, 153, 0.25); }
+.cf-go-h:hover:not(:disabled) { background: rgba(52, 211, 153, 0.08); border-color: var(--success); }
+.cf-go-t { color: var(--accent); border-color: rgba(218, 119, 86, 0.25); }
+.cf-go-t:hover:not(:disabled) { background: rgba(218, 119, 86, 0.08); border-color: var(--accent); }
+.cf-go:disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* History — always 5 rows, fixed height */
+.cf-hist {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex-shrink: 0;
+  height: 85px;
+}
+.cf-hist-row {
+  display: flex;
+  align-items: center;
+  font-size: 11px;
+  padding: 1px 4px;
+  gap: 4px;
+  height: 16px;
+  line-height: 16px;
+  font-weight: 600;
+}
+.cf-hist-empty { visibility: hidden; }
+.cf-hist-w { color: var(--success); }
+.cf-hist-l { color: var(--text-muted); }
+.cf-hist-arrow { color: var(--text-ghost); font-weight: 400; }
+.cf-hist-amt { margin-left: auto; }
+
+/* Keyboard hint */
+.cf-keys {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--text-ghost);
+  flex-shrink: 0;
+  height: 16px;
+  line-height: 16px;
+}
+.cf-key-item { display: flex; align-items: center; gap: 2px; }
+.cf-key-sep { opacity: 0.5; }
+

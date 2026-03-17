@@ -1,0 +1,224 @@
+/* AI response block — next-gen terminal style */
+
+/* ══════════════════════════════════════════════════
+   ── Blackjack ──
+   ══════════════════════════════════════════════════ */
+
+/* ══════════════════════════════════════════════════
+   AI Response Block — next-gen terminal style
+   ══════════════════════════════════════════════════ */
+
+.ai-block {
+  position: relative;
+  border-radius: 0;
+  background: transparent;
+  border: none;
+  animation: ai-enter 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: visible;
+}
+
+@keyframes ai-enter {
+  0% { opacity: 0; transform: translateX(-12px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+
+/* Ambient glow behind the block */
+.ai-block-glow {
+  position: absolute;
+  top: 4px;
+  left: -2px;
+  bottom: 4px;
+  width: 3px;
+  background: var(--accent);
+  border-radius: 2px;
+  filter: blur(6px);
+  opacity: 0.5;
+  animation: ai-glow-pulse 3s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes ai-glow-pulse {
+  0%, 100% { opacity: 0.3; filter: blur(6px); }
+  50% { opacity: 0.7; filter: blur(8px); }
+}
+
+/* Inner container — the visible card */
+.ai-block-inner {
+  display: flex;
+  gap: 0;
+  position: relative;
+}
+
+/* Left accent bar — solid, sharp */
+.ai-block-accent {
+  width: 3px;
+  flex-shrink: 0;
+  background: var(--accent);
+  border-radius: 2px 0 0 2px;
+  position: relative;
+  overflow: hidden;
+}
+/* Scan line running down the accent bar */
+.ai-block-accent::after {
+  content: "";
+  position: absolute;
+  top: -100%;
+  left: 0;
+  width: 100%;
+  height: 40%;
+  background: linear-gradient(180deg, transparent, rgba(255,255,255,0.6), transparent);
+  animation: ai-accent-scan 2.5s ease-in-out infinite;
+}
+@keyframes ai-accent-scan {
+  0% { top: -40%; }
+  100% { top: 140%; }
+}
+
+/* Content area */
+.ai-block-content {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-left: none;
+  border-radius: 0 4px 4px 0;
+}
+
+/* Header — minimal, inline */
+.ai-block-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  position: relative;
+}
+
+/* // sigil */
+.ai-block-sigil {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  opacity: 0.4;
+  font-family: inherit;
+}
+
+/* Label with subtle glitch */
+.ai-block-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--accent);
+  position: relative;
+}
+.ai-block-label::after {
+  content: attr(data-text);
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--accent);
+  opacity: 0;
+  animation: ai-glitch 6s linear infinite;
+}
+@keyframes ai-glitch {
+  0%, 95%, 97%, 99%, 100% { opacity: 0; transform: none; }
+  95.5% { opacity: 0.7; transform: translateX(-2px) skewX(-5deg); color: var(--error); }
+  96.5% { opacity: 0; }
+  97.5% { opacity: 0.5; transform: translateX(1px) skewX(3deg); color: var(--success); }
+  98.5% { opacity: 0; }
+}
+
+/* AI tag — pill */
+.ai-block-tag {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--bg-primary);
+  background: var(--accent);
+  padding: 1px 5px;
+  border-radius: 2px;
+  line-height: 1.4;
+}
+
+/* Decorative line extending to the right */
+.ai-block-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--accent-mid) 0%, transparent 80%);
+  margin-left: 8px;
+  opacity: 0.5;
+}
+
+/* Body */
+.ai-block-body {
+  padding: 10px 14px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── Thinking phase ── */
+.ai-think-phase {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Audio-visualizer bars */
+.ai-think-indicator {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 14px;
+}
+.ai-think-bar {
+  width: 2px;
+  background: var(--accent);
+  border-radius: 1px;
+  animation: ai-bar 0.8s ease-in-out infinite;
+}
+.ai-think-bar:nth-child(1) { height: 4px; animation-delay: 0s; }
+.ai-think-bar:nth-child(2) { height: 8px; animation-delay: 0.1s; }
+.ai-think-bar:nth-child(3) { height: 12px; animation-delay: 0.2s; }
+.ai-think-bar:nth-child(4) { height: 8px; animation-delay: 0.3s; }
+.ai-think-bar:nth-child(5) { height: 4px; animation-delay: 0.4s; }
+
+@keyframes ai-bar {
+  0%, 100% { transform: scaleY(0.4); opacity: 0.3; }
+  50% { transform: scaleY(1); opacity: 1; }
+}
+
+/* Thinking text */
+.ai-think-text {
+  font-size: 12px;
+  color: var(--text-ghost);
+  font-style: italic;
+  animation: ai-think-pulse 1.5s ease-in-out infinite;
+}
+@keyframes ai-think-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+
+/* ── Typing state ── */
+.ai-typed-text {
+  position: relative;
+}
+
+/* Block cursor */
+.ai-cursor {
+  display: inline-block;
+  width: 7px;
+  height: 14px;
+  background: var(--accent);
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  animation: ai-cursor-blink 0.7s step-end infinite;
+}
+@keyframes ai-cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}

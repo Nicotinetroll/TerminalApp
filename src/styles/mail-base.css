@@ -1,0 +1,60 @@
+/* Mail app base, loading, status, layout */
+
+/* ── Mail App ── */
+
+.mail-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.mail-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 100%;
+  color: var(--text-muted);
+}
+
+.mail-status {
+  padding: 6px 12px;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--accent-mid);
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.mail-status.error {
+  background: rgba(255, 68, 68, 0.1);
+  border-color: rgba(255, 68, 68, 0.2);
+  color: var(--error);
+}
+
+.mail-status-inline {
+  padding: 8px 12px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-mid);
+  border-radius: 4px;
+  color: var(--accent);
+  font-size: 12px;
+  text-align: center;
+}
+
+.mail-status-inline.error {
+  background: rgba(255, 68, 68, 0.1);
+  border-color: rgba(255, 68, 68, 0.2);
+  color: var(--error);
+}
+
+.mail-layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+

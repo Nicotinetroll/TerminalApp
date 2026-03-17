@@ -276,7 +276,7 @@ export function Terminal({ user, userId, onLogout, roomToken }: Props) {
                   </span>
                 </span>
                 {isProcessing ? (
-                  <span className="spinner ml-1 mt-1" />
+                  <span className="terminal-spinner-wrap"><span className="terminal-spinner" /></span>
                 ) : (
                   <>
                   <span className="flex-1 relative min-w-0">

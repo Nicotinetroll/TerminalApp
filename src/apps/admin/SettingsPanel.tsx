@@ -10,12 +10,12 @@ const SOUND_OPTIONS = [
 
 const ALL_SHORTCUT_APPS = [
   "mail", "whisper", "cloud", "nigdit", "memes", "paste", "profile", "games",
-  "slots", "coinflip", "shortlinks", "ascii", "shop", "admin", "stats",
+  "slots", "coinflip", "blackjack", "shortlinks", "downloader", "ascii", "shop", "admin", "stats",
 ];
 
 const RESTRICTABLE_APPS = [
   "mail", "whisper", "cloud", "nigdit", "memes", "paste", "profile", "games",
-  "slots", "coinflip", "shortlinks", "ascii",
+  "slots", "coinflip", "blackjack", "shortlinks", "downloader", "ascii",
 ];
 
 const RESTRICTABLE_FEATURES: { key: string; label: string; desc: string }[] = [

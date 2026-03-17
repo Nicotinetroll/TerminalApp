@@ -1,0 +1,102 @@
+/* Base styles: CSS variables, resets, scrollbar */
+
+@import "tailwindcss";
+
+:root {
+  --bg-primary: #0a0a12;
+  --bg-surface: #0e0e18;
+  --bg-elevated: #14141f;
+  --text-primary: #e8ecf4;
+  --text-secondary: #9aa4b8;
+  --text-muted: #586880;
+  --text-ghost: #354055;
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-medium: rgba(255, 255, 255, 0.12);
+  --error: #f87171;
+  --error-soft: rgba(248, 113, 113, 0.1);
+  --success: #34d399;
+  --accent: #DA7756;
+  --accent-soft: rgba(218, 119, 86, 0.10);
+  --accent-mid: rgba(218, 119, 86, 0.25);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'IBM Plex Mono', 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 16px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* inputs inherit font */
+input {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+/* all interactive elements: sharp corners */
+button, input, select, textarea, .btn, .mobile-app-btn {
+  border-radius: 0 !important;
+}
+
+/* scanline overlay */
+#root::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.06) 2px,
+    rgba(0, 0, 0, 0.06) 4px
+  );
+  pointer-events: none;
+  z-index: 100;
+}
+
+/* CRT vignette */
+#root::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 55%,
+    rgba(0, 0, 0, 0.45) 100%
+  );
+  pointer-events: none;
+  z-index: 99;
+}
+
+/* scrollbar */
+.terminal-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+.terminal-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.terminal-scroll::-webkit-scrollbar-thumb {
+  background: var(--text-ghost);
+  border-radius: 3px;
+}
+.terminal-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Firefox scrollbar */
+.terminal-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-ghost) transparent;
+}

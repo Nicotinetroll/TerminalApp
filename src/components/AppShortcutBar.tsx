@@ -22,6 +22,7 @@ const ALL_APPS: AppDef[] = [
   { name: "coinflip", label: "coinflip", minRole: "user" },
   { name: "shortlinks", label: "links",  minRole: "user" },
   { name: "blackjack", label: "blackjack", minRole: "user" },
+  { name: "downloader", label: "downloader", minRole: "user" },
   { name: "ascii",    label: "ascii",    minRole: null },
   { name: "shop",     label: "shop",     minRole: null },
   { name: "admin",    label: "admin",    minRole: "admin" },

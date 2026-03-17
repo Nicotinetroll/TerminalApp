@@ -89,7 +89,7 @@ export async function callGroq(
   const body: Record<string, unknown> = {
     model: 'openai/gpt-oss-120b',
     messages,
-    max_tokens: options.maxTokens ?? 512,
+    max_tokens: options.maxTokens ?? 1024,
     temperature: options.temperature ?? 0.7,
   };
 

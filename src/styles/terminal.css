@@ -13160,184 +13160,218 @@ button, input, select, textarea, .btn, .mobile-app-btn {
    ══════════════════════════════════════════════════ */
 
 /* ══════════════════════════════════════════════════
-   AI Response Block — nigga command
+   AI Response Block — next-gen terminal style
    ══════════════════════════════════════════════════ */
 
 .ai-block {
   position: relative;
-  border-radius: 8px;
-  background: linear-gradient(135deg, var(--bg-elevated) 0%, var(--bg-surface) 100%);
-  border: 1px solid var(--accent-mid);
-  box-shadow: 0 0 12px -4px var(--accent-mid), inset 0 1px 0 rgba(255,255,255,0.03);
-  animation: ai-block-enter 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  border-radius: 0;
+  background: transparent;
+  border: none;
+  animation: ai-enter 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: visible;
+}
+
+@keyframes ai-enter {
+  0% { opacity: 0; transform: translateX(-12px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+
+/* Ambient glow behind the block */
+.ai-block-glow {
+  position: absolute;
+  top: 4px;
+  left: -2px;
+  bottom: 4px;
+  width: 3px;
+  background: var(--accent);
+  border-radius: 2px;
+  filter: blur(6px);
+  opacity: 0.5;
+  animation: ai-glow-pulse 3s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes ai-glow-pulse {
+  0%, 100% { opacity: 0.3; filter: blur(6px); }
+  50% { opacity: 0.7; filter: blur(8px); }
+}
+
+/* Inner container — the visible card */
+.ai-block-inner {
+  display: flex;
+  gap: 0;
+  position: relative;
+}
+
+/* Left accent bar — solid, sharp */
+.ai-block-accent {
+  width: 3px;
+  flex-shrink: 0;
+  background: var(--accent);
+  border-radius: 2px 0 0 2px;
+  position: relative;
   overflow: hidden;
 }
-
-@keyframes ai-block-enter {
-  0% { opacity: 0; transform: translateY(8px) scaleY(0.95); border-color: transparent; }
-  40% { opacity: 1; border-color: var(--accent); box-shadow: 0 0 20px -2px var(--accent-mid); }
-  100% { transform: translateY(0) scaleY(1); }
+/* Scan line running down the accent bar */
+.ai-block-accent::after {
+  content: "";
+  position: absolute;
+  top: -100%;
+  left: 0;
+  width: 100%;
+  height: 40%;
+  background: linear-gradient(180deg, transparent, rgba(255,255,255,0.6), transparent);
+  animation: ai-accent-scan 2.5s ease-in-out infinite;
+}
+@keyframes ai-accent-scan {
+  0% { top: -40%; }
+  100% { top: 140%; }
 }
 
+/* Content area */
+.ai-block-content {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-left: none;
+  border-radius: 0 4px 4px 0;
+}
+
+/* Header — minimal, inline */
 .ai-block-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 14px;
-  background: var(--accent-soft);
-  border-bottom: 1px solid var(--accent-mid);
+  gap: 6px;
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--border-subtle);
   position: relative;
-  overflow: hidden;
 }
 
-.ai-block-header::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(90deg, transparent 0%, var(--accent-mid) 50%, transparent 100%);
-  opacity: 0;
-  animation: ai-header-flash 0.6s ease 0.2s forwards;
-}
-@keyframes ai-header-flash {
-  0% { opacity: 0.4; transform: translateX(-100%); }
-  100% { opacity: 0; transform: translateX(100%); }
-}
-
-.ai-block-icon {
-  font-size: 8px;
+/* // sigil */
+.ai-block-sigil {
+  font-size: 11px;
+  font-weight: 700;
   color: var(--accent);
-  letter-spacing: 2px;
-  opacity: 0.6;
-  animation: ai-icon-pulse 2s ease-in-out infinite;
-}
-@keyframes ai-icon-pulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 0.9; }
+  opacity: 0.4;
+  font-family: inherit;
 }
 
+/* Label with subtle glitch */
 .ai-block-label {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.15em;
   color: var(--accent);
   position: relative;
-}
-
-/* Glitch flicker on label */
-.ai-block-label::before {
-  content: attr(data-text);
-  position: absolute;
-  left: -1px;
-  top: 0;
-  color: var(--error);
-  opacity: 0;
-  clip-path: inset(0 0 60% 0);
-  animation: ai-glitch-1 4s linear infinite;
 }
 .ai-block-label::after {
   content: attr(data-text);
   position: absolute;
-  left: 1px;
+  left: 0;
   top: 0;
-  color: var(--success);
+  color: var(--accent);
   opacity: 0;
-  clip-path: inset(40% 0 0 0);
-  animation: ai-glitch-2 4s linear infinite;
+  animation: ai-glitch 6s linear infinite;
+}
+@keyframes ai-glitch {
+  0%, 95%, 97%, 99%, 100% { opacity: 0; transform: none; }
+  95.5% { opacity: 0.7; transform: translateX(-2px) skewX(-5deg); color: var(--error); }
+  96.5% { opacity: 0; }
+  97.5% { opacity: 0.5; transform: translateX(1px) skewX(3deg); color: var(--success); }
+  98.5% { opacity: 0; }
 }
 
-@keyframes ai-glitch-1 {
-  0%, 93%, 95%, 97%, 100% { opacity: 0; }
-  93.5% { opacity: 0.6; transform: translateX(-2px); }
-  94.5% { opacity: 0; }
-  96% { opacity: 0.4; transform: translateX(1px); }
-}
-@keyframes ai-glitch-2 {
-  0%, 92%, 94%, 96%, 100% { opacity: 0; }
-  92.5% { opacity: 0.5; transform: translateX(2px); }
-  93.5% { opacity: 0; }
-  95% { opacity: 0.3; transform: translateX(-1px); }
-}
-
+/* AI tag — pill */
 .ai-block-tag {
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   color: var(--bg-primary);
   background: var(--accent);
-  padding: 1px 6px;
-  border-radius: 3px;
-  margin-left: auto;
+  padding: 1px 5px;
+  border-radius: 2px;
+  line-height: 1.4;
 }
 
+/* Decorative line extending to the right */
+.ai-block-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--accent-mid) 0%, transparent 80%);
+  margin-left: 8px;
+  opacity: 0.5;
+}
+
+/* Body */
 .ai-block-body {
-  padding: 14px 16px;
+  padding: 10px 14px;
   font-family: inherit;
   font-size: 14px;
-  line-height: 1.7;
+  line-height: 1.6;
   color: var(--text-primary);
   white-space: pre-wrap;
   word-break: break-word;
-  position: relative;
 }
 
-/* Scanline sweep on appear */
-.ai-block-scanline {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, transparent 0%, var(--accent-mid) 50%, transparent 100%);
-  opacity: 0;
-  pointer-events: none;
-  animation: ai-scanline 0.8s ease 0.1s forwards;
-}
-@keyframes ai-scanline {
-  0% { opacity: 0.15; transform: translateY(-100%); }
-  100% { opacity: 0; transform: translateY(100%); }
-}
-
-/* Thinking state */
-.ai-thinking {
-  display: inline-flex;
+/* ── Thinking phase ── */
+.ai-think-phase {
+  display: flex;
   align-items: center;
   gap: 10px;
-  color: var(--text-muted);
 }
 
-.ai-thinking-dots {
-  display: inline-flex;
-  gap: 4px;
+/* Audio-visualizer bars */
+.ai-think-indicator {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 14px;
 }
-
-.ai-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
+.ai-think-bar {
+  width: 2px;
   background: var(--accent);
-  animation: ai-dot-bounce 1.2s ease-in-out infinite;
+  border-radius: 1px;
+  animation: ai-bar 0.8s ease-in-out infinite;
 }
-.ai-dot:nth-child(2) { animation-delay: 0.15s; }
-.ai-dot:nth-child(3) { animation-delay: 0.3s; }
+.ai-think-bar:nth-child(1) { height: 4px; animation-delay: 0s; }
+.ai-think-bar:nth-child(2) { height: 8px; animation-delay: 0.1s; }
+.ai-think-bar:nth-child(3) { height: 12px; animation-delay: 0.2s; }
+.ai-think-bar:nth-child(4) { height: 8px; animation-delay: 0.3s; }
+.ai-think-bar:nth-child(5) { height: 4px; animation-delay: 0.4s; }
 
-@keyframes ai-dot-bounce {
-  0%, 60%, 100% { transform: translateY(0); opacity: 0.3; }
-  30% { transform: translateY(-6px); opacity: 1; }
+@keyframes ai-bar {
+  0%, 100% { transform: scaleY(0.4); opacity: 0.3; }
+  50% { transform: scaleY(1); opacity: 1; }
 }
 
-.ai-thinking-text {
+/* Thinking text */
+.ai-think-text {
   font-size: 12px;
+  color: var(--text-ghost);
   font-style: italic;
-  animation: ai-think-fade 1.5s ease-in-out infinite;
+  animation: ai-think-pulse 1.5s ease-in-out infinite;
 }
-@keyframes ai-think-fade {
+@keyframes ai-think-pulse {
   0%, 100% { opacity: 0.4; }
   50% { opacity: 0.8; }
 }
 
-/* Typing cursor */
+/* ── Typing state ── */
+.ai-typed-text {
+  position: relative;
+}
+
+/* Block cursor */
 .ai-cursor {
-  color: var(--accent);
+  display: inline-block;
+  width: 7px;
+  height: 14px;
+  background: var(--accent);
   margin-left: 1px;
-  animation: ai-cursor-blink 0.6s step-end infinite;
+  vertical-align: text-bottom;
+  animation: ai-cursor-blink 0.7s step-end infinite;
 }
 @keyframes ai-cursor-blink {
   0%, 100% { opacity: 1; }

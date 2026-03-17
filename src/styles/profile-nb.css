@@ -1,0 +1,45 @@
+/* Profile NiggaBytes card */
+
+/* ── Profile NB card ── */
+
+.profile-nb-card {
+  padding: 14px 16px;
+  border: 1px solid rgba(251, 191, 36, 0.15);
+  border-radius: 6px;
+  background: rgba(251, 191, 36, 0.04);
+}
+
+.profile-nb-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 6px;
+}
+
+.profile-nb-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.profile-nb-amount {
+  font-size: 28px;
+  font-weight: 800;
+  color: #fbbf24;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.profile-nb-unit {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(251, 191, 36, 0.6);
+}
+
+.profile-nb-tag {
+  font-size: 11px;
+  color: var(--text-ghost);
+  margin-left: 6px;
+}
+

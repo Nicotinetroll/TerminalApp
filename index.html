@@ -13,6 +13,101 @@
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet" />
   </head>
   <body>
+    <!-- Preloader -->
+    <div id="preloader">
+      <div class="pl-glow"></div>
+      <div class="pl-content">
+        <div class="pl-dot"></div>
+        <div class="pl-line"><div class="pl-line-fill"></div></div>
+      </div>
+    </div>
+    <style>
+      #preloader {
+        position: fixed; inset: 0; z-index: 99999;
+        background: var(--bg-primary, #0a0a12);
+        display: flex; align-items: center; justify-content: center;
+        font-family: 'IBM Plex Mono', monospace;
+        opacity: 0;
+        animation: pl-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+      #preloader.pl-exit {
+        animation: pl-out 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+      @keyframes pl-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      @keyframes pl-out {
+        from { opacity: 1; }
+        to { opacity: 0; }
+      }
+      .pl-glow {
+        position: absolute;
+        width: 200px; height: 200px;
+        top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        background: radial-gradient(circle, var(--accent-soft, rgba(218,119,86,0.10)) 0%, transparent 70%);
+        animation: pl-glow-pulse 2s ease-in-out infinite;
+      }
+      @keyframes pl-glow-pulse {
+        0%, 100% { opacity: 0.5; transform: translate(-50%, -50%) scale(1); }
+        50% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
+      }
+      .pl-content {
+        display: flex; flex-direction: column;
+        align-items: center; gap: 20px;
+        position: relative; z-index: 1;
+      }
+      .pl-dot {
+        width: 6px; height: 6px;
+        background: var(--accent, #DA7756);
+        box-shadow: 0 0 16px var(--accent-mid, rgba(218,119,86,0.25));
+        animation: pl-breathe 2s ease-in-out infinite;
+      }
+      @keyframes pl-breathe {
+        0%, 100% { opacity: 0.6; box-shadow: 0 0 16px var(--accent-mid, rgba(218,119,86,0.25)); }
+        50% { opacity: 1; box-shadow: 0 0 28px var(--accent-mid, rgba(218,119,86,0.25)), 0 0 60px var(--accent-soft, rgba(218,119,86,0.10)); }
+      }
+      .pl-line {
+        width: 120px; height: 1px;
+        background: var(--border-subtle, rgba(255,255,255,0.06));
+        overflow: hidden;
+      }
+      .pl-line-fill {
+        width: 40%; height: 100%;
+        background: var(--accent, #DA7756);
+        animation: pl-scan 1.3s ease-in-out infinite;
+      }
+      @keyframes pl-scan {
+        0% { margin-left: -40%; }
+        50% { margin-left: 100%; }
+        100% { margin-left: -40%; }
+      }
+    </style>
+    <script>
+      // Apply cached theme CSS vars instantly (before React loads)
+      try {
+        var t = JSON.parse(localStorage.getItem('mynigga-theme') || '{}');
+        var r = document.documentElement.style;
+        if (t.accent) {
+          r.setProperty('--accent', t.accent);
+          r.setProperty('--accent-soft', t.accentSoft || '');
+          r.setProperty('--accent-mid', t.accentMid || '');
+          if (t.bgPrimary) r.setProperty('--bg-primary', t.bgPrimary);
+          if (t.bgSurface) r.setProperty('--bg-surface', t.bgSurface);
+          if (t.bgElevated) r.setProperty('--bg-elevated', t.bgElevated);
+          if (t.textPrimary) r.setProperty('--text-primary', t.textPrimary);
+          if (t.textSecondary) r.setProperty('--text-secondary', t.textSecondary);
+          if (t.textMuted) r.setProperty('--text-muted', t.textMuted);
+          if (t.textGhost) r.setProperty('--text-ghost', t.textGhost);
+          if (t.borderSubtle) r.setProperty('--border-subtle', t.borderSubtle);
+          if (t.borderMedium) r.setProperty('--border-medium', t.borderMedium);
+          if (t.error) r.setProperty('--error', t.error);
+          if (t.success) r.setProperty('--success', t.success);
+        }
+      } catch(e) {}
+    </script>
+
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

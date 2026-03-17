@@ -1,0 +1,11 @@
+/Users/dominik/Documents/TerminalApp/src-tauri/target/release/deps/tauri_runtime-d5c2cb70b5defed0.d: /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.10.1/src/lib.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.10.1/src/dpi.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.10.1/src/monitor.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.10.1/src/webview.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.10.1/src/window.rs
+
+/Users/dominik/Documents/TerminalApp/src-tauri/target/release/deps/libtauri_runtime-d5c2cb70b5defed0.rlib: /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.10.1/src/lib.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.10.1/src/dpi.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.10.1/src/monitor.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.10.1/src/webview.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.10.1/src/window.rs
+
+/Users/dominik/Documents/TerminalApp/src-tauri/target/release/deps/libtauri_runtime-d5c2cb70b5defed0.rmeta: /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.10.1/src/lib.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.10.1/src/dpi.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.10.1/src/monitor.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.10.1/src/webview.rs /Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.10.1/src/window.rs
+
+/Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.10.1/src/lib.rs:
+/Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.10.1/src/dpi.rs:
+/Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.10.1/src/monitor.rs:
+/Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.10.1/src/webview.rs:
+/Users/dominik/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-runtime-2.10.1/src/window.rs:
