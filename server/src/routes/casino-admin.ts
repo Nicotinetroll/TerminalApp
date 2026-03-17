@@ -3,6 +3,7 @@ import type { Response } from 'express';
 import db from '../db.js';
 import { authMiddleware, adminMiddleware } from '../middleware.js';
 import type { AuthRequest } from '../middleware.js';
+import { logAudit } from '../audit.js';
 
 const router = Router();
 router.use(authMiddleware);
@@ -117,6 +118,11 @@ router.put('/admin/config', (req: AuthRequest, res: Response): void => {
     ).run(String(Math.round(coinflip_win_chance)));
   }
 
+  logAudit({
+    adminId: req.user!.userId, adminUsername: req.user!.username,
+    action: 'casino.config', details: { slots_rtp_target, coinflip_win_chance },
+  });
+
   res.json({ ok: true });
 });
 
@@ -146,6 +152,12 @@ router.post('/admin/grant-nb', (req: AuthRequest, res: Response): void => {
   const newNB = Math.max(0, current.bytebucks + amount);
 
   db.prepare('UPDATE slots_balance SET bytebucks = ?, updated_at = datetime(\'now\') WHERE user_id = ?').run(newNB, userId);
+
+  logAudit({
+    adminId: req.user!.userId, adminUsername: req.user!.username,
+    action: 'casino.grant_nb', targetType: 'user', targetId: userId, targetName: user.username,
+    details: { amount, newBalance: newNB },
+  });
 
   // Easter eggs
   let easter = '';

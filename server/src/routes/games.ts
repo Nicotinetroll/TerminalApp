@@ -36,7 +36,7 @@ function getEasterEgg(score: number): string | undefined {
   return undefined;
 }
 
-const VALID_GAMES = ['snake', '2048', 'minesweeper'];
+const VALID_GAMES = ['snake', '2048', 'minesweeper', 'flappy', 'racing', 'invaders', 'breakout'];
 
 // GET /api/games/leaderboard?game=snake&limit=10
 router.get('/leaderboard', (req: AuthRequest, res: Response): void => {
@@ -44,14 +44,15 @@ router.get('/leaderboard', (req: AuthRequest, res: Response): void => {
   const limit = Math.min(parseInt(req.query.limit as string) || 10, 50);
 
   if (!game || !VALID_GAMES.includes(game)) {
-    res.status(400).json({ error: 'invalid game. pick snake, 2048, or minesweeper, genius.' });
+    res.status(400).json({ error: 'invalid game. pick a real one, genius.' });
     return;
   }
 
   const rows = db.prepare(`
-    SELECT username, score, metadata, created_at
+    SELECT username, MAX(score) as score, metadata, created_at
     FROM game_scores
     WHERE game = ?
+    GROUP BY user_id
     ORDER BY score DESC
     LIMIT ?
   `).all(game, limit);
@@ -65,9 +66,10 @@ router.get('/leaderboard/all', (_req: AuthRequest, res: Response): void => {
 
   for (const game of VALID_GAMES) {
     const rows = db.prepare(`
-      SELECT username, score, created_at
+      SELECT username, MAX(score) as score, created_at
       FROM game_scores
       WHERE game = ?
+      GROUP BY user_id
       ORDER BY score DESC
       LIMIT 5
     `).all(game);
@@ -110,10 +112,14 @@ router.post('/scores', authMiddleware, (req: AuthRequest, res: Response): void =
     VALUES (?, ?, ?, ?, ?)
   `).run(user.userId, user.username, game, Math.floor(score), metadataStr);
 
-  // Calculate rank
+  // Calculate rank (by personal bests, not total rows)
   const rankRow = db.prepare(`
-    SELECT COUNT(*) as rank FROM game_scores
-    WHERE game = ? AND score > ?
+    SELECT COUNT(*) as rank FROM (
+      SELECT user_id, MAX(score) as best
+      FROM game_scores WHERE game = ?
+      GROUP BY user_id
+      HAVING best > ?
+    )
   `).get(game, Math.floor(score)) as { rank: number };
 
   const rank = rankRow.rank + 1;

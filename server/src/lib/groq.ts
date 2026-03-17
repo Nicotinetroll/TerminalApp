@@ -87,9 +87,9 @@ export async function callGroq(
   options: CallGroqOptions = {}
 ): Promise<GroqResponse> {
   const body: Record<string, unknown> = {
-    model: 'llama-3.3-70b-versatile',
+    model: 'openai/gpt-oss-120b',
     messages,
-    max_tokens: options.maxTokens ?? 2048,
+    max_tokens: options.maxTokens ?? 512,
     temperature: options.temperature ?? 0.7,
   };
 

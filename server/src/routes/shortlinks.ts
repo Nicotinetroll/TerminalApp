@@ -8,7 +8,8 @@ const router = Router();
 const SLUG_RE = /^[a-z0-9_-]{2,32}$/;
 const URL_RE = /^https?:\/\/.+/;
 const MAX_URL_LEN = 2048;
-const MAX_LINKS = 100;
+import { getSetting } from '../constants.js';
+
 const RESERVED_SLUGS = new Set([
   'admin', 'api', 'login', 'register', 'logout', 'auth',
   'paste', 'upload', 'settings', 'health', 'status',
@@ -73,8 +74,9 @@ router.post('/', authMiddleware as RequestHandler, ((req: AuthRequest, res: Resp
 
   // Check link count
   const count = (db.prepare('SELECT COUNT(*) as cnt FROM shortlinks WHERE user_id = ?').get(user.userId) as { cnt: number }).cnt;
-  if (count >= MAX_LINKS) {
-    res.status(400).json({ error: `max ${MAX_LINKS} links reached. delete some first.` });
+  const maxLinks = getSetting('shortlinks_max_per_user', 100);
+  if (count >= maxLinks) {
+    res.status(400).json({ error: `max ${maxLinks} links reached. delete some first.` });
     return;
   }
 

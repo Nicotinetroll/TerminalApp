@@ -26,6 +26,7 @@ export function MailPanel({ user: _user, windowId, windowManager }: WindowConten
   const [status, setStatus] = useState<{ text: string; isError: boolean } | null>(null);
   const [listRefreshKey, setListRefreshKey] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
   const [showMobileMore, setShowMobileMore] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -36,10 +37,10 @@ export function MailPanel({ user: _user, windowId, windowManager }: WindowConten
 
   const refreshStats = useCallback(async () => {
     try {
-      const s = await getEmailStats();
+      const s = await getEmailStats(selectedAddressId);
       setStats(s);
     } catch { /* ignore */ }
-  }, []);
+  }, [selectedAddressId]);
 
   const refreshFolders = useCallback(async () => {
     try {
@@ -51,6 +52,18 @@ export function MailPanel({ user: _user, windowId, windowManager }: WindowConten
 
   // Clear selection on folder change
   useEffect(() => { setSelectedIds(new Set()); }, [folder]);
+
+  // Refresh list + stats when address filter changes
+  useEffect(() => {
+    setListRefreshKey(k => k + 1);
+    void refreshStats();
+  }, [selectedAddressId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleAddressSelect = useCallback((id: number | null) => {
+    setSelectedAddressId(id);
+    setView("list");
+    setSelectedEmailId(null);
+  }, []);
 
   const handleToggleSelect = useCallback((id: number) => {
     setSelectedIds(prev => {
@@ -265,6 +278,8 @@ export function MailPanel({ user: _user, windowId, windowManager }: WindowConten
           stats={stats}
           addresses={addresses}
           customFolders={customFolders}
+          selectedAddressId={selectedAddressId}
+          onAddressSelect={handleAddressSelect}
           onFolderChange={handleFolderChange}
           onCompose={() => handleCompose()}
           onAddressDeleted={handleAddressDeleted}
@@ -278,6 +293,7 @@ export function MailPanel({ user: _user, windowId, windowManager }: WindowConten
           {view === "list" && (
             <MailList
               folder={folder}
+              addressId={selectedAddressId}
               onSelect={handleSelectEmail}
               onCompose={() => handleCompose()}
               onQuickTrash={handleQuickTrash}
@@ -396,12 +412,23 @@ export function MailPanel({ user: _user, windowId, windowManager }: WindowConten
               </button>
             </div>
             <div className="mail-mobile-more-section">
-              <div className="mail-mobile-more-label">addresses</div>
+              <div className="mail-mobile-more-label">filter by address</div>
+              <button
+                className={`mail-mobile-more-item${selectedAddressId === null ? " active" : ""}`}
+                onClick={() => { setShowMobileMore(false); handleAddressSelect(null); }}
+              >
+                <span className="mail-mobile-more-icon">*</span>
+                <span>all addresses</span>
+              </button>
               {addresses.map(addr => (
-                <div key={addr.id} className="mail-mobile-more-item mail-mobile-more-addr">
+                <button
+                  key={addr.id}
+                  className={`mail-mobile-more-item${selectedAddressId === addr.id ? " active" : ""}`}
+                  onClick={() => { setShowMobileMore(false); handleAddressSelect(addr.id); }}
+                >
                   <span className="mail-mobile-more-icon">@</span>
                   <span>{addr.full}</span>
-                </div>
+                </button>
               ))}
             </div>
           </div>

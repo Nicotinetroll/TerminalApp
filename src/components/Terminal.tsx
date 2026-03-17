@@ -10,12 +10,15 @@ import { AutocompleteDropdown } from "./AutocompleteDropdown";
 import { WindowLayer } from "./WindowLayer";
 import { MobileAppBar } from "./MobileAppBar";
 import { AppShortcutBar } from "./AppShortcutBar";
+import { CommandPalette } from "./CommandPalette";
 import { HOSTNAME } from "@/config";
 import { getAll } from "@/core/commandRegistry";
 import { WhisperPanel } from "@/apps/whisper/WhisperPanel";
 import { GlobalSettingsProvider } from "@/hooks/useGlobalSettings";
 import { useMailNotifications } from "@/hooks/useMailNotifications";
+import { useAppBadges } from "@/hooks/useAppBadges";
 import { useParallaxButtons } from "@/hooks/useParallaxButtons";
+import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts";
 import { GlobalEventToast } from "./GlobalEventToast";
 import { AppRestrictionSync } from "./AppRestrictionSync";
 import type { GlobalEvent } from "@/hooks/useGlobalEvents";
@@ -37,6 +40,9 @@ interface Props {
 export function Terminal({ user, userId, onLogout, roomToken }: Props) {
   const { history, cwd, theme, isProcessing, execute, print, fs, cmdHistoryRef, windowManager: rawWindowManager } = useTerminal(user, userId, onLogout);
   useParallaxButtons();
+  const { badges, clearBadge } = useAppBadges();
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const togglePalette = useCallback(() => setPaletteOpen((v) => !v), []);
   const [roomTokenUsed, setRoomTokenUsed] = useState(false);
   const [autoOpenApps, setAutoOpenApps] = useState<string[]>([]);
   const autoOpenDone = useRef(false);
@@ -85,6 +91,23 @@ export function Terminal({ user, userId, onLogout, roomToken }: Props) {
     root.style.setProperty("--accent", theme.accent);
     root.style.setProperty("--accent-soft", theme.accentSoft);
     root.style.setProperty("--accent-mid", theme.accentMid);
+    // Full-palette fields: apply when set, reset to CSS defaults when missing
+    const defaults: Record<string, string> = {
+      "--bg-primary": "#0a0a12", "--bg-surface": "#0e0e18", "--bg-elevated": "#14141f",
+      "--text-primary": "#e8ecf4", "--text-secondary": "#9aa4b8", "--text-muted": "#586880",
+      "--text-ghost": "#354055", "--border-subtle": "rgba(255,255,255,0.06)",
+      "--border-medium": "rgba(255,255,255,0.12)", "--error": "#f87171", "--success": "#34d399",
+    };
+    const map: Record<string, string | undefined> = {
+      "--bg-primary": theme.bgPrimary, "--bg-surface": theme.bgSurface, "--bg-elevated": theme.bgElevated,
+      "--text-primary": theme.textPrimary, "--text-secondary": theme.textSecondary,
+      "--text-muted": theme.textMuted, "--text-ghost": theme.textGhost,
+      "--border-subtle": theme.borderSubtle, "--border-medium": theme.borderMedium,
+      "--error": theme.error, "--success": theme.success,
+    };
+    for (const [prop, val] of Object.entries(map)) {
+      root.style.setProperty(prop, val ?? defaults[prop]!);
+    }
   }, [theme]);
 
   // Wrap openWindow to inject saved layouts for apps
@@ -108,6 +131,8 @@ export function Terminal({ user, userId, onLogout, roomToken }: Props) {
     () => ({ ...rawWindowManager, openWindow: wrappedOpenWindow }),
     [rawWindowManager, wrappedOpenWindow]
   );
+
+  useGlobalShortcuts({ windowManager, togglePalette });
 
   // Auto-open whisper when ?room= token is present
   useEffect(() => {
@@ -156,8 +181,9 @@ export function Terminal({ user, userId, onLogout, roomToken }: Props) {
   }, []);
 
   const handleRunApp = useCallback((name: string) => {
+    clearBadge(name);
     void execute(`run ${name}`);
-  }, [execute]);
+  }, [execute, clearBadge]);
 
 
   // Save all current window layouts (debounced)
@@ -200,7 +226,7 @@ export function Terminal({ user, userId, onLogout, roomToken }: Props) {
         subtitle={`${user.username}@${HOSTNAME}:${shortenPath(cwd, homePath)}  ·  nsh v1.0`}
       />
 
-      <AppShortcutBar onRunApp={handleRunApp} userRole={user.role} />
+      <AppShortcutBar onRunApp={handleRunApp} userRole={user.role} badges={badges} />
 
       <div className="terminal-frame">
         {/* Mobile header bar */}
@@ -298,7 +324,7 @@ export function Terminal({ user, userId, onLogout, roomToken }: Props) {
         </div>
 
         {/* Mobile app bar */}
-        <MobileAppBar onRunApp={handleRunApp} userRole={user.role} />
+        <MobileAppBar onRunApp={handleRunApp} userRole={user.role} badges={badges} />
 
         <StatusBar
           username={user.username}
@@ -316,6 +342,8 @@ export function Terminal({ user, userId, onLogout, roomToken }: Props) {
         onToggleAutoOpen={handleToggleAutoOpen}
         onLayoutChange={handleLayoutChange}
       />
+
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} execute={(cmd) => void execute(cmd)} />
     </div>
     </GlobalSettingsProvider>
   );

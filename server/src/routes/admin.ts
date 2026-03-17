@@ -5,6 +5,7 @@ import { execSync } from 'child_process';
 import db from '../db.js';
 import { authMiddleware, adminMiddleware, AuthRequest } from '../middleware.js';
 import { getLogs } from '../logger.js';
+import { logAudit } from '../audit.js';
 
 const router = Router();
 
@@ -48,7 +49,7 @@ router.post('/users', (req: AuthRequest, res: Response): void => {
     return;
   }
 
-  const validRoles = ['admin', 'club', 'user', 'guest'];
+  const validRoles = ['admin', 'club', 'classic', 'user', 'guest'];
   const userRole = validRoles.includes(role) ? role : 'user';
 
   try {
@@ -77,6 +78,12 @@ router.post('/users', (req: AuthRequest, res: Response): void => {
     const user = db.prepare(
       'SELECT id, username, role, created_at, updated_at FROM users WHERE id = ?'
     ).get(userId) as UserRow;
+
+    logAudit({
+      adminId: req.user!.userId, adminUsername: req.user!.username,
+      action: 'user.create', targetType: 'user', targetId: Number(userId), targetName: username,
+      details: { role: userRole },
+    });
 
     res.status(201).json({ user });
   } catch (err: unknown) {
@@ -123,7 +130,7 @@ router.put('/users/:id', (req: AuthRequest, res: Response): void => {
       values.push(bcrypt.hashSync(password, 10));
     }
     if (role) {
-      const validRoles = ['admin', 'club', 'user', 'guest'];
+      const validRoles = ['admin', 'club', 'classic', 'user', 'guest'];
       if (!validRoles.includes(role)) { res.status(400).json({ error: 'invalid role.' }); return; }
       updates.push('role = ?');
       values.push(role);
@@ -142,6 +149,12 @@ router.put('/users/:id', (req: AuthRequest, res: Response): void => {
     const user = db.prepare(
       'SELECT id, username, role, created_at, updated_at FROM users WHERE id = ?'
     ).get(targetId) as UserRow;
+
+    logAudit({
+      adminId: req.user!.userId, adminUsername: req.user!.username,
+      action: 'user.update', targetType: 'user', targetId: targetId, targetName: user.username,
+      details: { username, role, passwordChanged: !!password },
+    });
 
     res.json({ user });
   } catch (err: unknown) {
@@ -227,10 +240,164 @@ router.delete('/users/:id', (req: AuthRequest, res: Response): void => {
     });
 
     deleteUser();
+
+    logAudit({
+      adminId: req.user!.userId, adminUsername: req.user!.username,
+      action: 'user.delete', targetType: 'user', targetId: targetId,
+    });
+
     res.json({ ok: true });
   } catch {
     res.status(500).json({ error: 'Failed to delete user. something is clinging on.' });
   }
+});
+
+// GET /api/admin/users/:id/details — detailed user info (sub, NB, storage)
+router.get('/users/:id/details', (req: AuthRequest, res: Response): void => {
+  const targetId = parseInt(req.params['id'] as string ?? '', 10);
+  if (isNaN(targetId)) { res.status(400).json({ error: 'Invalid user ID.' }); return; }
+
+  const user = db.prepare('SELECT id, username, role, created_at, updated_at FROM users WHERE id = ?').get(targetId) as UserRow | undefined;
+  if (!user) { res.status(404).json({ error: 'User not found.' }); return; }
+
+  // NB balance
+  const balRow = db.prepare('SELECT bytebucks FROM slots_balance WHERE user_id = ?').get(targetId) as { bytebucks: number } | undefined;
+  const niggabytes = balRow?.bytebucks ?? 0;
+
+  // Active subscription
+  const activeSub = db.prepare(
+    'SELECT id, type, starts_at, expires_at, is_active, auto_renew, payment_id FROM subscriptions WHERE user_id = ? AND is_active = 1 ORDER BY id DESC LIMIT 1'
+  ).get(targetId) as { id: number; type: string; starts_at: string; expires_at: string | null; is_active: number; auto_renew: number; payment_id: string | null } | undefined;
+
+  // Sub history
+  const subHistory = db.prepare(
+    'SELECT id, type, starts_at, expires_at, is_active, auto_renew FROM subscriptions WHERE user_id = ? ORDER BY id DESC LIMIT 10'
+  ).all(targetId) as { id: number; type: string; starts_at: string; expires_at: string | null; is_active: number; auto_renew: number }[];
+
+  // Payment history
+  const payments = db.prepare(
+    'SELECT id, type, amount_eur, nb_amount, status, created_at FROM payments WHERE user_id = ? ORDER BY created_at DESC LIMIT 10'
+  ).all(targetId) as { id: string; type: string; amount_eur: number; nb_amount: number; status: string; created_at: string }[];
+
+  // Storage
+  const fsRow = db.prepare('SELECT LENGTH(filesystem) as bytes FROM user_filesystems WHERE user_id = ?').get(targetId) as { bytes: number } | undefined;
+  const storageBytes = fsRow?.bytes ?? 0;
+
+  // Email addresses
+  const emails = db.prepare('SELECT address FROM email_addresses WHERE user_id = ?').all(targetId) as { address: string }[];
+
+  res.json({
+    user,
+    niggabytes,
+    active_subscription: activeSub ?? null,
+    subscription_history: subHistory,
+    payments,
+    storage_bytes: storageBytes,
+    email_addresses: emails.map(e => e.address),
+  });
+});
+
+// PUT /api/admin/users/:id/subscription — admin manage subscription
+router.put('/users/:id/subscription', (req: AuthRequest, res: Response): void => {
+  const targetId = parseInt(req.params['id'] as string ?? '', 10);
+  if (isNaN(targetId)) { res.status(400).json({ error: 'Invalid user ID.' }); return; }
+
+  const existing = db.prepare('SELECT id FROM users WHERE id = ?').get(targetId);
+  if (!existing) { res.status(404).json({ error: 'User not found.' }); return; }
+
+  const { action, type, days } = req.body as { action?: string; type?: string; days?: number };
+
+  if (action === 'grant') {
+    // Grant a new subscription
+    const validTypes = ['classic_1m', 'classic_3m', 'classic_12m', 'club_1m', 'club_3m', 'club_12m'];
+    if (!type || !validTypes.includes(type)) {
+      res.status(400).json({ error: 'invalid sub type' });
+      return;
+    }
+
+    const daysMap: Record<string, number> = {
+      classic_1m: 30, classic_3m: 90, classic_12m: 365,
+      club_1m: 30, club_3m: 90, club_12m: 365,
+    };
+    const subDays = days ?? daysMap[type]!;
+    const role = type.startsWith('club') ? 'club' : 'classic';
+
+    const roleLevel: Record<string, number> = { guest: 0, code: 0, user: 1, classic: 2, club: 3, admin: 4 };
+
+    db.transaction(() => {
+      // Deactivate old subs
+      db.prepare('UPDATE subscriptions SET is_active = 0 WHERE user_id = ? AND is_active = 1').run(targetId);
+
+      const expiresAt = new Date(Date.now() + subDays * 24 * 60 * 60 * 1000)
+        .toISOString().replace('T', ' ').replace('Z', '').split('.')[0]!;
+
+      db.prepare(`
+        INSERT INTO subscriptions (user_id, type, starts_at, expires_at, is_active)
+        VALUES (?, ?, datetime('now'), ?, 1)
+      `).run(targetId, type, expiresAt);
+
+      // Upgrade role if needed
+      const currentRole = (db.prepare('SELECT role FROM users WHERE id = ?').get(targetId) as { role: string } | undefined)?.role ?? 'user';
+      const currentLevel = roleLevel[currentRole] ?? 0;
+      const newLevel = roleLevel[role] ?? 0;
+      if (newLevel > currentLevel) {
+        db.prepare("UPDATE users SET role = ?, updated_at = datetime('now') WHERE id = ?").run(role, targetId);
+      }
+    })();
+
+    res.json({ ok: true, message: `granted ${type} subscription (${subDays} days)` });
+  } else if (action === 'revoke') {
+    // Revoke all active subs
+    db.transaction(() => {
+      db.prepare('UPDATE subscriptions SET is_active = 0 WHERE user_id = ? AND is_active = 1').run(targetId);
+
+      // Downgrade role if needed (don't touch admin)
+      const roleLevel: Record<string, number> = { guest: 0, code: 0, user: 1, classic: 2, club: 3, admin: 4 };
+      const currentRole = (db.prepare('SELECT role FROM users WHERE id = ?').get(targetId) as { role: string } | undefined)?.role ?? 'user';
+      const level = roleLevel[currentRole] ?? 0;
+      if (level >= 2 && level < 4) {
+        db.prepare("UPDATE users SET role = 'user', updated_at = datetime('now') WHERE id = ?").run(targetId);
+      }
+    })();
+
+    res.json({ ok: true, message: 'subscription revoked' });
+  } else if (action === 'toggle_auto_renew') {
+    const activeSub = db.prepare(
+      'SELECT id, auto_renew FROM subscriptions WHERE user_id = ? AND is_active = 1 ORDER BY id DESC LIMIT 1'
+    ).get(targetId) as { id: number; auto_renew: number } | undefined;
+
+    if (!activeSub) {
+      res.status(400).json({ error: 'no active subscription' });
+      return;
+    }
+
+    const newVal = activeSub.auto_renew ? 0 : 1;
+    db.prepare('UPDATE subscriptions SET auto_renew = ? WHERE id = ?').run(newVal, activeSub.id);
+    res.json({ ok: true, message: `auto-renew ${newVal ? 'enabled' : 'disabled'}` });
+  } else {
+    res.status(400).json({ error: 'invalid action. use grant, revoke, or toggle_auto_renew' });
+  }
+});
+
+// PUT /api/admin/users/:id/niggabytes — set NB balance
+router.put('/users/:id/niggabytes', (req: AuthRequest, res: Response): void => {
+  const targetId = parseInt(req.params['id'] as string ?? '', 10);
+  if (isNaN(targetId)) { res.status(400).json({ error: 'Invalid user ID.' }); return; }
+
+  const { amount } = req.body as { amount?: number };
+  if (amount == null || typeof amount !== 'number') {
+    res.status(400).json({ error: 'amount required' });
+    return;
+  }
+
+  const existing = db.prepare('SELECT user_id FROM slots_balance WHERE user_id = ?').get(targetId);
+  if (existing) {
+    db.prepare('UPDATE slots_balance SET bytebucks = ? WHERE user_id = ?').run(amount, targetId);
+  } else {
+    db.prepare('INSERT INTO slots_balance (user_id, bytebucks) VALUES (?, ?)').run(targetId, amount);
+  }
+
+  res.json({ ok: true, message: `NB balance set to ${amount}` });
 });
 
 // ── Invite Links ──
@@ -245,12 +412,16 @@ interface InviteRow {
   created_at: string;
   created_by_username: string;
   used_by_username: string | null;
+  max_uses: number;
+  use_count: number;
 }
 
 // POST /api/admin/invites — create invite link
 router.post('/invites', (req: AuthRequest, res: Response): void => {
-  const validRoles = ['admin', 'club', 'user', 'guest'];
+  const validRoles = ['admin', 'club', 'classic', 'user', 'guest'];
   const role = validRoles.includes(req.body.role) ? req.body.role : 'user';
+  const rawMax = req.body.max_uses;
+  const maxUses = Math.min(Math.max(1, Math.floor(Number(rawMax) || 1)), 1000);
 
   const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString().replace('T', ' ').replace('Z', '').split('.')[0]!;
 
@@ -258,14 +429,16 @@ router.post('/invites', (req: AuthRequest, res: Response): void => {
     const code = `${req.user!.username}-inv-${String(crypto.randomInt(100000, 999999))}`;
     try {
       db.prepare(
-        'INSERT INTO invite_links (id, created_by, role, expires_at) VALUES (?, ?, ?, ?)'
-      ).run(code, req.user!.userId, role, expiresAt);
+        'INSERT INTO invite_links (id, created_by, role, expires_at, max_uses) VALUES (?, ?, ?, ?, ?)'
+      ).run(code, req.user!.userId, role, expiresAt, maxUses);
 
       res.status(201).json({
         invite: {
           id: code,
           role,
           expires_at: expiresAt,
+          max_uses: maxUses,
+          use_count: 0,
           url: `https://mynig.ga/?invite=${code}`,
         },
       });
@@ -284,6 +457,7 @@ router.get('/invites', (_req: AuthRequest, res: Response): void => {
   const invites = db.prepare(`
     SELECT
       i.id, i.role, i.expires_at, i.used_by, i.used_at, i.created_at,
+      i.max_uses, i.use_count,
       c.username AS created_by_username,
       u.username AS used_by_username
     FROM invite_links i
@@ -557,6 +731,52 @@ router.get('/vps-stats', (req: AuthRequest, res: Response): void => {
     },
     history,
     range: validRange,
+  });
+});
+
+// ── Audit Log ──
+
+interface AuditRow {
+  id: number;
+  admin_username: string;
+  action: string;
+  target_type: string | null;
+  target_id: number | null;
+  target_name: string | null;
+  details: string;
+  created_at: string;
+}
+
+// GET /api/admin/audit-log
+router.get('/audit-log', (req: AuthRequest, res: Response): void => {
+  const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 200);
+  const offset = parseInt(req.query['offset'] as string) || 0;
+  const action = (req.query['action'] as string)?.trim() || '';
+
+  let query = 'SELECT id, admin_username, action, target_type, target_id, target_name, details, created_at FROM audit_log';
+  const params: (string | number)[] = [];
+
+  if (action) {
+    query += ' WHERE action = ?';
+    params.push(action);
+  }
+
+  query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+  params.push(limit, offset);
+
+  const rows = db.prepare(query).all(...params) as AuditRow[];
+  const total = (db.prepare(
+    action ? 'SELECT COUNT(*) as c FROM audit_log WHERE action = ?' : 'SELECT COUNT(*) as c FROM audit_log'
+  ).get(...(action ? [action] : [])) as { c: number }).c;
+
+  res.json({
+    entries: rows.map(r => ({
+      ...r,
+      details: JSON.parse(r.details || '{}'),
+    })),
+    total,
+    limit,
+    offset,
   });
 });
 

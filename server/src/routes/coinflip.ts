@@ -4,7 +4,7 @@ import db from '../db.js';
 import { authMiddleware, adminMiddleware } from '../middleware.js';
 import type { AuthRequest } from '../middleware.js';
 import { broadcastEvent } from '../socket.js';
-import { STORAGE_LIMITS, getEffectiveLimit } from '../constants.js';
+import { getEffectiveLimit } from '../constants.js';
 
 const router = Router();
 
@@ -63,7 +63,7 @@ router.get('/balance', (req: AuthRequest, res: Response): void => {
   ).get(userId) as { bonus_bytes: number; bytebucks: number } | undefined;
 
   const bonusBytes = balance?.bonus_bytes ?? 0;
-  const baseLimit = STORAGE_LIMITS[role] ?? STORAGE_LIMITS['guest']!;
+  const baseLimit = getEffectiveLimit(role, 0);
   const effectiveLimit = getEffectiveLimit(role, bonusBytes);
 
   const fsRow = db.prepare('SELECT filesystem FROM user_filesystems WHERE user_id = ?').get(userId) as
@@ -143,7 +143,7 @@ router.post('/flip', (req: AuthRequest, res: Response): void => {
 
   const currency = currencyInput === 'niggabytes' ? 'niggabytes' : 'storage';
   const betBytes = bet_mb * 1024 * 1024;
-  const baseLimit = STORAGE_LIMITS[role] ?? STORAGE_LIMITS['guest']!;
+  const baseLimit = getEffectiveLimit(role, 0);
 
   // Entire flip in a transaction to prevent race conditions (double-spend)
   const doFlipTx = db.transaction(() => {

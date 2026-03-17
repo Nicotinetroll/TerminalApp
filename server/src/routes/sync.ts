@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import db from '../db.js';
 import { authMiddleware, AuthRequest } from '../middleware.js';
-import { STORAGE_LIMITS } from '../constants.js';
+import { getStorageLimits, getEffectiveLimit } from '../constants.js';
 
 const router = Router();
 
@@ -42,11 +42,10 @@ router.put('/filesystem', (req: AuthRequest, res: Response): void => {
 
   // Role-based storage limit (factoring in slots bonus/deficit)
   const role = req.user!.role;
-  const baseLimit = STORAGE_LIMITS[role] ?? STORAGE_LIMITS['guest']!;
   const slotsRow = db.prepare('SELECT bonus_bytes FROM slots_balance WHERE user_id = ?').get(userId) as
     | { bonus_bytes: number } | undefined;
   const bonusBytes = slotsRow?.bonus_bytes ?? 0;
-  const limit = baseLimit === 0 ? 0 : Math.max(0, baseLimit + bonusBytes);
+  const limit = getEffectiveLimit(role, bonusBytes);
   const sizeBytes = Buffer.byteLength(serialized, 'utf8');
 
   if (limit > 0 && sizeBytes > limit) {
@@ -161,11 +160,10 @@ router.get('/stats', (req: AuthRequest, res: Response): void => {
     | undefined;
 
   const used = row ? Buffer.byteLength(row.filesystem, 'utf8') : 0;
-  const baseLimit = STORAGE_LIMITS[role] ?? STORAGE_LIMITS['guest']!;
   const slotsRow = db.prepare('SELECT bonus_bytes, bytebucks FROM slots_balance WHERE user_id = ?').get(userId) as
     | { bonus_bytes: number; bytebucks: number } | undefined;
   const bonusBytes = slotsRow?.bonus_bytes ?? 0;
-  const limit = baseLimit === 0 ? 0 : Math.max(0, baseLimit + bonusBytes);
+  const limit = getEffectiveLimit(role, bonusBytes);
 
   res.json({ used, limit, role, bonus_bytes: bonusBytes, niggabytes: slotsRow?.bytebucks ?? 0 });
 });

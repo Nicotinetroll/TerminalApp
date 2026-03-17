@@ -1,6 +1,7 @@
 import type { CommandDef } from "@/types/terminal";
 import { loadApp, listAppNames } from "@/core/appLoader";
 import { checkAppAccess, getAppMinRole } from "@/core/appRestrictions";
+import { LockedAppPanel } from "@/components/LockedAppPanel";
 
 const ADMIN_ONLY_APPS = ["admin", "stats"];
 
@@ -45,12 +46,18 @@ export const run: CommandDef = {
       if (minRole === "admin") {
         return { text: "admin only. fuck off.", isError: true };
       }
-      // Auto-open joinclub for non-admin restrictions
-      const joinclub = await loadApp("joinclub");
-      if (joinclub) {
-        return joinclub.run([], terminal);
-      }
-      return { text: `${appName} requires higher membership.`, isError: true };
+      // Open locked app panel with upgrade CTA
+      terminal.openWindow({
+        id: `locked-${appName}`,
+        title: `${appName} — locked`,
+        component: LockedAppPanel,
+        props: { appName, minRole },
+        width: 460,
+        height: 400,
+        minWidth: 360,
+        minHeight: 300,
+      });
+      return { text: "" };
     }
 
     const app = await loadApp(appName);

@@ -66,7 +66,7 @@ export function UserTable({ users, loading, currentUsername, onEdit, onDelete, o
               <td style={{ color: "var(--text-primary)", fontWeight: 500 }}>{u.username}</td>
               <td>
                 <span className={`role-badge role-${u.role}`}>
-                  {u.role === "club" ? "club member" : u.role === "user" ? "member" : u.role}
+                  {u.role === "club" ? "club member" : u.role === "classic" ? "member" : u.role}
                 </span>
               </td>
               <td>{formatDate(u.created_at)}</td>

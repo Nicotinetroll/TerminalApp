@@ -35,52 +35,61 @@ interface AdminMessage {
   created_at: string;
 }
 
-// ── Web Search ──
+// ── Web Search (Tavily) ──
 
-interface DDGResponse {
-  Abstract?: string;
-  AbstractSource?: string;
-  AbstractURL?: string;
-  Answer?: string;
-  AnswerType?: string;
-  RelatedTopics?: Array<{ Text?: string; FirstURL?: string; Topics?: Array<{ Text?: string }> }>;
-  Results?: Array<{ Text?: string; FirstURL?: string }>;
+interface TavilyResult {
+  title: string;
+  url: string;
+  content: string;
+  score: number;
+}
+
+interface TavilyResponse {
+  answer?: string;
+  results?: TavilyResult[];
 }
 
 async function searchWeb(query: string): Promise<string> {
-  try {
-    const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
-    const data = await res.json() as DDGResponse;
+  const apiKey = process.env.TAVILY_API_KEY;
+  if (!apiKey) {
+    return 'Search not configured. Answer from your own knowledge.';
+  }
 
+  try {
+    const res = await fetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: apiKey,
+        query,
+        search_depth: 'basic',
+        max_results: 5,
+        include_answer: true,
+      }),
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!res.ok) {
+      console.error('Tavily API error:', res.status);
+      return 'Search failed. Answer from your own knowledge.';
+    }
+
+    const data = await res.json() as TavilyResponse;
     const parts: string[] = [];
 
-    if (data.Abstract) {
-      parts.push(`${data.Abstract} (Source: ${data.AbstractSource ?? 'unknown'}, URL: ${data.AbstractURL ?? ''})`);
+    if (data.answer) {
+      parts.push(`Summary: ${data.answer}`);
     }
-    if (data.Answer) {
-      parts.push(`Direct answer: ${data.Answer}`);
-    }
-    if (data.Results) {
-      for (const r of data.Results.slice(0, 3)) {
-        if (r.Text) parts.push(`- ${r.Text}`);
-      }
-    }
-    if (data.RelatedTopics) {
-      for (const t of data.RelatedTopics.slice(0, 6)) {
-        if (t.Text) parts.push(`- ${t.Text}`);
-        // Nested topics
-        if (t.Topics) {
-          for (const sub of t.Topics.slice(0, 2)) {
-            if (sub.Text) parts.push(`  - ${sub.Text}`);
-          }
-        }
+
+    if (data.results) {
+      for (const r of data.results.slice(0, 5)) {
+        parts.push(`- ${r.title}: ${r.content.slice(0, 300)} (${r.url})`);
       }
     }
 
-    return parts.length > 0 ? parts.join('\n') : 'No results found for this query. Use your own knowledge.';
+    return parts.length > 0 ? parts.join('\n') : 'No results found. Use your own knowledge.';
   } catch (err) {
-    console.error('Web search error:', err);
+    console.error('Tavily search error:', err);
     return 'Search failed — use your own knowledge to answer.';
   }
 }

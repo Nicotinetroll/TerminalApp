@@ -4,6 +4,7 @@ import { getEmails, ApiError } from "@/lib/api";
 
 interface Props {
   folder: string;
+  addressId?: number | null;
   onSelect: (id: number) => void;
   onCompose: () => void;
   onQuickTrash?: (id: number) => void;
@@ -72,7 +73,7 @@ function isNoSubject(subject: string): boolean {
 }
 
 export function MailList({
-  folder, onSelect, onCompose, onQuickTrash, onQuickToggleRead, onQuickStar,
+  folder, addressId, onSelect, onCompose, onQuickTrash, onQuickToggleRead, onQuickStar,
   selectedIds, onToggleSelect, onSelectAll, onDeselectAll, onBulkAction,
 }: Props) {
   const [emails, setEmails] = useState<EmailMessage[]>([]);
@@ -102,7 +103,8 @@ export function MailList({
         isStarredView ? "inbox" : folder,
         50, 0,
         debouncedSearch,
-        isStarredView
+        isStarredView,
+        addressId
       );
       setEmails(msgs);
     } catch (err) {
@@ -110,7 +112,7 @@ export function MailList({
     } finally {
       setLoading(false);
     }
-  }, [folder, debouncedSearch, isStarredView]);
+  }, [folder, debouncedSearch, isStarredView, addressId]);
 
   useEffect(() => {
     void loadEmails();

@@ -4,6 +4,7 @@ import { Server } from 'socket.io';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import db from './db.js';
+import { setupBlackjack } from './blackjack-socket.js';
 
 // Properly typed statement that accepts variadic binding params
 type Stmt = Database.Statement<unknown[]>;
@@ -597,6 +598,9 @@ export function setupSocket(server: HttpServer): Server {
       db.prepare("DELETE FROM dm_requests WHERE status != 'pending' AND created_at < datetime('now', '-1 hour')").run();
     } catch (err) { console.error('[whisper] cleanup error:', err); }
   }, 15 * 60 * 1000);
+
+  // Register blackjack multiplayer handlers
+  setupBlackjack(io);
 
   console.log('[whisper] socket.io attached');
   return io;

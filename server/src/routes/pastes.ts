@@ -4,13 +4,11 @@ import jwt from 'jsonwebtoken';
 import db from '../db.js';
 import { authMiddleware, type AuthRequest, type AuthPayload } from '../middleware.js';
 import { callGroq, checkUserRate, checkIpRate } from '../lib/groq.js';
+import { getSetting } from '../constants.js';
 
 const router = Router();
 
-const MAX_CONTENT_SIZE = 500 * 1024; // 500KB
 const PAGE_SIZE = 20;
-const ANON_MAX_PASTES = 10;
-const ANON_WINDOW_MS = 24 * 60 * 60 * 1000; // 24h
 
 // ── Helpers ──
 
@@ -35,12 +33,13 @@ const anonLimits = new Map<string, { count: number; resetAt: number }>();
 
 function checkAnonLimit(ip: string): boolean {
   const now = Date.now();
+  const maxPastes = getSetting('paste_anon_max_per_day', 10);
   const entry = anonLimits.get(ip);
   if (!entry || now > entry.resetAt) {
-    anonLimits.set(ip, { count: 1, resetAt: now + ANON_WINDOW_MS });
+    anonLimits.set(ip, { count: 1, resetAt: now + 24 * 60 * 60 * 1000 });
     return true;
   }
-  if (entry.count >= ANON_MAX_PASTES) return false;
+  if (entry.count >= maxPastes) return false;
   entry.count++;
   return true;
 }
@@ -99,8 +98,9 @@ router.post('/public', (req: AuthRequest, res: Response) => {
   try {
     const ip = req.ip ?? req.socket.remoteAddress ?? 'unknown';
 
+    const maxPastes = getSetting('paste_anon_max_per_day', 10);
     if (!checkAnonLimit(ip)) {
-      res.status(429).json({ error: "10 pastes per day for anonymous. that's generous enough." });
+      res.status(429).json({ error: `${maxPastes} pastes per day for anonymous. that's generous enough.` });
       return;
     }
 
@@ -113,15 +113,17 @@ router.post('/public', (req: AuthRequest, res: Response) => {
       return;
     }
 
-    if (Buffer.byteLength(content, 'utf8') > MAX_CONTENT_SIZE) {
-      res.status(400).json({ error: "paste too large. max 500KB. this ain't github." });
+    const maxSizeKb = getSetting('paste_max_size_kb', 500);
+    if (Buffer.byteLength(content, 'utf8') > maxSizeKb * 1024) {
+      res.status(400).json({ error: `paste too large. max ${maxSizeKb}KB. this ain't github.` });
       return;
     }
 
     const id = generateId();
     const pasteTitle = (title?.trim() || 'untitled').slice(0, 100);
     const pasteLang = (language?.trim() || 'plaintext').slice(0, 30);
-    const expiresAt = new Date(Date.now() + 6 * 3600000).toISOString().replace('T', ' ').split('.')[0]!;
+    const anonExpiryHours = getSetting('paste_anon_expiry_hours', 6);
+    const expiresAt = new Date(Date.now() + anonExpiryHours * 3600000).toISOString().replace('T', ' ').split('.')[0]!;
 
     // Validate parent exists if forking
     let parentId: string | null = null;
@@ -245,8 +247,9 @@ router.post('/', authMiddleware as RequestHandler, (req: AuthRequest, res: Respo
       return;
     }
 
-    if (Buffer.byteLength(content, 'utf8') > MAX_CONTENT_SIZE) {
-      res.status(400).json({ error: "paste too large. max 500KB. this ain't github." });
+    const maxSizeKb = getSetting('paste_max_size_kb', 500);
+    if (Buffer.byteLength(content, 'utf8') > maxSizeKb * 1024) {
+      res.status(400).json({ error: `paste too large. max ${maxSizeKb}KB. this ain't github.` });
       return;
     }
 
@@ -340,8 +343,9 @@ router.post('/analyze', optionalAuth, async (req: AuthRequest, res: Response) =>
       return;
     }
 
-    if (Buffer.byteLength(code, 'utf8') > MAX_CONTENT_SIZE) {
-      res.status(400).json({ error: 'code too large. max 500KB. write less code next time.' });
+    const maxSizeKb = getSetting('paste_max_size_kb', 500);
+    if (Buffer.byteLength(code, 'utf8') > maxSizeKb * 1024) {
+      res.status(400).json({ error: `code too large. max ${maxSizeKb}KB. write less code next time.` });
       return;
     }
 

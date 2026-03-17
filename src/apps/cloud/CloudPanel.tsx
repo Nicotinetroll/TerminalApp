@@ -31,6 +31,7 @@ export function CloudPanel(props: CloudProps) {
   const [status, setStatus] = useState<{ text: string; isError: boolean } | null>(null);
   const [newFolderName, setNewFolderName] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ name: string; node: FileSystemNode } | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number; name: string; phase: "reading" | "saving" } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const showStatus = useCallback((text: string, isError = false) => {
@@ -75,13 +76,17 @@ export function CloudPanel(props: CloudProps) {
     const parent = resolvePath(fs, currentPath);
     if (!parent || parent.type !== "directory" || !parent.children) return;
 
+    const fileArr = Array.from(files);
     let count = 0;
-    for (const file of Array.from(files)) {
+    for (let i = 0; i < fileArr.length; i++) {
+      const file = fileArr[i]!;
       const name = file.name;
       if (!isValidFilename(name)) {
         showStatus(`invalid filename: ${name}`, true);
         continue;
       }
+
+      setUploadProgress({ current: i + 1, total: fileArr.length, name, phase: "reading" });
 
       const content = await new Promise<string>((resolve) => {
         const reader = new FileReader();
@@ -94,9 +99,13 @@ export function CloudPanel(props: CloudProps) {
     }
 
     if (count > 0) {
+      setUploadProgress({ current: count, total: count, name: "", phase: "saving" });
       bump();
       const ok = await persist();
+      setUploadProgress(null);
       if (ok) showStatus(count > 1 ? `${count} files uploaded. impressive batch.` : pickQuip());
+    } else {
+      setUploadProgress(null);
     }
 
     // Reset input so same file can be re-uploaded
@@ -244,6 +253,7 @@ export function CloudPanel(props: CloudProps) {
         <button
           className="btn btn-primary"
           onClick={() => fileInputRef.current?.click()}
+          disabled={!!uploadProgress}
         >
           upload
         </button>
@@ -294,6 +304,23 @@ export function CloudPanel(props: CloudProps) {
           </div>
         )}
       </div>
+
+      {/* Upload progress */}
+      {uploadProgress && (
+        <div className="cloud-upload-progress">
+          <div className="cloud-upload-progress-bar">
+            <div
+              className="cloud-upload-progress-fill"
+              style={{ width: `${uploadProgress.phase === "saving" ? 100 : Math.round((uploadProgress.current / uploadProgress.total) * 100)}%` }}
+            />
+          </div>
+          <span className="cloud-upload-progress-text">
+            {uploadProgress.phase === "saving"
+              ? "syncing to cloud..."
+              : `reading ${uploadProgress.current}/${uploadProgress.total}: ${uploadProgress.name}`}
+          </span>
+        </div>
+      )}
 
       {/* File list */}
       <div style={{ flex: 1, overflow: "auto" }} className="terminal-scroll">

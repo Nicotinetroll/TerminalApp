@@ -5,9 +5,12 @@ import { getAllLeaderboards, submitScore, ApiError } from "@/lib/api";
 import { SnakeGame } from "./SnakeGame";
 import { FlappyBird } from "./FlappyBird";
 import { MinesweeperGame } from "./MinesweeperGame";
+import { RacingGame } from "./RacingGame";
+import { InvadersGame } from "./InvadersGame";
+import { BreakoutGame } from "./BreakoutGame";
 import { Leaderboard } from "./Leaderboard";
 
-type GameId = "snake" | "flappy" | "minesweeper";
+type GameId = "snake" | "flappy" | "minesweeper" | "racing" | "invaders" | "breakout";
 type View = "selector" | GameId;
 
 interface GameCard {
@@ -22,6 +25,9 @@ const GAMES: GameCard[] = [
   { id: "snake", name: "SNAKE", key: "1", desc: "eat. grow. die. repeat.", icon: "~" },
   { id: "flappy", name: "FLAPPY", key: "2", desc: "flap or die. mostly die.", icon: ">" },
   { id: "minesweeper", name: "MINESWEEPER", key: "3", desc: "click wrong = die.", icon: "*" },
+  { id: "racing", name: "RACING", key: "4", desc: "jarmok flashbacks. dodge or die.", icon: "▼" },
+  { id: "invaders", name: "ALIEN PURGE", key: "5", desc: "they came in peace. you didn't.", icon: "▽" },
+  { id: "breakout", name: "BREAK SHIT", key: "6", desc: "therapy but with bricks.", icon: "■" },
 ];
 
 interface GameOverState {
@@ -56,6 +62,9 @@ export function GamesPanel({ user }: WindowContentProps) {
       if (e.key === "1") setView("snake");
       else if (e.key === "2") setView("flappy");
       else if (e.key === "3") setView("minesweeper");
+      else if (e.key === "4") setView("racing");
+      else if (e.key === "5") setView("invaders");
+      else if (e.key === "6") setView("breakout");
     };
 
     window.addEventListener("keydown", handler);
@@ -145,6 +154,39 @@ export function GamesPanel({ user }: WindowContentProps) {
       <div className="games-panel">
         <MinesweeperGame
           onGameOver={(score, meta) => handleGameOver("minesweeper", score, meta)}
+          onBack={handleBackToMenu}
+        />
+      </div>
+    );
+  }
+
+  if (view === "racing") {
+    return (
+      <div className="games-panel">
+        <RacingGame
+          onGameOver={(score, meta) => handleGameOver("racing", score, meta)}
+          onBack={handleBackToMenu}
+        />
+      </div>
+    );
+  }
+
+  if (view === "invaders") {
+    return (
+      <div className="games-panel">
+        <InvadersGame
+          onGameOver={(score, meta) => handleGameOver("invaders", score, meta)}
+          onBack={handleBackToMenu}
+        />
+      </div>
+    );
+  }
+
+  if (view === "breakout") {
+    return (
+      <div className="games-panel">
+        <BreakoutGame
+          onGameOver={(score, meta) => handleGameOver("breakout", score, meta)}
           onBack={handleBackToMenu}
         />
       </div>

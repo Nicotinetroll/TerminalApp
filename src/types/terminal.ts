@@ -58,6 +58,17 @@ export interface ThemeColors {
   accent: string;
   accentSoft: string;
   accentMid: string;
+  bgPrimary?: string;
+  bgSurface?: string;
+  bgElevated?: string;
+  textPrimary?: string;
+  textSecondary?: string;
+  textMuted?: string;
+  textGhost?: string;
+  borderSubtle?: string;
+  borderMedium?: string;
+  error?: string;
+  success?: string;
 }
 
 export interface CommandResult {

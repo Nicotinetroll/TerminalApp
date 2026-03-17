@@ -4,7 +4,8 @@ import db from '../db.js';
 import { authMiddleware, AuthRequest } from '../middleware.js';
 import { getPresignedUploadUrl, getPresignedDownloadUrl, getObjectSize, deleteObject } from '../s3.js';
 
-const EXPIRY_HOURS = 12;
+import { getSetting, getTransferMaxSize } from '../constants.js';
+
 const ID_REGEX = /^[a-f0-9]{32}$/;
 
 const router = Router();
@@ -56,23 +57,26 @@ router.post('/', authMiddleware, (req: AuthRequest, res: Response): void => {
     `SELECT COUNT(*) as cnt FROM transfers WHERE user_id = ? AND uploaded_at IS NULL AND expires_at > datetime('now')`
   ).get(userId) as { cnt: number }).cnt;
 
-  if (pending >= 10) {
-    res.status(429).json({ error: 'you already have 10 pending upload links. chill.' });
+  const maxPending = getSetting('transfer_max_pending', 10);
+  if (pending >= maxPending) {
+    res.status(429).json({ error: `you already have ${maxPending} pending upload links. chill.` });
     return;
   }
 
   const id = crypto.randomBytes(16).toString('hex');
-  const expiresAt = new Date(Date.now() + EXPIRY_HOURS * 60 * 60 * 1000).toISOString().replace('T', ' ').slice(0, 19);
+  const expiryHours = getSetting('transfer_expiry_hours', 12);
+  const expiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1000).toISOString().replace('T', ' ').slice(0, 19);
+  const maxSize = getTransferMaxSize(req.user!.role);
 
   db.prepare(
-    'INSERT INTO transfers (id, user_id, expires_at) VALUES (?, ?, ?)'
-  ).run(id, userId, expiresAt);
+    'INSERT INTO transfers (id, user_id, expires_at, max_size) VALUES (?, ?, ?, ?)'
+  ).run(id, userId, expiresAt, maxSize);
 
   const host = req.headers['x-forwarded-host'] ?? req.headers.host ?? 'mynig.ga';
   const proto = req.headers['x-forwarded-proto'] ?? 'https';
   const url = `${proto}://${host}/t/${id}`;
 
-  res.json({ id, url, expires_at: expiresAt });
+  res.json({ id, url, expires_at: expiresAt, max_size: maxSize });
 });
 
 // ─── GET / — list my transfers (auth) ───
@@ -115,7 +119,7 @@ router.get('/:id', (req: AuthRequest, res: Response): void => {
   }
 
   const transfer = db.prepare(`
-    SELECT id, original_names, size, expires_at, uploaded_at, created_at
+    SELECT id, original_names, size, expires_at, uploaded_at, created_at, max_size
     FROM transfers
     WHERE id = ?
   `).get(id) as {
@@ -125,6 +129,7 @@ router.get('/:id', (req: AuthRequest, res: Response): void => {
     expires_at: string;
     uploaded_at: string | null;
     created_at: string;
+    max_size: number;
   } | undefined;
 
   if (!transfer) {
@@ -144,6 +149,7 @@ router.get('/:id', (req: AuthRequest, res: Response): void => {
       created_at: transfer.created_at,
       expired,
       status: transfer.uploaded_at ? 'uploaded' : expired ? 'expired' : 'pending',
+      max_size: transfer.max_size,
     },
   });
 });

@@ -10,25 +10,23 @@ import multer from 'multer';
 import db from '../db.js';
 import { authMiddleware, adminMiddleware, AuthRequest } from '../middleware.js';
 import { emitToUser } from '../socket.js';
+import { getSetting, getDefaultMailSlots } from '../constants.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const router = Router();
 const DOMAIN = 'mynig.ga';
-const SEND_RATE_LIMIT = 20; // per hour per user
 const ADDRESS_REGEX = /^[a-z0-9._-]{2,32}$/;
-const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024; // 5MB per file
 
 function generateMailPassword(): string {
   return randomBytes(6).toString('base64url'); // 8 chars, url-safe
 }
-const MAX_ATTACHMENTS = 5;
 
-// Multer config — memory storage for BLOB
+// Multer config — memory storage for BLOB (uses generous static limits, real check in route)
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: MAX_ATTACHMENT_SIZE, files: MAX_ATTACHMENTS },
+  limits: { fileSize: 25 * 1024 * 1024, files: 20 },
 });
 
 // Threading helper — find or create thread_id
@@ -40,6 +38,20 @@ function getThreadId(inReplyTo: string | null, messageId: string): string {
   }
   // New thread
   return messageId;
+}
+
+// Auto-save contacts on send (fire-and-forget)
+function autoSaveContacts(userId: number, toField: string): void {
+  try {
+    const addresses = toField.split(',').map(a => a.trim().toLowerCase()).filter(Boolean);
+    const stmt = db.prepare('INSERT OR IGNORE INTO contacts (user_id, name, address) VALUES (?, ?, ?)');
+    for (const addr of addresses) {
+      const name = addr.split('@')[0] ?? '';
+      stmt.run(userId, name, addr);
+    }
+  } catch {
+    // fire and forget
+  }
 }
 
 // Reserved addresses nobody can claim
@@ -83,7 +95,8 @@ function checkSendRate(userId: number): boolean {
     sendCounts.set(userId, { count: 1, resetAt: now + 3600_000 });
     return true;
   }
-  if (entry.count >= SEND_RATE_LIMIT) return false;
+  const rateLimit = getSetting('mail_send_rate_limit', 20);
+  if (entry.count >= rateLimit) return false;
   entry.count++;
   return true;
 }
@@ -154,7 +167,8 @@ router.post('/addresses', (req: AuthRequest, res: Response): void => {
   const slotsPurchased = (db.prepare(
     "SELECT COUNT(*) as cnt FROM shop_purchases WHERE user_id = ? AND item_type = 'mail_slot'"
   ).get(userId) as { cnt: number }).cnt;
-  const maxAddresses = 1 + slotsPurchased; // 1 free + purchased
+  const freeSlots = getDefaultMailSlots(req.user!.role);
+  const maxAddresses = freeSlots + slotsPurchased;
 
   if (count >= maxAddresses) {
     res.status(400).json({ error: "you need more mail slots. hit up the shop, broke boy." });
@@ -250,6 +264,8 @@ router.get('/messages', (req: AuthRequest, res: Response): void => {
   const search = (req.query['search'] as string)?.trim() || '';
   const starred = req.query['starred'] === 'true';
 
+  const addressId = req.query['address_id'] ? parseInt(req.query['address_id'] as string, 10) : null;
+
   let query = `
     SELECT e.id, e.folder, e.from_address, e.to_address, e.subject, e.is_read, e.is_starred, e.message_id, e.in_reply_to, e.thread_id, e.created_at,
       (SELECT COUNT(*) FROM email_attachments WHERE email_id = e.id) as attachment_count
@@ -257,6 +273,11 @@ router.get('/messages', (req: AuthRequest, res: Response): void => {
     WHERE e.owner_id = ?
   `;
   const params: (string | number)[] = [userId];
+
+  if (addressId) {
+    query += ' AND e.address_id = ?';
+    params.push(addressId);
+  }
 
   if (starred) {
     query += ' AND is_starred = 1';
@@ -411,13 +432,27 @@ function cloneAttachments(sourceEmailId: number, targetEmailId: number) {
 }
 
 // ── POST /api/mail/send ──
-router.post('/send', upload.array('attachments', MAX_ATTACHMENTS), async (req: AuthRequest, res: Response): Promise<void> => {
+router.post('/send', upload.array('attachments', 20), async (req: AuthRequest, res: Response): Promise<void> => {
   const userId = req.user!.userId;
   const files = (req.files as Express.Multer.File[] | undefined) ?? [];
 
   // Rate limit
+  const rateLimit = getSetting('mail_send_rate_limit', 20);
   if (!checkSendRate(userId)) {
-    res.status(429).json({ error: "slow down, spam king. 20 emails/hour limit." });
+    res.status(429).json({ error: `slow down, spam king. ${rateLimit} emails/hour limit.` });
+    return;
+  }
+
+  // Validate attachment limits
+  const maxAttachments = getSetting('mail_max_attachments', 5);
+  const maxAttachmentSize = getSetting('mail_max_attachment_mb', 5) * 1024 * 1024;
+  if (files.length > maxAttachments) {
+    res.status(400).json({ error: `max ${maxAttachments} attachments per email.` });
+    return;
+  }
+  const oversized = files.find(f => f.size > maxAttachmentSize);
+  if (oversized) {
+    res.status(400).json({ error: `attachment "${oversized.originalname}" exceeds ${getSetting('mail_max_attachment_mb', 5)}MB limit.` });
     return;
   }
 
@@ -495,6 +530,7 @@ router.post('/send', upload.array('attachments', MAX_ATTACHMENTS), async (req: A
 
     if (files.length > 0) cloneAttachments(Number(inboxResult.lastInsertRowid), Number(sentResult.lastInsertRowid));
 
+    autoSaveContacts(userId, to);
     res.json({ ok: true, messageId, easter_egg: "emailing yourself? that's just a diary with extra steps." });
     return;
   }
@@ -537,6 +573,7 @@ router.post('/send', upload.array('attachments', MAX_ATTACHMENTS), async (req: A
 
     if (files.length > 0) cloneAttachments(Number(recipientResult.lastInsertRowid), Number(sentResult.lastInsertRowid));
 
+    autoSaveContacts(userId, to);
     res.json({ ok: true, messageId });
   } else {
     // External delivery
@@ -590,6 +627,7 @@ router.post('/send', upload.array('attachments', MAX_ATTACHMENTS), async (req: A
 
       if (files.length > 0) saveAttachments(Number(sentResult.lastInsertRowid), files);
 
+      autoSaveContacts(userId, to);
       res.json({ ok: true, messageId });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'delivery failed';
@@ -748,6 +786,9 @@ router.put('/drafts/:id', (req: AuthRequest, res: Response): void => {
 // ── GET /api/mail/stats ──
 router.get('/stats', (req: AuthRequest, res: Response): void => {
   const userId = req.user!.userId;
+  const addressId = req.query['address_id'] ? parseInt(req.query['address_id'] as string, 10) : null;
+  const addrFilter = addressId ? ' AND address_id = ?' : '';
+  const addrParam = addressId ? [addressId] : [];
 
   const folders = ['inbox', 'sent', 'trash', 'drafts'] as const;
   const stats: Record<string, { total: number; unread: number }> = {};
@@ -755,15 +796,15 @@ router.get('/stats', (req: AuthRequest, res: Response): void => {
   for (const folder of folders) {
     const row = db.prepare(`
       SELECT COUNT(*) as total, SUM(CASE WHEN is_read = 0 THEN 1 ELSE 0 END) as unread
-      FROM emails WHERE owner_id = ? AND folder = ?
-    `).get(userId, folder) as { total: number; unread: number };
+      FROM emails WHERE owner_id = ? AND folder = ?${addrFilter}
+    `).get(userId, folder, ...addrParam) as { total: number; unread: number };
     stats[folder] = { total: row.total, unread: row.unread ?? 0 };
   }
 
   // Starred count
   const starredRow = db.prepare(`
-    SELECT COUNT(*) as total FROM emails WHERE owner_id = ? AND is_starred = 1
-  `).get(userId) as { total: number };
+    SELECT COUNT(*) as total FROM emails WHERE owner_id = ? AND is_starred = 1${addrFilter}
+  `).get(userId, ...addrParam) as { total: number };
   stats["starred"] = { total: starredRow.total, unread: 0 };
 
   // Custom folder counts
@@ -771,8 +812,8 @@ router.get('/stats', (req: AuthRequest, res: Response): void => {
   for (const cf of customFolders) {
     const cfRow = db.prepare(`
       SELECT COUNT(*) as total, SUM(CASE WHEN is_read = 0 THEN 1 ELSE 0 END) as unread
-      FROM emails WHERE owner_id = ? AND folder = ?
-    `).get(userId, cf.name) as { total: number; unread: number };
+      FROM emails WHERE owner_id = ? AND folder = ?${addrFilter}
+    `).get(userId, cf.name, ...addrParam) as { total: number; unread: number };
     stats[cf.name] = { total: cfRow.total, unread: cfRow.unread ?? 0 };
   }
 

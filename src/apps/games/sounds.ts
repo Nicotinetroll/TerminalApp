@@ -67,4 +67,10 @@ export const sfx = {
     setTimeout(() => tone(1047, 0.18, "square", 0.06), 300);
   },
   reveal: () => tone(900 + Math.random() * 300, 0.02, "sine", 0.02),
+  engine: () => tone(80 + Math.random() * 20, 0.04, "sawtooth", 0.02),
+  swerve: () => tone(300, 0.04, "triangle", 0.04),
+  shoot: () => {
+    tone(1200, 0.04, "square", 0.04);
+    setTimeout(() => tone(800, 0.06, "square", 0.03), 30);
+  },
 };

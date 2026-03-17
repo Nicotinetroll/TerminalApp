@@ -7,6 +7,8 @@ interface Props {
   stats: EmailStats | null;
   addresses: EmailAddress[];
   customFolders: MailFolder[];
+  selectedAddressId: number | null;
+  onAddressSelect: (id: number | null) => void;
   onFolderChange: (folder: string) => void;
   onCompose: () => void;
   onAddressDeleted: (id: number) => void;
@@ -26,7 +28,8 @@ const FOLDERS = [
 ] as const;
 
 export function MailSidebar({
-  folder, stats, addresses, customFolders, onFolderChange, onCompose,
+  folder, stats, addresses, customFolders, selectedAddressId, onAddressSelect,
+  onFolderChange, onCompose,
   onAddressDeleted, onAddressClaimed, onFoldersChanged, onEditSignatures, onSetupGuide, showStatus,
 }: Props) {
   const [showAddForm, setShowAddForm] = useState(false);
@@ -195,12 +198,24 @@ export function MailSidebar({
 
       <div className="mail-sidebar-section">
         <div className="mail-sidebar-section-label">addresses</div>
+        {addresses.length > 1 && (
+          <div
+            className={`mail-address-item mail-address-filter${selectedAddressId === null ? " active" : ""}`}
+            onClick={() => onAddressSelect(null)}
+          >
+            <span className="mail-address-text">all addresses</span>
+          </div>
+        )}
         {addresses.map(addr => (
-          <div key={addr.id} className="mail-address-item">
+          <div
+            key={addr.id}
+            className={`mail-address-item mail-address-filter${selectedAddressId === addr.id ? " active" : ""}`}
+            onClick={() => onAddressSelect(addr.id)}
+          >
             <span className="mail-address-text">{addr.full}</span>
             <button
               className="mail-address-delete"
-              onClick={() => void handleDelete(addr)}
+              onClick={(e) => { e.stopPropagation(); void handleDelete(addr); }}
               title="release address"
             >
               x

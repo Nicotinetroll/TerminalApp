@@ -10,7 +10,7 @@ interface Props {
   onClose: () => void;
 }
 
-const MAX_SIZE = 1024 * 1024 * 1024;
+const DEFAULT_MAX_SIZE = 1024 * 1024 * 1024; // 1 GB fallback
 const MIN_ZIP_MS = 1500;
 
 interface UploadStats {
@@ -217,7 +217,8 @@ export function PublicUpload({ transferId, onClose }: Props) {
   }, []);
 
   const totalSize = files.reduce((s, f) => s + f.size, 0);
-  const overLimit = totalSize > MAX_SIZE;
+  const maxSize = transfer?.max_size ?? DEFAULT_MAX_SIZE;
+  const overLimit = totalSize > maxSize;
 
   const addFiles = useCallback((newFiles: FileList | File[]) => {
     setFiles(prev => {
@@ -495,7 +496,7 @@ export function PublicUpload({ transferId, onClose }: Props) {
           <span className="pu-prompt">$</span> file_transfer
         </h1>
         <p className="pu-subtitle">
-          max 1 GB &middot; expires {new Date(transfer.expires_at + "Z").toLocaleString()}
+          max {formatBytes(maxSize)} &middot; expires {new Date(transfer.expires_at + "Z").toLocaleString()}
         </p>
 
         {/* Hidden file input (outside dropzone to avoid click propagation issues) */}
@@ -540,7 +541,7 @@ export function PublicUpload({ transferId, onClose }: Props) {
             ))}
             <div className="pu-total">
               <span>{files.length} file{files.length !== 1 ? "s" : ""} ready</span>
-              <span className={overLimit ? "pu-overlimit" : ""}>{formatBytes(totalSize)} / 1 GB</span>
+              <span className={overLimit ? "pu-overlimit" : ""}>{formatBytes(totalSize)} / {formatBytes(maxSize)}</span>
             </div>
           </div>
         )}
@@ -593,7 +594,7 @@ export function PublicUpload({ transferId, onClose }: Props) {
         )}
 
         {uploadError && <div className="pu-error">{uploadError}</div>}
-        {overLimit && <div className="pu-error">total exceeds 1 GB. remove some files.</div>}
+        {overLimit && <div className="pu-error">total exceeds {formatBytes(maxSize)}. remove some files.</div>}
 
         {files.length > 0 && phase === "idle" && (
           <button

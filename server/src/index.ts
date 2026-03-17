@@ -53,6 +53,7 @@ const { default: pastesRouter } = await import('./routes/pastes.js');
 const { default: shopRouter } = await import('./routes/shop.js');
 const { default: transfersRouter } = await import('./routes/transfers.js');
 const { default: shortlinksRouter } = await import('./routes/shortlinks.js');
+const { default: paymentsRouter, checkExpiredSubscriptions } = await import('./routes/payments.js');
 const { setupSocket, getOnlineUsers } = await import('./socket.js');
 
 const app = express();
@@ -76,7 +77,7 @@ app.use((_req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '100mb' }));
 
 // HTTP request logging
 app.use((req, res, next) => {
@@ -106,6 +107,7 @@ app.use('/api/pastes', pastesRouter);
 app.use('/api/shop', shopRouter);
 app.use('/api/transfers', transfersRouter);
 app.use('/api/shortlinks', shortlinksRouter);
+app.use('/api/payments', paymentsRouter);
 
 // Health check
 app.get('/api/health', (_req, res) => {
@@ -128,6 +130,11 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (reason) => {
   console.error('[FATAL] unhandled rejection:', reason);
 });
+
+// Subscription expiry cron — check every hour
+setInterval(checkExpiredSubscriptions, 60 * 60 * 1000);
+// Also check on startup
+checkExpiredSubscriptions();
 
 server.listen(PORT, () => {
   console.log(`mynigga-api running on port ${PORT}`);

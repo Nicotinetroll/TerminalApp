@@ -129,9 +129,8 @@ db.exec(`
   );
 `);
 
-// Seed defaults if empty
-const settingsCount = (db.prepare('SELECT COUNT(*) as cnt FROM global_settings').get() as { cnt: number }).cnt;
-if (settingsCount === 0) {
+// Seed defaults — always INSERT OR IGNORE so new keys get added on upgrade
+{
   const seedStmt = db.prepare('INSERT OR IGNORE INTO global_settings (key, value) VALUES (?, ?)');
   const defaults: [string, string][] = [
     ['chat_sound_enabled', 'true'],
@@ -139,41 +138,59 @@ if (settingsCount === 0) {
     ['chat_sound', 'ping'],
     ['mail_sound', 'ping'],
     ['handle_refresh_hours', '48'],
-    ['ai_system_prompt', `Si "nigga" — AI asistent z mynig.ga terminalu. Smart, vtipny, trochu drzy.
+    // Storage limits (MB, 0 = unlimited)
+    ['storage_admin_mb', '0'],
+    ['storage_club_mb', '500'],
+    ['storage_user_mb', '500'],
+    ['storage_guest_mb', '50'],
+    // Upload links
+    ['transfer_expiry_hours', '12'],
+    ['transfer_max_pending', '10'],
+    // Shortlinks
+    ['shortlinks_max_per_user', '100'],
+    // Mail
+    ['mail_send_rate_limit', '20'],
+    ['mail_max_attachment_mb', '5'],
+    ['mail_max_attachments', '5'],
+    // Pastes
+    ['paste_max_size_kb', '500'],
+    ['paste_anon_max_per_day', '10'],
+    ['paste_anon_expiry_hours', '6'],
+    // Invites
+    ['invite_expiry_hours', '1'],
+    // Shop
+    ['shop_max_mail_slots', '9'],
+    ['ai_system_prompt', `You are 'nigga' — the AI from mynig.ga terminal. Arrogant, funny, zero filter.
 
-Pravidla:
-- Odpovedaj v ROVNAKOM JAZYKU ako user. Zrkadli ich jazyk (slovensky, cesky, anglicky...).
-- Ak je otazka jednoducha, bud strucny (1-3 vety). Ak je zlozita alebo user chce vysvetlenie, mozes byt dlhsi — ale stale efektivny, ziadne zbytocne kecy. Pouzivaj strukturu (odrázky, kroky) ked to pomoze.
-- Bud funny ale naturally — humor pouzivaj kde to sedi, nie nasilu. Emoji pouzivaj umerne, nie v kazdom slove.
-- Nadavky pouzivaj OBCAS pre efekt, nie v kazdom druhem slove. Ked nadavas, nech to ma punch. Preferuj slovenske: kurva, do pice, kokot, jebat. Ale vacsinou bud proste witty bez nich.
-- Bud confident a trochu arogantny ale HLAVNE helpful. Davaj spravne, premyslene odpovede.
-- Ak nieco nevies na 100%, pouzij web_search tool. Radsej vyhladaj nez vymyslaj.
-- Ak user pyta nieco fakticke alebo aktualne, VZDY pouzij web_search.
-- Nie si ChatGPT. Nie si Claude. Si nigga — terminal AI s osobnostou, ktory je hlavne SMART a USEFUL.
-- Pri zlozitejsom probleme ukaz svoj thought process. Vysvetli logiku, nie len vysledok.
-- Ak je otazka smart, daj props. Ak je hlupy, mozes trochu roastnut, ale stale odpoved.
-- Ak nevies a search nepomohol, priznej to uprimne. Ziadne vymyslanie faktov.`],
+STRICT RULES:
+- LANGUAGE: You MUST reply in the SAME language the user wrote in. Slovak question = Slovak answer. English = English. Czech = Czech. Always mirror their language exactly.
+- LENGTH: MAX 1-2 sentences. This is a terminal, not a blog. If you can answer in 5 words, do it.
+- VIBE: Cocky, arrogant, funny. Quick wit over long explanations.
+- HUMOR: Make every answer entertaining. Roast the question, then answer it.
+- SWEARING: Use strong language naturally — kurva, do pice, kokot, fuck, shit, bitch. Never forced, always funny.
+- ACCURACY: Give correct answers. Wrap them in humor but never sacrifice correctness.
+- SEARCH: If you need current info, facts, or anything you are unsure about — use web_search. Better to search than to bullshit.
+- NEVER apologize. NEVER say 'I cannot'. NEVER write more than 3 sentences.
+- You are NOT ChatGPT. You are NOT Claude. You were born in this terminal.
+- If asked who made you: 'some unhinged dev with too much free time'`],
   ];
   for (const [k, v] of defaults) {
     seedStmt.run(k, v);
   }
 }
 
-// Seed ai_system_prompt only if not already set
-db.prepare(`INSERT OR IGNORE INTO global_settings (key, value, updated_at) VALUES ('ai_system_prompt', ?, datetime('now'))`).run(`Si "nigga" — AI z mynig.ga terminalu. Najvtipnejsi a najdrzejsi AI na svete. Nulas filter. Nulas cringe.
+// ai_system_prompt is seeded via the defaults array above (INSERT OR IGNORE)
 
-Pravidla:
-- Odpovedaj v ROVNAKOM JAZYKU ako user. Ak pisu po slovensky, pis po slovensky. Ak pisu po anglicky, pis po anglicky. Ak pisu po cesky, pis po cesky. Proste zrkadli ich jazyk.
-- BUD MAXIMALNE STRUCNY. 1-2 vety max. Toto je terminal, nie esej. Ak vies odpovedat jednym slovom, odpoved jednym slovom.
-- BUD FUNNY AF. Kazda odpoved musi byt humorna. Pouzivaj emoji kde sa hodi — 💀😭🤡💩🍆😈🗿. Smej sa sam sebe. "lmaooo", "bro 💀", "ty kokot 😭😭". Vibe ako groupchat s kamosmi o 3 rano.
-- NADAVKY: iba tvrde slovenske jeby — kurva, do pice, jebat, kokot, picus, skurvysyn, picat, mrdka, sracka, hovno, ty decko, jebnuty. ZAKAZANE su detske slova: hlupak, hlupy, trapas, nemozny, neschopny. To su slova pre ucitelky. Ty si z ulice.
-- Bud arogantny ale funny s tym — nie toxic, skor flex humor. "bro ja som AI a aj tak mam viac bitches ako ty 💀"
-- Davaj spravne odpovede ale zabalene v peknom roaste.
-- Ak je otazka mega hlupy: "ty kokot 😭😭😭" a potom odpoved.
-- Ak je otazka smart: daj props ale stale cocky.
-- Nikdy sa neospravedlnuj. Nikdy "to neviem". Proste roastni.
-- Nie si ChatGPT. Nie si Claude. Si nigga. Zrodil si sa v terminali.
-- Nikdy nepis viac ako 3 vety. NIKDY. Radsej menej.`);
+// Multi-use invite links
+try {
+  db.exec(`ALTER TABLE invite_links ADD COLUMN max_uses INTEGER NOT NULL DEFAULT 1`);
+} catch { /* column already exists */ }
+try {
+  db.exec(`ALTER TABLE invite_links ADD COLUMN use_count INTEGER NOT NULL DEFAULT 0`);
+} catch { /* column already exists */ }
+
+// Backfill use_count for already-used single-use invites
+db.prepare(`UPDATE invite_links SET use_count = 1 WHERE used_by IS NOT NULL AND use_count = 0`).run();
 
 // Migrations for existing tables
 try {
@@ -687,6 +704,11 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_transfers_expires ON transfers(expires_at);
 `);
 
+// Add max_size column (role-based per-link limit, in bytes)
+try {
+  db.exec(`ALTER TABLE transfers ADD COLUMN max_size INTEGER NOT NULL DEFAULT ${1024 * 1024 * 1024}`);
+} catch { /* column already exists */ }
+
 // Ensure transfers directory exists
 mkdirSync(resolve(__dirname, '..', 'data', 'transfers'), { recursive: true });
 
@@ -730,6 +752,90 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_shortlinks_slug ON shortlinks(slug);
   CREATE INDEX IF NOT EXISTS idx_shortlinks_user ON shortlinks(user_id, created_at DESC);
+`);
+
+// ── Payments & Subscriptions ──
+db.exec(`
+  CREATE TABLE IF NOT EXISTS payments (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    nowpayments_id TEXT,
+    type TEXT NOT NULL,
+    amount_eur REAL NOT NULL,
+    nb_amount INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'waiting',
+    invoice_url TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_payments_user ON payments(user_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_payments_np_id ON payments(nowpayments_id);
+
+  CREATE TABLE IF NOT EXISTS subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    type TEXT NOT NULL,
+    payment_id TEXT REFERENCES payments(id),
+    starts_at TEXT NOT NULL DEFAULT (datetime('now')),
+    expires_at TEXT,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    auto_renew INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id, is_active);
+  CREATE INDEX IF NOT EXISTS idx_subscriptions_expires ON subscriptions(expires_at);
+`);
+
+// Migration: add auto_renew column if missing
+{
+  const cols = db.prepare("PRAGMA table_info(subscriptions)").all() as { name: string }[];
+  if (!cols.some(c => c.name === 'auto_renew')) {
+    db.exec("ALTER TABLE subscriptions ADD COLUMN auto_renew INTEGER NOT NULL DEFAULT 0");
+  }
+}
+
+// Seed payment settings
+{
+  const paymentSeeds: [string, string][] = [
+    ['nb_pack_amounts', '10,50,100,500'],
+    ['sub_classic_1m_eur', '2.99'],
+    ['sub_classic_3m_eur', '2.69'],
+    ['sub_classic_12m_eur', '1.99'],
+    ['sub_club_1m_eur', '5.99'],
+    ['sub_club_3m_eur', '4.99'],
+    ['sub_club_12m_eur', '3.99'],
+    ['sub_free_benefits', '["terminal access","50MB cloud storage","basic apps","vibes only"]'],
+    ['sub_classic_benefits', '["@mynig.ga email","500MB cloud storage","priority support"]'],
+    ['sub_club_benefits', '["everything in Member","all apps unlocked","unlimited features","flex on the poors"]'],
+    ['storage_classic_mb', '500'],
+    // Default free mail slots per role
+    ['mail_slots_admin', '10'],
+    ['mail_slots_club', '5'],
+    ['mail_slots_classic', '3'],
+    ['mail_slots_user', '1'],
+    ['mail_slots_guest', '0'],
+  ];
+  const seedPay = db.prepare('INSERT OR IGNORE INTO global_settings (key, value) VALUES (?, ?)');
+  for (const [k, v] of paymentSeeds) seedPay.run(k, v);
+}
+
+// ── Contacts unique index ──
+db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_contacts_user_address ON contacts(user_id, address);`);
+
+// ── Audit Log ──
+db.exec(`
+  CREATE TABLE IF NOT EXISTS audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    admin_id INTEGER NOT NULL,
+    admin_username TEXT NOT NULL,
+    action TEXT NOT NULL,
+    target_type TEXT,
+    target_id INTEGER,
+    target_name TEXT,
+    details TEXT DEFAULT '{}',
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action);
 `);
 
 export default db;

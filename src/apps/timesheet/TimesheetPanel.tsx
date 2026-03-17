@@ -5,6 +5,7 @@ import type { WindowContentProps } from "@/types/terminal";
 
 interface Project { id: string; name: string; allocation: number }
 interface Entry { date: Date; project: string; hours: number }
+interface Profile { name: string; projects: { name: string; allocation: number }[] }
 interface Cfg {
   prefix: string;
   rate: number;
@@ -12,6 +13,8 @@ interface Cfg {
   randomness: number;
   projects: { name: string; allocation: number }[];
   setupDone: boolean;
+  months: Record<string, { name: string; allocation: number }[]>;
+  profiles: Profile[];
 }
 
 // ── Constants ──
@@ -29,6 +32,8 @@ const DEF: Cfg = {
   randomness: 0,
   projects: [{ name: "Project Alpha", allocation: 0.7 }, { name: "Project Beta", allocation: 0.3 }],
   setupDone: false,
+  months: {},
+  profiles: [],
 };
 
 // ── Helpers ──
@@ -40,7 +45,7 @@ function loadCfg(): Cfg {
     const r = localStorage.getItem(LS);
     if (r) {
       const p = JSON.parse(r) as Cfg;
-      if (p.rate > 0 && p.projects?.length) return { ...DEF, ...p };
+      if (p.rate > 0 && p.projects?.length) return { ...DEF, months: {}, profiles: [], ...p };
     }
   } catch { /* */ }
   return { ...DEF, projects: DEF.projects.map(p => ({ ...p })) };
@@ -159,6 +164,10 @@ function genEntries(dh: number[], days: Date[], ps: Project[], tgt: Map<string, 
   return out;
 }
 
+function mkMonthKey(y: number, m: number): string {
+  return `${y}-${String(m + 1).padStart(2, "0")}`;
+}
+
 // ── Component ──
 
 type View = "setup" | "main" | "settings";
@@ -181,11 +190,83 @@ export function TimesheetPanel({ user: _u, windowId, windowManager, closeWindow:
   const [year, setYear] = useState(now.getFullYear());
   const [rnd, setRnd] = useState(cfg.randomness);
   const [seed, setSeed] = useState(0);
+  const [monthEditorOpen, setMonthEditorOpen] = useState(false);
+  const [meProjs, setMeProjs] = useState<Project[]>([]);
+  const [profileName, setProfileName] = useState("");
+  const [showProfileDrop, setShowProfileDrop] = useState(false);
+
+  // ── Month key + active projects ──
+  const monthKey = mkMonthKey(year, month);
+  const monthOverride = cfg.months[monthKey];
+  const isCustomMonth = !!monthOverride;
 
   // ── Edit helpers ──
   const eASum = useMemo(() => eProjs.reduce((s, p) => s + p.allocation, 0), [eProjs]);
   const eAOk = eProjs.length > 0 && Math.abs(eASum - 1) < 0.001;
   const eTotalH = eRate > 0 ? Math.round(eSalary / eRate) : 0;
+
+  // ── Month editor helpers ──
+  const meASum = useMemo(() => meProjs.reduce((s, p) => s + p.allocation, 0), [meProjs]);
+  const meAOk = meProjs.length > 0 && Math.abs(meASum - 1) < 0.001;
+
+  const openMonthEditor = useCallback(() => {
+    const src = monthOverride ?? cfg.projects;
+    setMeProjs(src.map(p => ({ ...p, id: uid() })));
+    setMonthEditorOpen(true);
+    setShowProfileDrop(false);
+    setProfileName("");
+  }, [monthOverride, cfg.projects]);
+
+  const closeMonthEditor = useCallback(() => {
+    setMonthEditorOpen(false);
+    setShowProfileDrop(false);
+  }, []);
+
+  const meAddProj = useCallback(() => setMeProjs(p => [...p, { id: uid(), name: "New Project", allocation: 0 }]), []);
+  const meDelProj = useCallback((id: string) => setMeProjs(p => p.filter(x => x.id !== id)), []);
+  const meUpdProj = useCallback((id: string, f: "name" | "allocation", v: string | number) => {
+    setMeProjs(prev => prev.map(p => {
+      if (p.id !== id) return p;
+      if (f === "allocation") {
+        const val = Math.round((v as number) / 0.05) * 0.05;
+        const rest = prev.filter(x => x.id !== id).reduce((s, x) => s + x.allocation, 0);
+        return { ...p, allocation: Math.min(val, Math.max(0, 1 - rest)) };
+      }
+      return { ...p, [f]: v };
+    }));
+  }, []);
+
+  const meSave = useCallback(() => {
+    const projs = meProjs.map(p => ({ name: p.name, allocation: p.allocation }));
+    const next = { ...cfg, months: { ...cfg.months, [monthKey]: projs } };
+    saveCfg(next);
+    setCfg(next);
+    closeMonthEditor();
+  }, [cfg, monthKey, meProjs, closeMonthEditor]);
+
+  const meUseDefaults = useCallback(() => {
+    const months = { ...cfg.months };
+    delete months[monthKey];
+    const next = { ...cfg, months };
+    saveCfg(next);
+    setCfg(next);
+    closeMonthEditor();
+  }, [cfg, monthKey, closeMonthEditor]);
+
+  const meSaveAsProfile = useCallback(() => {
+    const name = profileName.trim();
+    if (!name) return;
+    const projs = meProjs.map(p => ({ name: p.name, allocation: p.allocation }));
+    const next = { ...cfg, profiles: [...cfg.profiles.filter(p => p.name !== name), { name, projects: projs }] };
+    saveCfg(next);
+    setCfg(next);
+    setProfileName("");
+  }, [cfg, meProjs, profileName]);
+
+  const meLoadProfile = useCallback((prof: Profile) => {
+    setMeProjs(prof.projects.map(p => ({ ...p, id: uid() })));
+    setShowProfileDrop(false);
+  }, []);
 
   const resetEdit = useCallback((c: Cfg) => {
     setEPrefix(c.prefix);
@@ -203,16 +284,19 @@ export function TimesheetPanel({ user: _u, windowId, windowManager, closeWindow:
       randomness: eRnd,
       projects: eProjs.map(p => ({ name: p.name, allocation: p.allocation })),
       setupDone: true,
+      months: cfg.months,
+      profiles: cfg.profiles,
     };
     saveCfg(c);
     setCfg(c);
     setRnd(c.randomness);
     setView("main");
-  }, [ePrefix, eRate, eSalary, eRnd, eProjs]);
+  }, [ePrefix, eRate, eSalary, eRnd, eProjs, cfg.months, cfg.profiles]);
 
   const openSettings = useCallback(() => {
     resetEdit(cfg);
     setView("settings");
+    setMonthEditorOpen(false);
   }, [cfg, resetEdit]);
 
   const doReset = useCallback(() => { resetEdit(DEF); }, [resetEdit]);
@@ -231,8 +315,32 @@ export function TimesheetPanel({ user: _u, windowId, windowManager, closeWindow:
     }));
   }, []);
 
+  // ── Profile management (settings) ──
+  const [spName, setSpName] = useState("");
+
+  const saveCurrentAsProfile = useCallback(() => {
+    const name = spName.trim();
+    if (!name) return;
+    const projs = eProjs.map(p => ({ name: p.name, allocation: p.allocation }));
+    const next = { ...cfg, profiles: [...cfg.profiles.filter(p => p.name !== name), { name, projects: projs }] };
+    saveCfg(next);
+    setCfg(next);
+    setSpName("");
+  }, [cfg, eProjs, spName]);
+
+  const deleteProfile = useCallback((name: string) => {
+    const next = { ...cfg, profiles: cfg.profiles.filter(p => p.name !== name) };
+    saveCfg(next);
+    setCfg(next);
+  }, [cfg]);
+
+  const loadProfileToDefaults = useCallback((prof: Profile) => {
+    setEProjs(prof.projects.map(p => ({ ...p, id: uid() })));
+  }, []);
+
   // ── Main computation ──
-  const mainProjs = useMemo<Project[]>(() => cfg.projects.map((p, i) => ({ ...p, id: `p${i}` })), [cfg.projects]);
+  const activeProjectsSrc = monthOverride ?? cfg.projects;
+  const mainProjs = useMemo<Project[]>(() => activeProjectsSrc.map((p, i) => ({ ...p, id: `p${i}` })), [activeProjectsSrc]);
   const days = useMemo(() => getWorkDays(year, month), [year, month]);
   const hols = useMemo(() => getHolCount(year, month), [year, month]);
   const fond = days.length * 8;
@@ -277,6 +385,9 @@ export function TimesheetPanel({ user: _u, windowId, windowManager, closeWindow:
     }
   }, [windowManager, windowId, view, month, year]);
 
+  // ── Close month editor on month change ──
+  useEffect(() => { setMonthEditorOpen(false); }, [month, year]);
+
   // ── Export ──
   const dlCSV = useCallback(() => {
     if (!entries.length) return;
@@ -287,21 +398,21 @@ export function TimesheetPanel({ user: _u, windowId, windowManager, closeWindow:
     a.click();
   }, [entries, actTotal, fileBase]);
 
-  const dlPDF = useCallback(async () => {
-    if (!entries.length) return;
+  const makePdf = useCallback(async (pEntries: Entry[], pActTotal: number, pProjAct: Map<string, number>, pFileBase: string) => {
+    if (!pEntries.length) return;
     const { jsPDF } = await import("jspdf");
     const doc = new jsPDF();
     doc.setFontSize(16); doc.setFont("helvetica", "bold");
-    doc.text(fileBase, 20, 20);
+    doc.text(pFileBase, 20, 20);
     doc.setFontSize(9); doc.setFont("helvetica", "normal");
-    doc.text(`Working days: ${days.length} | Total: ${actTotal}h | Fond: ${fond}h`, 20, 28);
+    doc.text(`Working days: ${days.length} | Total: ${pActTotal}h | Fond: ${fond}h`, 20, 28);
     let y = 38;
     doc.setFontSize(10); doc.setFont("helvetica", "bold");
     doc.text("Date", 20, y); doc.text("Project", 65, y); doc.text("Hours", 165, y);
     doc.setLineWidth(0.3); doc.line(20, y + 2, 190, y + 2); y += 8;
     doc.setFont("helvetica", "normal"); doc.setFontSize(9);
     let prev = "";
-    for (const e of entries) {
+    for (const e of pEntries) {
       if (y > 275) { doc.addPage(); y = 20; }
       const ds = fmtD(e.date);
       doc.text(ds === prev ? "" : ds, 20, y);
@@ -311,11 +422,29 @@ export function TimesheetPanel({ user: _u, windowId, windowManager, closeWindow:
     }
     y += 4; doc.line(20, y - 2, 190, y - 2);
     doc.setFont("helvetica", "bold"); doc.setFontSize(11);
-    doc.text(`Total: ${actTotal}h`, 20, y + 4);
+    doc.text(`Total: ${pActTotal}h`, 20, y + 4);
     doc.setFontSize(9); doc.setFont("helvetica", "normal");
-    doc.text(Array.from(projAct.entries()).map(([n, h]) => `${n}: ${h}h`).join("  "), 20, y + 12);
-    doc.save(`${fileBase}.pdf`);
-  }, [entries, actTotal, days.length, fond, fileBase, projAct]);
+    doc.text(Array.from(pProjAct.entries()).map(([n, h]) => `${n}: ${h}h`).join("  "), 20, y + 12);
+    doc.save(`${pFileBase}.pdf`);
+  }, [days.length, fond]);
+
+  const dlPDF = useCallback(async () => {
+    await makePdf(entries, actTotal, projAct, fileBase);
+  }, [entries, actTotal, fileBase, projAct, makePdf]);
+
+  const dlSplitPDF = useCallback(async () => {
+    if (!entries.length) return;
+    const projectNames = [...new Set(entries.map(e => e.project))];
+    for (const pName of projectNames) {
+      const pEntries = entries.filter(e => e.project === pName);
+      const pTotal = pEntries.reduce((s, e) => s + e.hours, 0);
+      const pAct = new Map<string, number>([[pName, pTotal]]);
+      const pBase = cfg.prefix
+        ? `${cfg.prefix} Timesheet ${pName} ${MO_FILE[month] ?? ""} ${year}`
+        : `Timesheet ${pName} ${MO_FILE[month] ?? ""} ${year}`;
+      await makePdf(pEntries, pTotal, pAct, pBase);
+    }
+  }, [entries, cfg.prefix, month, year, makePdf]);
 
   // ── Shared: project editor ──
   const projectsEditor = (
@@ -385,9 +514,9 @@ export function TimesheetPanel({ user: _u, windowId, windowManager, closeWindow:
             </div>
           ) : (
             <div className="ts-wiz-body">
-              <div className="ts-wiz-title">&gt; projects</div>
+              <div className="ts-wiz-title">&gt; default projects</div>
               <p className="ts-wiz-desc">
-                set up your projects and how time gets split. must total 100%.
+                these are your defaults — you can customize per month later from the main view.
               </p>
               {projectsEditor}
               <div className={`ts-wiz-alloc ${eAOk ? "ok" : "warn"}`}>
@@ -458,9 +587,10 @@ export function TimesheetPanel({ user: _u, windowId, windowManager, closeWindow:
 
             <div className="ts-section">
               <div className="ts-section-hdr-flex">
-                <span>&gt; projects</span>
+                <span>&gt; default projects</span>
                 <span className={`ts-badge ${eAOk ? "ok" : "warn"}`}>{Math.round(eASum * 100)}%</span>
               </div>
+              <div className="ts-hint" style={{ marginBottom: 6, marginTop: -2 }}>fallback for months without a custom config</div>
               {projectsEditor}
             </div>
 
@@ -472,6 +602,64 @@ export function TimesheetPanel({ user: _u, windowId, windowManager, closeWindow:
                 <span className="ts-slider-val">{eRnd}%</span>
               </div>
               <div className="ts-hint">randomizes daily hours distribution</div>
+            </div>
+
+            <div className="ts-section">
+              <div className="ts-section-hdr">&gt; profiles</div>
+              {cfg.profiles.length === 0 ? (
+                <div className="ts-hint">no saved profiles yet — save one from the month editor</div>
+              ) : (
+                <div className="ts-profiles-list">
+                  {cfg.profiles.map(prof => (
+                    <div key={prof.name} className="ts-profile-item">
+                      <div className="ts-profile-info">
+                        <span className="ts-profile-name">{prof.name}</span>
+                        <span className="ts-profile-summary">
+                          {prof.projects.map(p => `${p.name} ${Math.round(p.allocation * 100)}%`).join(", ")}
+                        </span>
+                      </div>
+                      <div className="ts-profile-actions">
+                        <button className="ts-btn-sm" onClick={() => loadProfileToDefaults(prof)} title="load as defaults">↓</button>
+                        <button className="ts-btn-sm ts-btn-del" onClick={() => deleteProfile(prof.name)} title="delete">x</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="ts-profile-save-row">
+                <input className="ts-input" type="text" value={spName}
+                  onChange={e => setSpName(e.target.value)}
+                  placeholder="profile name" maxLength={30} />
+                <button className="ts-btn-sm" onClick={saveCurrentAsProfile}
+                  disabled={!spName.trim() || !eAOk} title="save current defaults as profile">+</button>
+              </div>
+            </div>
+
+            <div className="ts-section">
+              <div className="ts-section-hdr">&gt; month overrides</div>
+              {Object.keys(cfg.months).length === 0 ? (
+                <div className="ts-hint">no per-month configs yet</div>
+              ) : (
+                <div className="ts-profiles-list">
+                  {Object.entries(cfg.months).sort(([a], [b]) => a.localeCompare(b)).map(([key, projs]) => (
+                    <div key={key} className="ts-profile-item">
+                      <div className="ts-profile-info">
+                        <span className="ts-profile-name">{key}</span>
+                        <span className="ts-profile-summary">
+                          {projs.map(p => `${p.name} ${Math.round(p.allocation * 100)}%`).join(", ")}
+                        </span>
+                      </div>
+                      <button className="ts-btn-sm ts-btn-del" onClick={() => {
+                        const months = { ...cfg.months };
+                        delete months[key];
+                        const next = { ...cfg, months };
+                        saveCfg(next);
+                        setCfg(next);
+                      }} title="remove override">x</button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <button className="ts-btn ts-btn-accent" onClick={doSave} disabled={!eAOk}>save</button>
@@ -499,8 +687,13 @@ export function TimesheetPanel({ user: _u, windowId, windowManager, closeWindow:
           {hols > 0 && <><span className="ts-sep">·</span><span>{hols} hol</span></>}
           <span className="ts-sep">·</span>
           <span className="ts-toolbar-hl">{totalH}h</span>
+          <span className="ts-sep">·</span>
+          <span className={`ts-month-badge ${isCustomMonth ? "custom" : "defaults"}`}>
+            {isCustomMonth ? "custom" : "defaults"}
+          </span>
         </div>
         <div className="ts-toolbar-right">
+          <button className="ts-btn-sm" onClick={openMonthEditor} title="edit month projects">✎</button>
           <input type="range" className="ts-slider ts-toolbar-slider" min="0" max="100" step="5" value={rnd}
             onChange={e => setRnd(Number(e.target.value))} title={`variance: ${rnd}%`} />
           <span className="ts-toolbar-vv">{rnd}%</span>
@@ -508,6 +701,69 @@ export function TimesheetPanel({ user: _u, windowId, windowManager, closeWindow:
           <button className="ts-btn-sm" onClick={openSettings} title="settings">⚙</button>
         </div>
       </div>
+
+      {/* ── Month Project Editor (inline) ── */}
+      {monthEditorOpen && (
+        <div className="ts-month-editor">
+          <div className="ts-me-header">
+            <span className="ts-me-title">&gt; projects for {MO[month]} {year}</span>
+            <span className={`ts-badge ${meAOk ? "ok" : "warn"}`}>{Math.round(meASum * 100)}%</span>
+            <div style={{ flex: 1 }} />
+            <button className="ts-btn-sm" onClick={closeMonthEditor} title="close">×</button>
+          </div>
+          <div className="ts-me-body">
+            {meProjs.map(p => (
+              <div key={p.id} className="ts-project">
+                <div className="ts-project-top">
+                  <input className="ts-input ts-project-name" type="text" value={p.name}
+                    onChange={e => meUpdProj(p.id, "name", e.target.value)} />
+                  <button className="ts-btn-sm ts-btn-del" onClick={() => meDelProj(p.id)}>x</button>
+                </div>
+                <div className="ts-slider-wrap">
+                  <input type="range" className="ts-slider" min="0" max="1" step="0.05" value={p.allocation}
+                    onChange={e => meUpdProj(p.id, "allocation", Number(e.target.value))} />
+                  <span className="ts-slider-val">{Math.round(p.allocation * 100)}%</span>
+                </div>
+              </div>
+            ))}
+            <button className="ts-btn" onClick={meAddProj} disabled={meASum >= 1}>+ add project</button>
+          </div>
+          <div className="ts-me-footer">
+            <button className="ts-btn ts-btn-accent" onClick={meSave} disabled={!meAOk}>save for {MO[month]}</button>
+            {isCustomMonth && (
+              <button className="ts-btn" onClick={meUseDefaults}>use defaults</button>
+            )}
+            <div className="ts-me-profile-row">
+              <div className="ts-me-profile-save">
+                <input className="ts-input" type="text" value={profileName}
+                  onChange={e => setProfileName(e.target.value)}
+                  placeholder="save as profile..." maxLength={30} />
+                <button className="ts-btn-sm" onClick={meSaveAsProfile}
+                  disabled={!profileName.trim() || !meAOk} title="save as profile">+</button>
+              </div>
+              {cfg.profiles.length > 0 && (
+                <div className="ts-me-profile-load">
+                  <button className="ts-btn" onClick={() => setShowProfileDrop(v => !v)}>
+                    load profile {showProfileDrop ? "▴" : "▾"}
+                  </button>
+                  {showProfileDrop && (
+                    <div className="ts-me-profile-drop">
+                      {cfg.profiles.map(prof => (
+                        <button key={prof.name} className="ts-me-profile-opt" onClick={() => meLoadProfile(prof)}>
+                          <span>{prof.name}</span>
+                          <span className="ts-profile-summary">
+                            {prof.projects.map(p => `${p.name} ${Math.round(p.allocation * 100)}%`).join(", ")}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {over && <div className="ts-alert error">[!] {totalH}h exceeds {days.length}d × 9h</div>}
       {otDays > 0 && <div className="ts-alert error">[!] {otDays} day{otDays > 1 ? "s" : ""} over 9h</div>}
@@ -546,6 +802,9 @@ export function TimesheetPanel({ user: _u, windowId, windowManager, closeWindow:
 
       <div className="ts-export">
         <button className="ts-btn ts-btn-accent" onClick={() => void dlPDF()} disabled={!ok}>PDF</button>
+        {mainProjs.length > 1 && (
+          <button className="ts-btn" onClick={() => void dlSplitPDF()} disabled={!ok} title="one PDF per project">split PDF</button>
+        )}
         <button className="ts-btn" onClick={dlCSV} disabled={!ok}>CSV</button>
         <span className="ts-export-name" title={fileBase}>{fileBase}</span>
       </div>

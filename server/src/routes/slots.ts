@@ -4,7 +4,7 @@ import db from '../db.js';
 import { authMiddleware, adminMiddleware } from '../middleware.js';
 import type { AuthRequest } from '../middleware.js';
 import { broadcastEvent } from '../socket.js';
-import { STORAGE_LIMITS, getEffectiveLimit } from '../constants.js';
+import { getEffectiveLimit } from '../constants.js';
 
 const router = Router();
 
@@ -458,7 +458,7 @@ router.get('/balance', (req: AuthRequest, res: Response): void => {
   ).get(userId) as { bonus_bytes: number; total_won: number; total_lost: number; spins: number; free_spins: number; bytebucks: number; bonus_state: string | null } | undefined;
 
   const bonusBytes = balance?.bonus_bytes ?? 0;
-  const baseLimit = STORAGE_LIMITS[role] ?? STORAGE_LIMITS['guest']!;
+  const baseLimit = getEffectiveLimit(role, 0);
   const effectiveLimit = getEffectiveLimit(role, bonusBytes);
 
   const fsRow = db.prepare('SELECT filesystem FROM user_filesystems WHERE user_id = ?').get(userId) as
@@ -545,7 +545,7 @@ router.post('/spin', (req: AuthRequest, res: Response): void => {
   const bonusBytes = balance?.bonus_bytes ?? 0;
   const freeSpins = balance?.free_spins ?? 0;
   const currentNB = balance?.bytebucks ?? 0;
-  const baseLimit = STORAGE_LIMITS[role] ?? STORAGE_LIMITS['guest']!;
+  const baseLimit = getEffectiveLimit(role, 0);
   const isFreeSpin = freeSpins > 0;
 
   // Parse active bonus state

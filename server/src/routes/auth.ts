@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import db from '../db.js';
 import { authMiddleware, AuthRequest } from '../middleware.js';
+import { getSetting } from '../constants.js';
 
 const router = Router();
 
@@ -103,6 +104,19 @@ router.get('/session', authMiddleware, (req: AuthRequest, res: Response): void =
     result.permissions = req.user!.permissions ?? [];
   }
 
+  // Auto-refresh token if role changed in DB (e.g. subscription upgrade/downgrade)
+  if (row.role !== req.user!.role) {
+    const secret = process.env.JWT_SECRET;
+    if (secret) {
+      const newToken = jwt.sign(
+        { userId: row.id, username: row.username, role: row.role },
+        secret,
+        { expiresIn: '7d' }
+      );
+      result.token = newToken;
+    }
+  }
+
   res.json({ user: result });
 });
 
@@ -133,16 +147,16 @@ router.post('/register', (req: AuthRequest, res: Response): void => {
 
   // Validate invite token
   const invite = db.prepare(
-    "SELECT id, role, expires_at, used_by FROM invite_links WHERE id = ?"
-  ).get(token) as { id: string; role: string; expires_at: string; used_by: number | null } | undefined;
+    "SELECT id, role, expires_at, used_by, max_uses, use_count FROM invite_links WHERE id = ?"
+  ).get(token) as { id: string; role: string; expires_at: string; used_by: number | null; max_uses: number; use_count: number } | undefined;
 
   if (!invite) {
     res.status(404).json({ error: 'invalid invite link. nice try tho.' });
     return;
   }
 
-  if (invite.used_by !== null) {
-    res.status(410).json({ error: 'this invite already got claimed. you snooze you lose.' });
+  if (invite.use_count >= invite.max_uses) {
+    res.status(410).json({ error: 'this invite is all used up. no more slots.' });
     return;
   }
 
@@ -165,7 +179,7 @@ router.post('/register', (req: AuthRequest, res: Response): void => {
       "INSERT INTO user_settings (user_id, theme_name, command_history) VALUES (?, 'claude', '[]')"
     );
     const markUsed = db.prepare(
-      "UPDATE invite_links SET used_by = ?, used_at = datetime('now') WHERE id = ?"
+      "UPDATE invite_links SET used_by = ?, used_at = datetime('now'), use_count = use_count + 1 WHERE id = ?"
     );
 
     const registerUser = db.transaction(() => {
@@ -250,20 +264,26 @@ router.post('/invite', authMiddleware, (req: AuthRequest, res: Response): void =
     return;
   }
 
-  const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString().replace('T', ' ').replace('Z', '').split('.')[0]!;
+  const { max_uses: rawMax } = req.body as { max_uses?: number };
+  const maxUses = Math.min(Math.max(1, Math.floor(Number(rawMax) || 1)), 100);
+
+  const inviteExpiryHours = getSetting('invite_expiry_hours', 1);
+  const expiresAt = new Date(Date.now() + inviteExpiryHours * 60 * 60 * 1000).toISOString().replace('T', ' ').replace('Z', '').split('.')[0]!;
 
   for (let attempt = 0; attempt < 5; attempt++) {
     const code = `${req.user!.username}-inv-${String(crypto.randomInt(100000, 999999))}`;
     try {
       db.prepare(
-        'INSERT INTO invite_links (id, created_by, role, expires_at) VALUES (?, ?, ?, ?)'
-      ).run(code, req.user!.userId, 'user', expiresAt);
+        'INSERT INTO invite_links (id, created_by, role, expires_at, max_uses) VALUES (?, ?, ?, ?, ?)'
+      ).run(code, req.user!.userId, 'user', expiresAt, maxUses);
 
       res.status(201).json({
         invite: {
           id: code,
           role: 'user',
           expires_at: expiresAt,
+          max_uses: maxUses,
+          use_count: 0,
           url: `https://mynig.ga/?invite=${code}`,
         },
       });

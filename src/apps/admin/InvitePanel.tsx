@@ -8,6 +8,7 @@ export function InvitePanel() {
   const [creating, setCreating] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [status, setStatus] = useState<{ text: string; isError: boolean } | null>(null);
+  const [maxUses, setMaxUses] = useState(1);
 
   const showStatus = useCallback((text: string, isError = false) => {
     setStatus({ text, isError });
@@ -34,9 +35,9 @@ export function InvitePanel() {
   const handleCreate = useCallback(async (role: string) => {
     setCreating(true);
     try {
-      const invite = await createInvite(role);
+      const invite = await createInvite(role, maxUses);
       await navigator.clipboard.writeText(invite.url);
-      showStatus("link created & copied to clipboard");
+      showStatus(`link created (${maxUses} uses) & copied to clipboard`);
       setCopiedId(invite.id);
       setTimeout(() => setCopiedId(null), 2000);
       await loadInvites();
@@ -46,7 +47,7 @@ export function InvitePanel() {
     } finally {
       setCreating(false);
     }
-  }, [loadInvites, showStatus]);
+  }, [loadInvites, showStatus, maxUses]);
 
   const handleCopy = useCallback(async (id: string) => {
     const url = `https://mynig.ga/?invite=${id}`;
@@ -66,11 +67,11 @@ export function InvitePanel() {
     }
   }, [loadInvites, showStatus]);
 
-  const getInviteStatus = (invite: InviteLink): "active" | "used" | "expired" => {
-    if (invite.used_by_username) return "used";
+  const getInviteStatus = (invite: InviteLink): "active" | "full" | "expired" => {
     const now = new Date();
     const expires = new Date(invite.expires_at + "Z");
     if (now > expires) return "expired";
+    if (invite.use_count >= invite.max_uses) return "full";
     return "active";
   };
 
@@ -90,20 +91,39 @@ export function InvitePanel() {
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "12px" }}>
-      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+      <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+          <label style={{ fontSize: "12px", color: "var(--text-muted)" }}>uses:</label>
+          <input
+            type="number"
+            className="admin-input"
+            min={1}
+            max={1000}
+            value={maxUses}
+            onChange={(e) => setMaxUses(Math.max(1, parseInt(e.target.value) || 1))}
+            style={{ width: "56px", textAlign: "center", fontSize: "12px", padding: "3px 4px" }}
+          />
+        </div>
         <button
           className="btn btn-primary"
           disabled={creating}
           onClick={() => void handleCreate("user")}
         >
-          {creating ? "generating..." : "+ invite (member)"}
+          {creating ? "generating..." : "+ invite (user)"}
+        </button>
+        <button
+          className="btn"
+          disabled={creating}
+          onClick={() => void handleCreate("classic")}
+        >
+          + invite (member)
         </button>
         <button
           className="btn"
           disabled={creating}
           onClick={() => void handleCreate("club")}
         >
-          + invite (club)
+          + invite (club member)
         </button>
         <button
           className="btn"
@@ -128,10 +148,10 @@ export function InvitePanel() {
               <tr>
                 <th>token</th>
                 <th>role</th>
+                <th>uses</th>
                 <th>status</th>
                 <th>created</th>
                 <th>expires</th>
-                <th>used by</th>
                 <th style={{ textAlign: "right" }}>actions</th>
               </tr>
             </thead>
@@ -145,7 +165,16 @@ export function InvitePanel() {
                     </td>
                     <td>
                       <span className={`role-badge role-${inv.role}`}>
-                        {inv.role === "club" ? "club member" : inv.role === "user" ? "member" : inv.role}
+                        {inv.role === "club" ? "club member" : inv.role === "classic" ? "member" : inv.role}
+                      </span>
+                    </td>
+                    <td style={{ fontFamily: "monospace", fontSize: "12px" }}>
+                      <span style={{ color: inv.use_count > 0 ? "var(--accent)" : "var(--text-muted)" }}>
+                        {inv.use_count}
+                      </span>
+                      <span style={{ color: "var(--text-ghost)" }}>/</span>
+                      <span style={{ color: "var(--text-muted)" }}>
+                        {inv.max_uses}
                       </span>
                     </td>
                     <td>
@@ -156,12 +185,12 @@ export function InvitePanel() {
                         fontWeight: 500,
                         background: s === "active"
                           ? "rgba(74, 222, 128, 0.1)"
-                          : s === "used"
+                          : s === "full"
                             ? "rgba(255, 255, 255, 0.05)"
                             : "rgba(248, 113, 113, 0.1)",
                         color: s === "active"
                           ? "#4ade80"
-                          : s === "used"
+                          : s === "full"
                             ? "var(--text-muted)"
                             : "#f87171",
                       }}>
@@ -170,9 +199,6 @@ export function InvitePanel() {
                     </td>
                     <td>{formatDate(inv.created_at)}</td>
                     <td>{formatDate(inv.expires_at)}</td>
-                    <td style={{ color: inv.used_by_username ? "var(--text-primary)" : "var(--text-muted)" }}>
-                      {inv.used_by_username ?? "—"}
-                    </td>
                     <td style={{ textAlign: "right" }}>
                       {s === "active" && (
                         <span style={{ display: "inline-flex", gap: "6px" }}>

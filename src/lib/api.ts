@@ -49,7 +49,7 @@ export class ApiError extends Error {
 export interface AuthUser {
   id: number;
   username: string;
-  role: "admin" | "club" | "user" | "guest" | "code";
+  role: "admin" | "club" | "classic" | "user" | "guest" | "code";
   created_at?: string;
   permissions?: string[];
 }
@@ -77,7 +77,11 @@ export async function getSession(): Promise<AuthUser | null> {
   const token = getToken();
   if (!token) return null;
   try {
-    const data = await request<{ user: AuthUser }>("/auth/session");
+    const data = await request<{ user: AuthUser & { token?: string } }>("/auth/session");
+    // Auto-refresh token if role changed
+    if (data.user.token) {
+      setToken(data.user.token);
+    }
     return data.user;
   } catch {
     clearToken();
@@ -198,6 +202,76 @@ export async function deleteUser(id: number): Promise<void> {
   await request(`/admin/users/${id}`, { method: "DELETE" });
 }
 
+// ── Admin User Details ──
+
+export interface AdminUserDetails {
+  user: AdminUser;
+  niggabytes: number;
+  active_subscription: {
+    id: number; type: string; starts_at: string; expires_at: string | null;
+    is_active: number; auto_renew: number; payment_id: string | null;
+  } | null;
+  subscription_history: {
+    id: number; type: string; starts_at: string; expires_at: string | null;
+    is_active: number; auto_renew: number;
+  }[];
+  payments: {
+    id: string; type: string; amount_eur: number; nb_amount: number;
+    status: string; created_at: string;
+  }[];
+  storage_bytes: number;
+  email_addresses: string[];
+}
+
+export async function getAdminUserDetails(id: number): Promise<AdminUserDetails> {
+  return request<AdminUserDetails>(`/admin/users/${id}/details`);
+}
+
+export async function adminManageSubscription(
+  userId: number,
+  action: string,
+  type?: string,
+  days?: number,
+): Promise<{ ok: boolean; message: string }> {
+  return request(`/admin/users/${userId}/subscription`, {
+    method: "PUT",
+    body: JSON.stringify({ action, type, days }),
+  });
+}
+
+export async function adminSetNiggabytes(
+  userId: number,
+  amount: number,
+): Promise<{ ok: boolean; message: string }> {
+  return request(`/admin/users/${userId}/niggabytes`, {
+    method: "PUT",
+    body: JSON.stringify({ amount }),
+  });
+}
+
+// ── Audit Log ──
+
+export interface AuditEntry {
+  id: number;
+  admin_username: string;
+  action: string;
+  target_type: string | null;
+  target_id: number | null;
+  target_name: string | null;
+  details: Record<string, unknown>;
+  created_at: string;
+}
+
+export async function getAuditLog(
+  limit = 50,
+  offset = 0,
+  action = ""
+): Promise<{ entries: AuditEntry[]; total: number }> {
+  let path = `/admin/audit-log?limit=${limit}&offset=${offset}`;
+  if (action) path += `&action=${encodeURIComponent(action)}`;
+  return request(path);
+}
+
 // ── Storage Stats ──
 
 export interface StorageStats {
@@ -221,6 +295,8 @@ export interface InviteLink {
   used_by_username: string | null;
   used_at: string | null;
   created_at: string;
+  max_uses: number;
+  use_count: number;
 }
 
 export async function getInvites(): Promise<InviteLink[]> {
@@ -228,10 +304,10 @@ export async function getInvites(): Promise<InviteLink[]> {
   return data.invites;
 }
 
-export async function createInvite(role?: string): Promise<{ id: string; url: string; role: string; expires_at: string }> {
+export async function createInvite(role?: string, maxUses?: number): Promise<{ id: string; url: string; role: string; expires_at: string }> {
   const data = await request<{ invite: { id: string; url: string; role: string; expires_at: string } }>("/admin/invites", {
     method: "POST",
-    body: JSON.stringify({ role: role ?? "user" }),
+    body: JSON.stringify({ role: role ?? "user", max_uses: maxUses ?? 1 }),
   });
   return data.invite;
 }
@@ -240,9 +316,10 @@ export async function deleteInvite(id: string): Promise<void> {
   await request(`/admin/invites/${id}`, { method: "DELETE" });
 }
 
-export async function createUserInvite(): Promise<{ id: string; url: string; role: string; expires_at: string }> {
+export async function createUserInvite(maxUses?: number): Promise<{ id: string; url: string; role: string; expires_at: string }> {
   const data = await request<{ invite: { id: string; url: string; role: string; expires_at: string } }>("/auth/invite", {
     method: "POST",
+    body: JSON.stringify({ max_uses: maxUses ?? 1 }),
   });
   return data.invite;
 }
@@ -338,11 +415,13 @@ export async function getEmails(
   limit = 50,
   offset = 0,
   search = "",
-  starred = false
+  starred = false,
+  addressId?: number | null
 ): Promise<EmailMessage[]> {
   let path = `/mail/messages?folder=${folder}&limit=${limit}&offset=${offset}`;
   if (search) path += `&search=${encodeURIComponent(search)}`;
   if (starred) path += `&starred=true`;
+  if (addressId) path += `&address_id=${addressId}`;
   const data = await request<{ messages: EmailMessage[] }>(path);
   return data.messages;
 }
@@ -464,8 +543,9 @@ export async function getThread(threadId: string): Promise<EmailMessage[]> {
   return data.messages;
 }
 
-export async function getEmailStats(): Promise<EmailStats> {
-  return request<EmailStats>("/mail/stats");
+export async function getEmailStats(addressId?: number | null): Promise<EmailStats> {
+  const path = addressId ? `/mail/stats?address_id=${addressId}` : "/mail/stats";
+  return request<EmailStats>(path);
 }
 
 // ── Admin: Mail Review ──
@@ -1627,15 +1707,40 @@ export interface ShopItem {
   price: number | null;
   owned: number;
   max_purchases: number;
+  free_slots: number;
   total_slots: number;
   max_slots: number;
   sold_out: boolean;
   price_schedule: number[];
 }
 
+export interface ActiveSubscription {
+  id: number;
+  type: string;
+  starts_at: string;
+  expires_at: string | null;
+  is_active: number;
+  auto_renew: number;
+}
+
+export interface SubscriptionPrices {
+  classic: { '1m': number; '3m': number; '12m': number };
+  club: { '1m': number; '3m': number; '12m': number };
+}
+
+export interface SubscriptionBenefits {
+  free: string[];
+  classic: string[];
+  club: string[];
+}
+
 export interface ShopItemsResponse {
   items: ShopItem[];
   nb_balance: number;
+  nb_packs: number[];
+  subscription_prices: SubscriptionPrices;
+  subscription_benefits: SubscriptionBenefits;
+  active_subscription: ActiveSubscription | null;
 }
 
 export interface ShopPurchaseResult {
@@ -1655,6 +1760,49 @@ export async function purchaseShopItem(item: string): Promise<ShopPurchaseResult
     method: "POST",
     body: JSON.stringify({ item }),
   });
+}
+
+export async function subscribeWithNb(type: string): Promise<{ ok: boolean; message: string; nb_balance: number }> {
+  return request("/shop/subscribe", {
+    method: "POST",
+    body: JSON.stringify({ type }),
+  });
+}
+
+export async function toggleAutoRenew(enabled: boolean): Promise<{ ok: boolean; auto_renew: boolean; message: string }> {
+  return request("/shop/auto-renew", {
+    method: "PUT",
+    body: JSON.stringify({ enabled }),
+  });
+}
+
+// ── Payments ──
+
+export interface Payment {
+  id: string;
+  type: string;
+  amount_eur: number;
+  nb_amount: number;
+  status: string;
+  invoice_url: string;
+  created_at: string;
+}
+
+export async function createPayment(type: string, nbAmount?: number): Promise<{ payment_id: string; invoice_url: string }> {
+  return request("/payments/create", {
+    method: "POST",
+    body: JSON.stringify({ type, nb_amount: nbAmount }),
+  });
+}
+
+export async function getMyPayments(): Promise<Payment[]> {
+  const data = await request<{ payments: Payment[] }>("/payments/mine");
+  return data.payments;
+}
+
+export async function getActiveSubscription(): Promise<ActiveSubscription | null> {
+  const data = await request<{ subscription: ActiveSubscription | null }>("/payments/subscription");
+  return data.subscription;
 }
 
 // ── Online Users ──
@@ -1721,6 +1869,7 @@ export interface Transfer {
   created_at: string;
   expired: boolean;
   status?: "pending" | "uploaded" | "expired";
+  max_size?: number;
 }
 
 export async function createTransferLink(): Promise<{ id: string; url: string; expires_at: string }> {

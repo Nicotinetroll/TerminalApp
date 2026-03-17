@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { WindowContentProps } from "@/types/terminal";
-import type { AuthUser, StorageStats, Transfer } from "@/lib/api";
+import type { AuthUser, StorageStats, Transfer, ActiveSubscription } from "@/lib/api";
 import {
   getSession, getStorageStats, createUserInvite, createTransferLink,
-  getMyTransfers, deleteTransfer, ApiError,
+  getMyTransfers, deleteTransfer, getActiveSubscription, ApiError,
 } from "@/lib/api";
+import { ShopPanel } from "@/apps/shop/ShopPanel";
 import { ProfileInfo } from "./ProfileInfo";
 import { StorageBar } from "./StorageBar";
 import { PasswordForm } from "./PasswordForm";
@@ -12,14 +13,16 @@ import { TransferList } from "./TransferList";
 
 type View = "overview" | "password";
 
-export function ProfilePanel({ user: _windowUser }: WindowContentProps) {
+export function ProfilePanel({ user: _windowUser, windowManager }: WindowContentProps) {
   const [view, setView] = useState<View>("overview");
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [stats, setStats] = useState<StorageStats | null>(null);
+  const [activeSub, setActiveSub] = useState<ActiveSubscription | null>(null);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<{ text: string; isError: boolean } | null>(null);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteMaxUses, setInviteMaxUses] = useState(1);
   const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [transferUrl, setTransferUrl] = useState<string | null>(null);
   const [transferLoading, setTransferLoading] = useState(false);
@@ -38,15 +41,17 @@ export function ProfilePanel({ user: _windowUser }: WindowContentProps) {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [sessionRes, statsRes, transfersRes] = await Promise.allSettled([
+      const [sessionRes, statsRes, transfersRes, subRes] = await Promise.allSettled([
         getSession(),
         getStorageStats(),
         getMyTransfers(),
+        getActiveSubscription(),
       ]);
       const session = sessionRes.status === "fulfilled" ? sessionRes.value : null;
       setAuthUser(session);
       if (statsRes.status === "fulfilled") setStats(statsRes.value);
       if (transfersRes.status === "fulfilled") setTransfers(transfersRes.value);
+      if (subRes.status === "fulfilled") setActiveSub(subRes.value);
       if (!session) {
         showStatus("session expired. log in again.", true);
       }
@@ -65,17 +70,17 @@ export function ProfilePanel({ user: _windowUser }: WindowContentProps) {
   const handleGenerateInvite = useCallback(async () => {
     setInviteLoading(true);
     try {
-      const invite = await createUserInvite();
+      const invite = await createUserInvite(inviteMaxUses);
       setInviteUrl(invite.url);
       try { await navigator.clipboard.writeText(invite.url); } catch { /* clipboard blocked */ }
-      showStatus("invite link copied to clipboard");
+      showStatus(inviteMaxUses > 1 ? `invite link (${inviteMaxUses} uses) copied` : "invite link copied to clipboard");
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "couldn't generate invite";
       showStatus(msg, true);
     } finally {
       setInviteLoading(false);
     }
-  }, [showStatus]);
+  }, [showStatus, inviteMaxUses]);
 
   const handleCopyInvite = useCallback(async () => {
     if (!inviteUrl) return;
@@ -123,6 +128,17 @@ export function ProfilePanel({ user: _windowUser }: WindowContentProps) {
     try { await navigator.clipboard.writeText(url); } catch { /* clipboard blocked */ }
     showStatus("upload link copied");
   }, [showStatus]);
+
+  const handleOpenShop = useCallback(() => {
+    windowManager?.openWindow({
+      id: "shop-panel",
+      title: "shop",
+      component: ShopPanel,
+      width: 680,
+      height: 580,
+      appName: "shop",
+    });
+  }, [windowManager]);
 
   if (loading) {
     return (
@@ -179,8 +195,12 @@ export function ProfilePanel({ user: _windowUser }: WindowContentProps) {
           <ProfileInfo
             user={authUser}
             niggabytes={stats?.niggabytes}
+            activeSub={activeSub}
+            onOpenShop={handleOpenShop}
             inviteUrl={inviteUrl}
             inviteLoading={inviteLoading}
+            inviteMaxUses={inviteMaxUses}
+            onInviteMaxUsesChange={setInviteMaxUses}
             onGenerateInvite={() => void handleGenerateInvite()}
             onCopyInvite={() => void handleCopyInvite()}
             transferUrl={transferUrl}

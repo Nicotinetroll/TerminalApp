@@ -12,8 +12,9 @@ import { CodePanel } from "./CodePanel";
 import { AiLogPanel } from "./AiLogPanel";
 import { CasinoAdminPanel } from "./CasinoAdminPanel";
 import { NigditAdminPanel } from "./NigditAdminPanel";
+import { AuditLogPanel } from "./AuditLogPanel";
 
-type View = "list" | "create" | "edit" | "invites" | "chats" | "emails" | "settings" | "codes" | "ai-logs" | "casino" | "nigdit";
+type View = "list" | "create" | "edit" | "invites" | "chats" | "emails" | "settings" | "codes" | "ai-logs" | "casino" | "nigdit" | "audit";
 
 const NAV: { view: View; label: string }[] = [
   { view: "list",     label: "users" },
@@ -25,6 +26,7 @@ const NAV: { view: View; label: string }[] = [
   { view: "emails",   label: "mail" },
   { view: "ai-logs",  label: "ai logs" },
   { view: "settings", label: "config" },
+  { view: "audit",    label: "audit" },
 ];
 
 const VIEW_TITLES: Record<View, string> = {
@@ -39,6 +41,7 @@ const VIEW_TITLES: Record<View, string> = {
   "ai-logs": "nigga AI logs",
   casino: "casino admin",
   nigdit: "nigdit admin",
+  audit: "audit log",
 };
 
 function sidebarView(v: View): View {
@@ -216,6 +219,7 @@ export function AdminPanel({ user }: WindowContentProps) {
                 setView("list");
                 setEditingUser(null);
               }}
+              onStatus={showStatus}
             />
           )}
 
@@ -227,6 +231,7 @@ export function AdminPanel({ user }: WindowContentProps) {
           {view === "settings" && <SettingsPanel />}
           {view === "casino" && <CasinoAdminPanel />}
           {view === "nigdit" && <NigditAdminPanel />}
+          {view === "audit" && <AuditLogPanel />}
         </div>
       </div>
     </div>

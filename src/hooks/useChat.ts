@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { getSocket, disconnectSocket } from "@/lib/socket";
+import { getSocket } from "@/lib/socket";
 import type { Socket } from "socket.io-client";
 
 export const LOBBY_ID = "open";
@@ -293,7 +293,7 @@ export function useChat(initialRoomId?: string | null) {
       socket.off("dm:accepted", onDmAccepted);
       socket.off("dm:declined", onDmDeclined);
       socket.off("reaction:update", onReactionUpdate);
-      disconnectSocket();
+      // Don't disconnect — socket stays alive for badge notifications (useAppBadges)
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
