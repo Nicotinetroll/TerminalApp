@@ -135,101 +135,117 @@ interface Props {
 }
 
 export function TerminalOutput({ entries, homePath, username }: Props) {
+  const prevLenRef = useRef(0);
+  const newStartIdx = prevLenRef.current;
+
+  useEffect(() => {
+    prevLenRef.current = entries.length;
+  }, [entries.length]);
+
   return (
     <>
-      {entries.map((entry) => (
-        <div key={entry.id} className="mb-3">
-          {entry.command && (
-            <div className="font-mono whitespace-pre">
-              <span className="prompt-full">
-                <span className="glow-text theme-transition" style={{ color: "var(--accent)" }}>
-                  {username}@{HOSTNAME}
-                </span>
-                <span style={{ color: "var(--text-muted)" }}>:</span>
-                <span style={{ color: "var(--accent)", opacity: 0.8 }}>
-                  {shortenPath(entry.cwd || "/", homePath)}
-                </span>
-                <span style={{ color: "var(--text-muted)" }}>$ </span>
-              </span>
-              <span className="prompt-short">
-                <span style={{ color: "var(--accent)", opacity: 0.8 }}>
-                  {shortenPath(entry.cwd || "/", homePath)}
-                </span>
-                <span style={{ color: "var(--text-muted)" }}>$ </span>
-              </span>
-              <span style={{ color: "var(--text-primary)" }}>{entry.command}</span>
-            </div>
-          )}
+      {entries.map((entry, idx) => {
+        const isNew = idx >= newStartIdx;
+        const staggerDelay = isNew ? (idx - newStartIdx) * 30 : 0;
 
-          {entry.result.text && (
-            <div
-              className="font-mono whitespace-pre-wrap leading-relaxed"
-              style={{
-                color: entry.result.isError ? "var(--error)" : "var(--text-secondary)",
-              }}
-            >
-              {entry.result.isError && <span style={{ opacity: 0.5 }}>{"\u2717"} </span>}
-              {entry.result.text}
-            </div>
-          )}
+        return (
+          <div
+            key={entry.id}
+            className={`mb-3${isNew ? " line-stagger" : ""}`}
+            style={isNew ? { animationDelay: `${staggerDelay}ms` } : undefined}
+          >
+            {entry.command && (
+              <div className="font-mono whitespace-pre">
+                <span className="prompt-full">
+                  <span className="glow-text theme-transition" style={{ color: "var(--accent)" }}>
+                    {username}@{HOSTNAME}
+                  </span>
+                  <span style={{ color: "var(--text-muted)" }}>:</span>
+                  <span style={{ color: "var(--accent)", opacity: 0.8 }}>
+                    {shortenPath(entry.cwd || "/", homePath)}
+                  </span>
+                  <span style={{ color: "var(--text-muted)" }}>$ </span>
+                </span>
+                <span className="prompt-short">
+                  <span style={{ color: "var(--accent)", opacity: 0.8 }}>
+                    {shortenPath(entry.cwd || "/", homePath)}
+                  </span>
+                  <span style={{ color: "var(--text-muted)" }}>$ </span>
+                </span>
+                <span style={{ color: "var(--text-primary)" }}>{entry.command}</span>
+              </div>
+            )}
 
-          {entry.result.blocks?.map((block, i) => {
-            const isAi = block.label === "nigga";
-            return (
+            {entry.result.text && (
               <div
-                key={i}
-                className={`mt-2 mb-1 overflow-hidden${isAi ? " ai-block" : ""}`}
-                style={isAi ? undefined : {
-                  background: "var(--bg-elevated)",
-                  border: "1px solid var(--border-subtle)",
-                  borderRadius: 6,
+                className={`font-mono whitespace-pre-wrap leading-relaxed${entry.result.isError ? " error-shake" : ""}`}
+                style={{
+                  color: entry.result.isError ? "var(--error)" : "var(--text-secondary)",
                 }}
               >
-                {isAi ? (
-                  <>
-                    <div className="ai-block-glow" />
-                    <div className="ai-block-inner">
-                      <div className="ai-block-accent" />
-                      <div className="ai-block-content">
-                        <div className="ai-block-header">
-                          <span className="ai-block-sigil">//</span>
-                          <span className="ai-block-label" data-text={block.label}>{block.label}</span>
-                          <span className="ai-block-tag">AI</span>
-                          <span className="ai-block-line" />
-                        </div>
-                        <div className="ai-block-body">
-                          <BlockContent block={block} />
+                {entry.result.isError && <span style={{ opacity: 0.5 }}>{"\u2717"} </span>}
+                {entry.result.text}
+              </div>
+            )}
+
+            {entry.result.blocks?.map((block, i) => {
+              const isAi = block.label === "nigga";
+              return (
+                <div
+                  key={i}
+                  className={`mt-2 mb-1 overflow-hidden${isAi ? " ai-block" : ""}`}
+                  style={isAi ? undefined : {
+                    background: "var(--bg-elevated)",
+                    border: "1px solid var(--border-subtle)",
+                    borderRadius: 6,
+                  }}
+                >
+                  {isAi ? (
+                    <>
+                      <div className="ai-block-glow" />
+                      <div className="ai-block-inner">
+                        <div className="ai-block-accent" />
+                        <div className="ai-block-content">
+                          <div className="ai-block-header">
+                            <span className="ai-block-sigil">//</span>
+                            <span className="ai-block-label" data-text={block.label}>{block.label}</span>
+                            <span className="ai-block-tag">AI</span>
+                            <span className="ai-block-line" />
+                          </div>
+                          <div className="ai-block-body">
+                            <BlockContent block={block} />
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div
-                      className="px-4 py-1.5 font-semibold uppercase theme-transition"
-                      style={{
-                        color: "var(--accent)",
-                        background: "var(--accent-soft)",
-                        letterSpacing: "0.08em",
-                        fontSize: "12px",
-                        borderBottom: "1px solid var(--border-subtle)",
-                      }}
-                    >
-                      {block.label}
-                    </div>
-                    <div
-                      className="px-4 py-3 font-mono whitespace-pre-wrap"
-                      style={{ color: "var(--text-secondary)", lineHeight: 1.8 }}
-                    >
-                      <BlockContent block={block} />
-                    </div>
-                  </>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      ))}
+                    </>
+                  ) : (
+                    <>
+                      <div
+                        className="px-4 py-2.5 font-semibold uppercase theme-transition"
+                        style={{
+                          color: "var(--accent)",
+                          background: "var(--accent-soft)",
+                          letterSpacing: "0.08em",
+                          fontSize: "12px",
+                          borderBottom: "1px solid var(--border-subtle)",
+                        }}
+                      >
+                        {block.label}
+                      </div>
+                      <div
+                        className="px-4 py-3 font-mono whitespace-pre-wrap"
+                        style={{ color: "var(--text-secondary)", lineHeight: 1.8 }}
+                      >
+                        <BlockContent block={block} />
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
     </>
   );
 }

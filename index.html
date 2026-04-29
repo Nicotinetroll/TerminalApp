@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💀</text></svg>" />
+    <link rel="icon" type="image/png" href="/favicon.png?v=2" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -104,6 +104,49 @@
           if (t.borderMedium) r.setProperty('--border-medium', t.borderMedium);
           if (t.error) r.setProperty('--error', t.error);
           if (t.success) r.setProperty('--success', t.success);
+        } else {
+          // No cached theme — pick a random one for the login screen
+          var _T={claude:['#DA7756','rgba(218,119,86,.10)','rgba(218,119,86,.25)','#09090b'],
+          violet:['#b47afe','rgba(180,122,254,.10)','rgba(180,122,254,.25)','#0c0a12'],
+          blue:['#5b9ef5','rgba(91,158,245,.10)','rgba(91,158,245,.25)','#080a10'],
+          emerald:['#34d399','rgba(52,211,153,.10)','rgba(52,211,153,.25)','#080c0a'],
+          amber:['#f5a623','rgba(245,166,35,.10)','rgba(245,166,35,.25)','#0c0a06'],
+          rose:['#f76b81','rgba(247,107,129,.10)','rgba(247,107,129,.25)','#0d080a'],
+          sky:['#38bdf8','rgba(56,189,248,.10)','rgba(56,189,248,.25)','#070b10'],
+          dracula:['#bd93f9','rgba(189,147,249,.10)','rgba(189,147,249,.25)','#282a36'],
+          gruvbox:['#fe8019','rgba(254,128,25,.10)','rgba(254,128,25,.25)','#1d2021'],
+          nord:['#88c0d0','rgba(136,192,208,.10)','rgba(136,192,208,.25)','#2e3440'],
+          catppuccin:['#cba6f7','rgba(203,166,247,.10)','rgba(203,166,247,.25)','#1e1e2e'],
+          solarized:['#b58900','rgba(181,137,0,.10)','rgba(181,137,0,.25)','#002b36'],
+          tokyonight:['#7aa2f7','rgba(122,162,247,.10)','rgba(122,162,247,.25)','#1a1b26'],
+          matrix:['#00ff41','rgba(0,255,65,.08)','rgba(0,255,65,.22)','#080c06'],
+          hacker:['#00d4ff','rgba(0,212,255,.10)','rgba(0,212,255,.25)','#061018'],
+          synthwave:['#f72585','rgba(247,37,133,.10)','rgba(247,37,133,.25)','#0e0818'],
+          midnight:['#818cf8','rgba(129,140,248,.10)','rgba(129,140,248,.25)','#080810'],
+          sunset:['#f97316','rgba(249,115,22,.10)','rgba(249,115,22,.25)','#0e0806'],
+          blood:['#dc2626','rgba(220,38,38,.10)','rgba(220,38,38,.25)','#0c0606'],
+          mono:['#b0b0b0','rgba(176,176,176,.08)','rgba(176,176,176,.20)','#0a0a0a'],
+          cyberpunk:['#ffe14d','rgba(255,225,77,.08)','rgba(255,225,77,.22)','#0c0a06'],
+          satan:['#ff1a1a','rgba(255,26,26,.12)','rgba(255,26,26,.30)','#0c0000'],
+          abyss:['#6e44ff','rgba(110,68,255,.10)','rgba(110,68,255,.25)','#020008'],
+          toxic:['#aaff00','rgba(170,255,0,.08)','rgba(170,255,0,.22)','#040800'],
+          void:['#7070b8','rgba(112,112,184,.08)','rgba(112,112,184,.20)','#000000'],
+          ocean:['#00b4d8','rgba(0,180,216,.10)','rgba(0,180,216,.25)','#001018'],
+          gold:['#ffd700','rgba(255,215,0,.08)','rgba(255,215,0,.22)','#0a0800'],
+          bubblegum:['#ff69b4','rgba(255,105,180,.10)','rgba(255,105,180,.25)','#0c0610'],
+          ice:['#a8e8ff','rgba(168,232,255,.08)','rgba(168,232,255,.20)','#040810'],
+          neon:['#ff00ff','rgba(255,0,255,.10)','rgba(255,0,255,.25)','#080014'],
+          forest:['#8bae68','rgba(139,174,104,.10)','rgba(139,174,104,.25)','#0c0e08'],
+          retro:['#ff9e00','rgba(255,158,0,.10)','rgba(255,158,0,.25)','#0c0800'],
+          lavender:['#b8a0f0','rgba(184,160,240,.10)','rgba(184,160,240,.25)','#0e0c16']};
+          var _k=Object.keys(_T);
+          var _n=_k[Math.floor(Math.random()*_k.length)];
+          var _c=_T[_n];
+          try{sessionStorage.setItem('mynigga-random-theme',_n)}catch(e){}
+          r.setProperty('--accent',_c[0]);
+          r.setProperty('--accent-soft',_c[1]);
+          r.setProperty('--accent-mid',_c[2]);
+          r.setProperty('--bg-primary',_c[3]);
         }
       } catch(e) {}
     </script>

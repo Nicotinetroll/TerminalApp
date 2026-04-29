@@ -112,6 +112,16 @@ export function MailPanel({ user: _user, windowId, windowManager }: WindowConten
     void loadData();
   }, [loadData]);
 
+  // Auto-refresh mail list + stats when viewing list
+  useEffect(() => {
+    if (view !== "list") return;
+    const iv = setInterval(() => {
+      setListRefreshKey(k => k + 1);
+      void refreshStats();
+    }, 20_000);
+    return () => clearInterval(iv);
+  }, [view, refreshStats]);
+
   // Update window title with unread count
   useEffect(() => {
     if (!windowManager || !windowId) return;
@@ -294,6 +304,7 @@ export function MailPanel({ user: _user, windowId, windowManager }: WindowConten
             <MailList
               folder={folder}
               addressId={selectedAddressId}
+              refreshKey={listRefreshKey}
               onSelect={handleSelectEmail}
               onCompose={() => handleCompose()}
               onQuickTrash={handleQuickTrash}
@@ -305,7 +316,7 @@ export function MailPanel({ user: _user, windowId, windowManager }: WindowConten
               onDeselectAll={handleDeselectAll}
               onBulkAction={handleBulkAction}
               customFolders={customFolders}
-              key={`${folder}-${listRefreshKey}`}
+              key={`${folder}-${selectedAddressId}`}
             />
           )}
           {view === "read" && selectedEmailId !== null && (

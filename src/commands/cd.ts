@@ -11,9 +11,9 @@ export const cd: CommandDef = {
   run(args, terminal) {
     const raw = args[0] ?? "~";
     const target = raw === "~"
-      ? getHomePath(terminal.user.username)
+      ? getHomePath(terminal.user.email)
       : raw.startsWith("~/")
-        ? getHomePath(terminal.user.username) + raw.slice(1)
+        ? getHomePath(terminal.user.email) + raw.slice(1)
         : raw;
 
     const resolved = normalizePath(terminal.cwd, target);

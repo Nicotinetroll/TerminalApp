@@ -5,6 +5,6 @@ export const whoami: CommandDef = {
   description: "Show current user",
   category: "system",
   run(_args, terminal) {
-    return { text: terminal.user.username };
+    return { text: terminal.user.email };
   },
 };

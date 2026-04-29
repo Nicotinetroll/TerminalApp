@@ -45,6 +45,10 @@ export function parseArgs(input: string): string[] {
   return args;
 }
 
-export function getHomePath(username: string): string {
-  return `/home/${username}`;
+export function emailLocalPart(email: string): string {
+  return email.split("@")[0] ?? email;
+}
+
+export function getHomePath(email: string): string {
+  return `/home/${emailLocalPart(email)}`;
 }

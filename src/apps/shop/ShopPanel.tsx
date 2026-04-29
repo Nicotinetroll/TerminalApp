@@ -79,7 +79,7 @@ export function ShopPanel({ user: _user }: WindowContentProps) {
 
   const handleNbSubscribe = useCallback(async (type: string) => {
     setBuying(`nb-${type}`);
-    const tier = type.includes('club') ? 'Club Member' : 'Member';
+    const tier = type.includes('premium') ? 'Premium' : 'Basic';
     setActivation({ tier, phase: 'processing' });
     try {
       await subscribeWithNb(type);
@@ -301,7 +301,7 @@ function SubActivation({ tier, phase }: { tier: string; phase: 'processing' | 's
                   <div key={i} className={`sub-act-line${l.includes("ACTIVATED") ? " sub-act-line--ok" : ""}`}>{l}</div>
                 ))}
               </div>
-              <div className="sub-act-welcome">{tier.includes('Club') ? "welcome to the club." : "welcome aboard, member."}</div>
+              <div className="sub-act-welcome">{tier.includes('Premium') ? "welcome to the club." : "welcome aboard."}</div>
             </>
           )}
         </div>
@@ -440,12 +440,12 @@ function SubscriptionTab({ prices, benefits, activeSub, nbBalance, buying, onBuy
   };
 
   const subLabel = (type: string) => {
-    if (type.includes('club')) return 'Club Member';
-    if (type.includes('classic')) return 'Member';
+    if (type.includes('premium')) return 'Premium';
+    if (type.includes('basic')) return 'Basic';
     return type;
   };
 
-  const savePct = (tier: 'classic' | 'club', dur: Duration): number => {
+  const savePct = (tier: 'basic' | 'premium', dur: Duration): number => {
     if (dur === '1m') return 0;
     const base = prices[tier]['1m'];
     const discounted = prices[tier][dur];
@@ -453,9 +453,7 @@ function SubscriptionTab({ prices, benefits, activeSub, nbBalance, buying, onBuy
   };
 
   const selectedDur = DURATIONS.find(d => d.key === duration)!;
-  const isOnFree = !activeSub || activeSub.is_active !== 1;
-
-  const renderPrice = (tier: 'classic' | 'club') => {
+  const renderPrice = (tier: 'basic' | 'premium') => {
     const perMonth = prices[tier][duration];
     const totalEur = Math.round(perMonth * selectedDur.months * 100) / 100;
     const totalNb = Math.ceil(perMonth * selectedDur.months);
@@ -491,21 +489,21 @@ function SubscriptionTab({ prices, benefits, activeSub, nbBalance, buying, onBuy
   };
 
   // Tier level for downgrade prevention
-  const TIER_LEVEL: Record<string, number> = { classic: 2, club: 3 };
+  const TIER_LEVEL: Record<string, number> = { basic: 2, premium: 3 };
   const activeLevel = activeSub?.is_active === 1
-    ? (activeSub.type.includes('club') ? 3 : activeSub.type.includes('classic') ? 2 : 0)
+    ? (activeSub.type.includes('premium') ? 3 : activeSub.type.includes('basic') ? 2 : 0)
     : 0;
 
-  const isDowngrade = (tier: 'classic' | 'club') => TIER_LEVEL[tier]! < activeLevel;
-  const isSameTier = (tier: 'classic' | 'club') => {
+  const isDowngrade = (tier: 'basic' | 'premium') => TIER_LEVEL[tier]! < activeLevel;
+  const isSameTier = (tier: 'basic' | 'premium') => {
     if (!activeSub || activeSub.is_active !== 1) return false;
     return activeSub.type.includes(tier);
   };
 
   // NB confirmation popup state
-  const [confirmPurchase, setConfirmPurchase] = useState<{ tier: 'classic' | 'club'; paymentType: string; nbCost: number } | null>(null);
+  const [confirmPurchase, setConfirmPurchase] = useState<{ tier: 'basic' | 'premium'; paymentType: string; nbCost: number } | null>(null);
 
-  const handleSubscribe = (tier: 'classic' | 'club') => {
+  const handleSubscribe = (tier: 'basic' | 'premium') => {
     const paymentType = `sub_${tier}_${duration}`;
     if (currency === 'nb') {
       const perMonth = prices[tier][duration];
@@ -522,12 +520,12 @@ function SubscriptionTab({ prices, benefits, activeSub, nbBalance, buying, onBuy
     void onBuyNb(confirmPurchase.paymentType);
   };
 
-  const isTierBuying = (tier: 'classic' | 'club') => {
+  const isTierBuying = (tier: 'basic' | 'premium') => {
     const paymentType = `sub_${tier}_${duration}`;
     return buying === `${paymentType}-` || buying === `nb-${paymentType}`;
   };
 
-  const cantAfford = (tier: 'classic' | 'club') => {
+  const cantAfford = (tier: 'basic' | 'premium') => {
     if (currency !== 'nb') return false;
     const perMonth = prices[tier][duration];
     return nbBalance < Math.ceil(perMonth * selectedDur.months);
@@ -561,7 +559,7 @@ function SubscriptionTab({ prices, benefits, activeSub, nbBalance, buying, onBuy
         <div className="sub-toggle">
           {DURATIONS.map(d => {
             const isActive = duration === d.key;
-            const maxSave = Math.max(savePct('classic', d.key), savePct('club', d.key));
+            const maxSave = Math.max(savePct('basic', d.key), savePct('premium', d.key));
             return (
               <button
                 key={d.key}
@@ -594,87 +592,62 @@ function SubscriptionTab({ prices, benefits, activeSub, nbBalance, buying, onBuy
 
       {/* Tier cards */}
       <div className="sub-grid">
-        {/* Free */}
-        <div className={`sub-card${isOnFree ? "" : " sub-card--dim"}`}>
-          <div className="sub-card-head">
-            <div className="sub-card-tier sub-card-tier--free">user</div>
-            <div className="sub-card-price">
-              <span className="sub-card-price-amount">{currency === 'eur' ? `${"\u20AC"}0` : "0"}</span>
-              <span className="sub-card-price-period">{currency === 'eur' ? "/mo" : " NB"}</span>
-            </div>
-            <div className="sub-card-price-sub">&nbsp;</div>
-          </div>
-          <div className="sub-card-benefits">
-            {benefits.free.map((b, i) => (
-              <div key={i} className="sub-card-benefit">
-                <span className="sub-card-check sub-card-check--free">&bull;</span>
-                {b}
-              </div>
-            ))}
-          </div>
-          <div className="sub-card-foot">
-            <div className={`sub-btn${isOnFree ? " sub-btn--current" : " sub-btn--muted"}`}>
-              {isOnFree ? "current plan" : "user tier"}
-            </div>
-          </div>
-        </div>
-
-        {/* Classic */}
+        {/* Basic */}
         <div className="sub-card">
           <div className="sub-card-head">
-            <div className="sub-card-tier sub-card-tier--classic">member</div>
-            {renderPrice('classic')}
+            <div className="sub-card-tier sub-card-tier--basic">basic</div>
+            {renderPrice('basic')}
           </div>
           <div className="sub-card-benefits">
-            {benefits.classic.map((b, i) => (
+            {benefits.basic.map((b, i) => (
               <div key={i} className="sub-card-benefit">
-                <span className="sub-card-check sub-card-check--classic">&bull;</span>
+                <span className="sub-card-check sub-card-check--basic">&bull;</span>
                 {b}
               </div>
             ))}
           </div>
           <div className="sub-card-foot">
-            {isSameTier('classic') ? (
+            {isSameTier('basic') ? (
               <div className="sub-btn sub-btn--current">current plan</div>
-            ) : isDowngrade('classic') ? (
+            ) : isDowngrade('basic') ? (
               <div className="sub-btn sub-btn--downgrade">you have better lmao</div>
             ) : (
               <button
-                className="sub-btn sub-btn--classic"
-                disabled={isTierBuying('classic') || cantAfford('classic')}
-                onClick={() => handleSubscribe('classic')}
+                className="sub-btn sub-btn--basic"
+                disabled={isTierBuying('basic') || cantAfford('basic')}
+                onClick={() => handleSubscribe('basic')}
               >
-                {isTierBuying('classic') ? "..." : "subscribe"}
+                {isTierBuying('basic') ? "..." : "subscribe"}
               </button>
             )}
           </div>
         </div>
 
-        {/* Club */}
-        <div className="sub-card sub-card--club">
+        {/* Premium */}
+        <div className="sub-card sub-card--premium">
           <div className="sub-card-label">recommended</div>
           <div className="sub-card-head">
-            <div className="sub-card-tier sub-card-tier--club">club member</div>
-            {renderPrice('club')}
+            <div className="sub-card-tier sub-card-tier--premium">premium</div>
+            {renderPrice('premium')}
           </div>
           <div className="sub-card-benefits">
-            {benefits.club.map((b, i) => (
+            {benefits.premium.map((b, i) => (
               <div key={i} className="sub-card-benefit">
-                <span className="sub-card-check sub-card-check--club">&bull;</span>
+                <span className="sub-card-check sub-card-check--premium">&bull;</span>
                 {b}
               </div>
             ))}
           </div>
           <div className="sub-card-foot">
-            {isSameTier('club') ? (
+            {isSameTier('premium') ? (
               <div className="sub-btn sub-btn--current">current plan</div>
             ) : (
               <button
-                className="sub-btn sub-btn--club"
-                disabled={isTierBuying('club') || cantAfford('club')}
-                onClick={() => handleSubscribe('club')}
+                className="sub-btn sub-btn--premium"
+                disabled={isTierBuying('premium') || cantAfford('premium')}
+                onClick={() => handleSubscribe('premium')}
               >
-                {isTierBuying('club') ? "..." : activeLevel >= 2 ? "upgrade" : "subscribe"}
+                {isTierBuying('premium') ? "..." : activeLevel >= 2 ? "upgrade" : "subscribe"}
               </button>
             )}
           </div>
@@ -698,7 +671,7 @@ function SubscriptionTab({ prices, benefits, activeSub, nbBalance, buying, onBuy
             </div>
             <div className="sub-confirm-body">
               <span className="sub-confirm-nb">{confirmPurchase.nbCost} NB</span> for{" "}
-              <span className="sub-confirm-tier">{confirmPurchase.tier === 'club' ? 'club member' : 'member'}</span> subscription.
+              <span className="sub-confirm-tier">{confirmPurchase.tier === 'premium' ? 'premium' : 'member'}</span> subscription.
               <br />
               {confirmPurchase.nbCost > nbBalance * 0.5
                 ? "that's more than half your stash. you sure about this?"

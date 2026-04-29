@@ -1,0 +1,776 @@
+/* Cloud panel — file browser, storage bar, toolbar */
+
+.cloud-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 12px 16px;
+  font-size: 13px;
+  position: relative;
+  height: 100%;
+  min-height: 0;
+}
+
+.cloud-panel--dragover {
+  background: var(--accent-soft);
+}
+
+.cloud-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ── Toast ── */
+
+.cloud-toast {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  padding: 5px 12px;
+  font-size: 11px;
+  color: var(--accent);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  z-index: 5;
+  animation: cloudToastIn 200ms ease-out;
+  pointer-events: none;
+}
+
+.cloud-toast--error {
+  color: var(--error);
+  border-color: var(--error-soft);
+}
+
+@keyframes cloudToastIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Storage bar ── */
+
+.cloud-storage {
+  margin-bottom: 12px;
+  padding: 8px 0;
+}
+
+.cloud-storage-info {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.cloud-storage-used {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.cloud-storage-sep {
+  color: var(--text-ghost);
+}
+
+.cloud-storage-pct {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.cloud-storage-track {
+  width: 100%;
+  height: 4px;
+  background: var(--border-subtle);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.cloud-storage-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.5s ease, background 0.3s ease;
+}
+
+.cloud-storage-label {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-ghost);
+  font-style: italic;
+}
+
+/* ── Toolbar ── */
+
+.cloud-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.cloud-breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 12px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.cloud-crumb-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.cloud-crumb {
+  color: var(--accent);
+  cursor: pointer;
+  padding: 2px 3px;
+  border-radius: 2px;
+  transition: background 100ms ease;
+}
+
+.cloud-crumb:hover {
+  background: var(--border-subtle);
+}
+
+.cloud-crumb--root {
+  font-weight: 600;
+}
+
+.cloud-crumb--active {
+  color: var(--text-primary);
+  font-weight: 600;
+  cursor: default;
+}
+
+.cloud-crumb--active:hover {
+  background: none;
+}
+
+.cloud-crumb-sep {
+  color: var(--text-ghost);
+}
+
+.cloud-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* ── Buttons ── */
+
+.cloud-btn {
+  padding: 4px 10px !important;
+  font-size: 12px !important;
+}
+
+.cloud-btn--primary {
+  background: var(--accent) !important;
+  color: var(--bg-primary) !important;
+  border-color: var(--accent) !important;
+}
+
+.cloud-btn--primary:hover {
+  opacity: 0.85;
+}
+
+.cloud-btn--danger {
+  color: var(--error) !important;
+  border-color: var(--error-soft) !important;
+}
+
+.cloud-btn--danger:hover {
+  background: var(--error-soft) !important;
+}
+
+/* ── New folder ── */
+
+.cloud-new-folder {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.cloud-new-folder-input {
+  width: 160px;
+  padding: 4px 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-medium);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.cloud-new-folder-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* ── Upload progress ── */
+
+.cloud-upload-zone {
+  margin-bottom: 12px;
+  padding: 16px 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  text-align: center;
+}
+
+.cloud-up-percent {
+  font-size: 42px;
+  font-weight: 800;
+  color: var(--accent);
+  font-family: monospace;
+  line-height: 1;
+  margin-bottom: 12px;
+  letter-spacing: -2px;
+  text-shadow: 0 0 20px var(--accent-soft);
+}
+
+.cloud-up-percent-sign {
+  font-size: 20px;
+  opacity: 0.5;
+  letter-spacing: 0;
+}
+
+.cloud-up-bar-wrap {
+  position: relative;
+  height: 4px;
+  background: var(--border-subtle);
+  overflow: visible;
+}
+
+.cloud-up-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-light, var(--accent)));
+  transition: width 0.4s ease;
+  position: relative;
+}
+
+.cloud-up-bar-shine {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 40px;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3));
+  animation: cloud-up-shine 1.5s ease-in-out infinite;
+}
+
+@keyframes cloud-up-shine {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.8; }
+}
+
+.cloud-up-bar-glow {
+  position: absolute;
+  top: -6px;
+  width: 14px;
+  height: 14px;
+  background: var(--accent);
+  border-radius: 50%;
+  filter: blur(8px);
+  opacity: 0.6;
+  transform: translateX(-50%);
+  transition: left 0.4s ease;
+  pointer-events: none;
+}
+
+.cloud-up-bar--indeterminate {
+  width: 25% !important;
+  background: var(--accent);
+  animation: cloud-up-indet 1.4s ease-in-out infinite;
+}
+
+@keyframes cloud-up-indet {
+  0%   { margin-left: 0; }
+  50%  { margin-left: 75%; }
+  100% { margin-left: 0; }
+}
+
+.cloud-up-stats {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 10px;
+  font-family: monospace;
+}
+
+.cloud-up-speed {
+  color: var(--accent);
+  font-weight: 700;
+  text-shadow: 0 0 6px var(--accent-soft);
+}
+
+.cloud-up-label {
+  font-size: 11px;
+  color: var(--text-ghost);
+  margin-top: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── File list ── */
+
+.cloud-files {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+
+/* ── Drag overlay ── */
+
+.cloud-drag-overlay {
+  position: absolute;
+  inset: 0;
+  background: var(--accent-soft);
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 10;
+  pointer-events: none;
+}
+
+/* ── Delete dialog ── */
+
+.cloud-delete-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  border-radius: inherit;
+}
+
+.cloud-delete-dialog {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  padding: 24px;
+  max-width: 380px;
+  text-align: center;
+}
+
+.cloud-delete-title {
+  font-size: 14px;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+.cloud-delete-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+.cloud-delete-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+/* ── Skeleton loading ── */
+
+.cloud-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.cloud-skeleton-bar {
+  height: 4px;
+  background: var(--border-subtle);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+
+.cloud-skeleton-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  background: var(--accent);
+  opacity: 0.3;
+  border-radius: 2px;
+  animation: skeletonSlide 1.2s ease-in-out infinite;
+}
+
+.cloud-skeleton-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cloud-skeleton-crumb {
+  width: 60px;
+  height: 20px;
+  background: var(--border-subtle);
+  border-radius: 2px;
+  animation: skeletonPulse 1.2s ease-in-out infinite;
+}
+
+.cloud-skeleton-btn {
+  width: 56px;
+  height: 24px;
+  background: var(--border-subtle);
+  border-radius: 2px;
+  margin-left: auto;
+  animation: skeletonPulse 1.2s ease-in-out infinite;
+}
+
+.cloud-skeleton-btn + .cloud-skeleton-btn {
+  margin-left: 4px;
+}
+
+.cloud-skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.cloud-skeleton-icon {
+  width: 20px;
+  height: 20px;
+  background: var(--border-subtle);
+  border-radius: 2px;
+  flex-shrink: 0;
+  animation: skeletonPulse 1.2s ease-in-out infinite;
+}
+
+.cloud-skeleton-name {
+  height: 14px;
+  background: var(--border-subtle);
+  border-radius: 2px;
+  animation: skeletonPulse 1.2s ease-in-out infinite;
+}
+
+.cloud-skeleton-size {
+  width: 50px;
+  height: 12px;
+  background: var(--border-subtle);
+  border-radius: 2px;
+  margin-left: auto;
+  flex-shrink: 0;
+  animation: skeletonPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes skeletonPulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.15; }
+}
+
+@keyframes skeletonSlide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
+}
+
+/* ── Thumbnails ── */
+
+.cloud-thumb {
+  width: 28px;
+  height: 28px;
+  object-fit: cover;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: transform 100ms ease, box-shadow 100ms ease;
+  vertical-align: middle;
+}
+
+.cloud-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.cloud-file-previewable {
+  color: var(--accent);
+  cursor: pointer;
+  transition: opacity 100ms ease;
+}
+
+.cloud-file-previewable:hover {
+  opacity: 0.75;
+}
+
+/* ── Lightbox (full-page, rendered via portal) ── */
+
+.cloud-lb-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  cursor: zoom-out;
+  animation: cloud-lb-in 150ms ease-out;
+}
+
+@keyframes cloud-lb-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.cloud-lb-container {
+  display: flex;
+  flex-direction: column;
+  max-width: 92vw;
+  max-height: 92vh;
+  width: 100%;
+  cursor: default;
+}
+
+.cloud-lb-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 4px;
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+.cloud-lb-info {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.cloud-lb-name {
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cloud-lb-size {
+  font-size: 11px;
+  color: var(--text-ghost);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.cloud-lb-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.cloud-lb-body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.cloud-lb-img {
+  max-width: 100%;
+  max-height: calc(92vh - 50px);
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+  user-select: none;
+}
+
+.cloud-lb-video {
+  max-width: 100%;
+  max-height: calc(92vh - 50px);
+  border-radius: var(--radius-sm);
+  outline: none;
+  background: #000;
+}
+
+.cloud-lb-audio-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 40px;
+}
+
+.cloud-lb-audio-icon {
+  font-size: 48px;
+  line-height: 1;
+}
+
+.cloud-lb-audio-name {
+  font-size: 14px;
+  color: var(--text-secondary);
+  text-align: center;
+  word-break: break-all;
+}
+
+.cloud-lb-audio {
+  width: 380px;
+  max-width: 90vw;
+}
+
+@media (max-width: 640px) {
+  .cloud-lb-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .cloud-lb-actions {
+    align-self: flex-end;
+  }
+}
+
+/* ── Actions dropdown ── */
+
+.cloud-actions-wrap {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.cloud-actions-trigger {
+  padding: 0 6px !important;
+  font-size: 11px !important;
+  line-height: 20px;
+  min-width: 24px;
+  color: var(--text-muted) !important;
+  border-color: transparent !important;
+  background: none !important;
+  transition: color 100ms ease;
+}
+
+.cloud-actions-trigger:hover {
+  color: var(--accent) !important;
+}
+
+.cloud-actions-menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 2px;
+  background: var(--bg-primary);
+  border: 1px solid var(--accent-mid);
+  border-radius: 4px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--border-subtle);
+  z-index: 20;
+  padding: 3px;
+  animation: cloud-menu-in 80ms ease-out;
+}
+
+@keyframes cloud-menu-in {
+  from { opacity: 0; transform: scale(0.95) translateY(-2px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.cloud-actions-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 3px 8px;
+  background: none;
+  border: none;
+  border-radius: 2px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+  transition: background 80ms ease, color 80ms ease;
+}
+
+.cloud-actions-item:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.cloud-actions-item--danger:hover {
+  background: rgba(248, 113, 113, 0.08);
+  color: var(--error);
+}
+
+
+/* ── Inline rename input ── */
+
+.cloud-rename-input {
+  width: 100%;
+  max-width: 260px;
+  padding: 2px 6px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--accent);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  box-shadow: 0 0 0 1px var(--accent-soft);
+}
+
+/* ── Move dialog quick-picks ── */
+
+.cloud-move-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 16px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.cloud-move-pick {
+  font-size: 11px !important;
+  padding: 2px 8px !important;
+  font-family: monospace;
+  white-space: nowrap;
+}
+
+/* ── Responsive ── */
+
+@media (max-width: 640px) {
+  .cloud-panel {
+    padding: 10px 12px;
+  }
+
+  .cloud-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .cloud-actions {
+    justify-content: flex-start;
+  }
+
+  .cloud-new-folder-input {
+    flex: 1;
+    width: auto;
+    font-size: 16px;
+    padding: 8px;
+  }
+}

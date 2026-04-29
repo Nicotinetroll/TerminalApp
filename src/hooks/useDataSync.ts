@@ -48,7 +48,7 @@ export function useDataSync(
     }, DEBOUNCE_MS);
   }, [userId, doSave]);
 
-  // Save on beforeunload
+  // Save on beforeunload — use sendBeacon for reliable delivery
   useEffect(() => {
     if (!userId) return;
 
@@ -57,7 +57,29 @@ export function useDataSync(
         clearTimeout(saveTimer.current);
         saveTimer.current = null;
       }
-      void doSave();
+      if (!dataLoaded.current) return;
+      const token = api.getToken();
+      if (!token) return;
+      const base = (import.meta.env["VITE_API_URL"] as string) || "/api";
+      const headers = { type: "application/json" };
+      // sendBeacon is synchronous and guaranteed to be sent even on page close
+      try {
+        navigator.sendBeacon(
+          `${base}/sync/filesystem`,
+          new Blob([JSON.stringify({ filesystem: fsRef.current, _token: token })], headers)
+        );
+        navigator.sendBeacon(
+          `${base}/sync/settings`,
+          new Blob([JSON.stringify({
+            theme_name: getThemeName(),
+            command_history: cmdHistoryRef.current,
+            _token: token,
+          })], headers)
+        );
+      } catch {
+        // Last resort: fire-and-forget fetch
+        void doSave();
+      }
     };
 
     window.addEventListener("beforeunload", handleBeforeUnload);
@@ -68,7 +90,7 @@ export function useDataSync(
         saveTimer.current = null;
       }
     };
-  }, [userId, doSave]);
+  }, [userId, doSave, fsRef, getThemeName, cmdHistoryRef]);
 
   const loadUserData = useCallback(
     async (): Promise<SyncedData> => {

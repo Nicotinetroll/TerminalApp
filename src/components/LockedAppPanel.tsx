@@ -4,9 +4,9 @@ import { ShopPanel } from "@/apps/shop/ShopPanel";
 import { LockIcon } from "@/components/LockIcon";
 
 const ROLE_LABELS: Record<string, string> = {
-  user: "member",
-  classic: "classic member",
-  club: "club member",
+  user: "user",
+  basic: "basic",
+  premium: "premium",
 };
 
 const UPSELL_LINES = [
@@ -21,7 +21,7 @@ interface LockedAppProps extends WindowContentProps {
 }
 
 export function LockedAppPanel({ appName, minRole, windowManager, closeWindow }: LockedAppProps) {
-  const label = ROLE_LABELS[minRole ?? "club"] ?? minRole ?? "club member";
+  const label = ROLE_LABELS[minRole ?? "premium"] ?? minRole ?? "premium";
 
   const handleOpenShop = useCallback(() => {
     closeWindow();

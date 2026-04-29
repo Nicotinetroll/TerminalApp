@@ -5,6 +5,7 @@ import { getEmails, ApiError } from "@/lib/api";
 interface Props {
   folder: string;
   addressId?: number | null;
+  refreshKey?: number;
   onSelect: (id: number) => void;
   onCompose: () => void;
   onQuickTrash?: (id: number) => void;
@@ -73,7 +74,7 @@ function isNoSubject(subject: string): boolean {
 }
 
 export function MailList({
-  folder, addressId, onSelect, onCompose, onQuickTrash, onQuickToggleRead, onQuickStar,
+  folder, addressId, refreshKey, onSelect, onCompose, onQuickTrash, onQuickToggleRead, onQuickStar,
   selectedIds, onToggleSelect, onSelectAll, onDeselectAll, onBulkAction,
 }: Props) {
   const [emails, setEmails] = useState<EmailMessage[]>([]);
@@ -83,6 +84,7 @@ export function MailList({
   const [hoveredId, setHoveredId] = useState<number | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const isInitial = useRef(true);
 
   // Debounce search
   useEffect(() => {
@@ -95,9 +97,8 @@ export function MailList({
 
   const isStarredView = folder === "starred";
 
-  const loadEmails = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const loadEmails = useCallback(async (silent: boolean) => {
+    if (!silent) { setLoading(true); setError(null); }
     try {
       const msgs = await getEmails(
         isStarredView ? "inbox" : folder,
@@ -107,16 +108,25 @@ export function MailList({
         addressId
       );
       setEmails(msgs);
+      setError(null);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "couldn't load emails");
+      if (!silent) setError(err instanceof ApiError ? err.message : "couldn't load emails");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [folder, debouncedSearch, isStarredView, addressId]);
 
+  // Initial load + refetch on folder/search/address change
   useEffect(() => {
-    void loadEmails();
+    isInitial.current = true;
+    void loadEmails(false);
   }, [loadEmails]);
+
+  // Silent refresh when refreshKey changes (polling / actions)
+  useEffect(() => {
+    if (isInitial.current) { isInitial.current = false; return; }
+    void loadEmails(true);
+  }, [refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const allSelected = emails.length > 0 && emails.every(e => selectedIds.has(e.id));
   const someSelected = selectedIds.size > 0;

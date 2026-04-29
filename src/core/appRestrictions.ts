@@ -3,11 +3,9 @@
 // Read by run.ts, AppShortcutBar, MobileAppBar, ProfileInfo.
 
 const ROLE_LEVEL: Record<string, number> = {
-  guest: 0,
-  code: 0,
   user: 1,
-  classic: 2,
-  club: 3,
+  basic: 2,
+  premium: 3,
   admin: 4,
 };
 

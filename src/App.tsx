@@ -1,53 +1,60 @@
 import { useState, useCallback, useEffect } from "react";
 import type { AppPhase } from "@/types/terminal";
-import { useAuth, type LoginResult } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/useAuth";
+import type { LoginResult } from "@/hooks/useAuth";
 import { LoginScreen } from "@/components/LoginScreen";
+import { SubscribePage } from "@/components/SubscribePage";
+import { SetupPasswordScreen } from "@/components/SetupPasswordScreen";
+import { ThemePickerScreen } from "@/components/ThemePickerScreen";
 import { Terminal } from "@/components/Terminal";
 import { PasteViewer } from "@/components/PasteViewer";
 import { PublicPasteCreate } from "@/components/PublicPasteCreate";
 import { PublicUpload } from "@/components/PublicUpload";
 import { ShortlinkRedirect } from "@/components/ShortlinkRedirect";
-import { registerWithInvite } from "@/lib/api";
+import { PublicChess } from "@/components/PublicChess";
+import { PublicDownload } from "@/components/PublicDownload";
 
 export default function App() {
   const [phase, setPhase] = useState<AppPhase>("login");
-  const [inviteToken, setInviteToken] = useState<string | null>(null);
-  const [roomToken, setRoomToken] = useState<string | null>(null);
+  const [needsPasswordSetup, setNeedsPasswordSetup] = useState(false);
   const [pasteId, setPasteId] = useState<string | null>(null);
   const [pasteCreate, setPasteCreate] = useState(false);
   const [forkId, setForkId] = useState<string | null>(null);
   const [uploadId, setUploadId] = useState<string | null>(null);
   const [shortlinkSlug, setShortlinkSlug] = useState<string | null>(null);
+  const [chessGameId, setChessGameId] = useState<string | null>(null);
+  const [shareId, setShareId] = useState<string | null>(null);
+  const [inviteCode, setInviteCode] = useState<string | null>(null);
   const {
     user,
     userId,
+    hasSubscription,
+    setHasSubscription,
     isLoading,
     isAuthenticating,
     login,
-    codeLogin,
+    register,
+    setupPassword,
     logout,
-    setUserFromRegister,
   } = useAuth();
 
   // Dismiss preloader when app is ready
   useEffect(() => {
-    const isPublicRoute = shortlinkSlug || uploadId || pasteCreate || pasteId;
+    const isPublicRoute = shortlinkSlug || uploadId || pasteCreate || pasteId || chessGameId || shareId;
     if (isPublicRoute || !isLoading) {
       const el = document.getElementById("preloader");
       if (el) {
-        // Let the app content fade in underneath
         const root = document.getElementById("root");
         if (root) {
           root.style.opacity = "0";
           root.style.transition = "opacity 0.5s ease";
           requestAnimationFrame(() => { root.style.opacity = "1"; });
         }
-        // Fade out preloader
         el.classList.add("pl-exit");
         setTimeout(() => el.remove(), 600);
       }
     }
-  }, [isLoading, shortlinkSlug, uploadId, pasteCreate, pasteId]);
+  }, [isLoading, shortlinkSlug, uploadId, pasteCreate, pasteId, chessGameId, shareId]);
 
   // Detect path-based and query-based routes on mount
   useEffect(() => {
@@ -58,6 +65,20 @@ export default function App() {
     const shortlinkMatch = path.match(/^\/s\/([a-zA-Z0-9_-]{2,32})$/);
     if (shortlinkMatch) {
       setShortlinkSlug(shortlinkMatch[1]!);
+      return;
+    }
+
+    // Path-based cloud share routing: /d/{id}
+    const shareMatch = path.match(/^\/d\/([a-f0-9]{12})$/);
+    if (shareMatch) {
+      setShareId(shareMatch[1]!);
+      return;
+    }
+
+    // Path-based chess routing: /c/{id}
+    const chessMatch = path.match(/^\/c\/([a-f0-9]{12})$/);
+    if (chessMatch) {
+      setChessGameId(chessMatch[1]!);
       return;
     }
 
@@ -82,7 +103,6 @@ export default function App() {
       if (id) {
         setPasteId(id);
       } else {
-        // /paste with ?fork=id support
         const fork = params.get("fork");
         if (fork) setForkId(fork);
         setPasteCreate(true);
@@ -98,61 +118,79 @@ export default function App() {
       return;
     }
 
-    // Other query params
-    const token = params.get("invite");
-    const room = params.get("room");
-    if (token) setInviteToken(token);
-    if (room) setRoomToken(room);
-    if (token || room) {
-      window.history.replaceState({}, "", window.location.pathname);
-    }
+    // Invite code from URL
+    const invite = params.get("invite");
+    if (invite) setInviteCode(invite);
   }, []);
 
-  // Session restore: skip login if session exists
+  const needsThemePick = () => !localStorage.getItem("mynigga-theme-chosen");
+
+  // Session restore: determine phase based on user + subscription
   useEffect(() => {
     if (!isLoading && user && phase === "login") {
-      setPhase("terminal");
+      if (user.role === "admin" || hasSubscription) {
+        setPhase(needsThemePick() ? "theme-picker" : "terminal");
+      } else {
+        setPhase("subscribe");
+      }
     }
-  }, [isLoading, user, phase]);
+  }, [isLoading, user, phase, hasSubscription]);
 
   const handleLogin = useCallback(
-    async (username: string, password: string): Promise<LoginResult> => {
-      const result = await login(username, password);
-      if (result.ok) setPhase("terminal");
+    async (email: string, password: string): Promise<LoginResult> => {
+      const result = await login(email, password);
+      if (result.ok) {
+        if (result.has_subscription) {
+          setPhase(needsThemePick() ? "theme-picker" : "terminal");
+        } else {
+          setPhase("subscribe");
+        }
+      }
       return result;
     },
     [login]
   );
 
-  const handleCodeLogin = useCallback(
-    async (code: string): Promise<LoginResult> => {
-      const result = await codeLogin(code);
-      if (result.ok) setPhase("terminal");
+  const handleRegister = useCallback(
+    async (email: string): Promise<LoginResult> => {
+      const result = await register(email, inviteCode ?? undefined);
+      if (result.ok) {
+        setNeedsPasswordSetup(true);
+        if (result.has_subscription) {
+          // Invite had subscription — skip subscribe page
+          setHasSubscription(true);
+          setPhase("setup-password");
+        } else {
+          setPhase("subscribe");
+        }
+      }
       return result;
     },
-    [codeLogin]
+    [register, inviteCode, setHasSubscription]
   );
 
   const handleLogout = useCallback(() => {
     logout();
     try { localStorage.removeItem("mynigga-theme"); } catch { /* */ }
     setPhase("login");
-    setInviteToken(null);
-    setRoomToken(null);
   }, [logout]);
 
-  const handleRegister = useCallback(
-    async (token: string, username: string, password: string): Promise<LoginResult> => {
-      const result = await registerWithInvite(token, username, password);
-      if (result.ok) {
-        setUserFromRegister(result.user);
-        setPhase("terminal");
-        setInviteToken(null);
-      }
-      return result;
-    },
-    [setUserFromRegister]
-  );
+  const handleSubscribed = useCallback(() => {
+    setHasSubscription(true);
+    if (needsPasswordSetup) {
+      setPhase("setup-password");
+    } else {
+      setPhase(needsThemePick() ? "theme-picker" : "terminal");
+    }
+  }, [setHasSubscription, needsPasswordSetup]);
+
+  const handlePasswordSet = useCallback(() => {
+    setPhase(needsThemePick() ? "theme-picker" : "terminal");
+  }, []);
+
+  const handleThemePicked = useCallback(() => {
+    setPhase("terminal");
+  }, []);
 
   const navigateToPaste = (id: string) => {
     setPasteCreate(false);
@@ -174,27 +212,29 @@ export default function App() {
     setForkId(null);
     setUploadId(null);
     setShortlinkSlug(null);
+    setChessGameId(null);
+    setShareId(null);
     window.history.replaceState({}, "", "/");
   };
 
+  // Public cloud share download
+  if (shareId) {
+    return <PublicDownload shareId={shareId} onClose={navigateHome} />;
+  }
+
+  // Public chess game
+  if (chessGameId) {
+    return <PublicChess gameId={chessGameId} onClose={navigateHome} />;
+  }
+
   // Public shortlink redirect
   if (shortlinkSlug) {
-    return (
-      <ShortlinkRedirect
-        slug={shortlinkSlug}
-        onClose={navigateHome}
-      />
-    );
+    return <ShortlinkRedirect slug={shortlinkSlug} onClose={navigateHome} />;
   }
 
   // Public upload page
   if (uploadId) {
-    return (
-      <PublicUpload
-        transferId={uploadId}
-        onClose={navigateHome}
-      />
-    );
+    return <PublicUpload transferId={uploadId} onClose={navigateHome} />;
   }
 
   // Public paste create page
@@ -228,12 +268,33 @@ export default function App() {
     return (
       <LoginScreen
         onLogin={handleLogin}
-        onCodeLogin={handleCodeLogin}
         onRegister={handleRegister}
         isAuthenticating={isAuthenticating}
-        inviteToken={inviteToken}
       />
     );
+  }
+
+  if (phase === "subscribe") {
+    return (
+      <SubscribePage
+        onSubscribed={handleSubscribed}
+        onLogout={handleLogout}
+      />
+    );
+  }
+
+  if (phase === "setup-password") {
+    return (
+      <SetupPasswordScreen
+        email={user.email}
+        onComplete={handlePasswordSet}
+        onSetupPassword={setupPassword}
+      />
+    );
+  }
+
+  if (phase === "theme-picker") {
+    return <ThemePickerScreen userId={userId} onComplete={handleThemePicked} />;
   }
 
   return (
@@ -241,7 +302,6 @@ export default function App() {
       user={user}
       userId={userId}
       onLogout={handleLogout}
-      roomToken={roomToken}
     />
   );
 }

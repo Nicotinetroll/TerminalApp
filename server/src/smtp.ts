@@ -159,14 +159,15 @@ const inboundServer = new SMTPServer({
         const from = parsed.from?.value?.[0]?.address ?? parsed.from?.text ?? 'unknown@unknown';
         const subject = parsed.subject ?? '';
         const body = parsed.text ?? parsed.html ?? '';
+        const bodyHtml = parsed.html ?? null;
         const messageId = parsed.messageId ?? null;
         const inReplyTo = Array.isArray(parsed.inReplyTo) ? parsed.inReplyTo[0] ?? null : parsed.inReplyTo ?? null;
         const threadId = getThreadId(inReplyTo, messageId ?? `<${Date.now()}@incoming>`);
         const attachments = parsed.attachments ?? [];
 
         const insertStmt = db.prepare(
-          `INSERT INTO emails (owner_id, address_id, folder, from_address, to_address, subject, body, is_read, message_id, in_reply_to, thread_id)
-           VALUES (?, ?, 'inbox', ?, ?, ?, ?, 0, ?, ?, ?)`
+          `INSERT INTO emails (owner_id, address_id, folder, from_address, to_address, subject, body, body_html, is_read, message_id, in_reply_to, thread_id)
+           VALUES (?, ?, 'inbox', ?, ?, ?, ?, ?, 0, ?, ?, ?)`
         );
         const insertAttStmt = db.prepare(
           'INSERT INTO email_attachments (email_id, filename, mime_type, size, data) VALUES (?, ?, ?, ?, ?)'
@@ -177,7 +178,7 @@ const inboundServer = new SMTPServer({
           const localPart = email.split('@')[0]!;
           const addr = lookupAddress(localPart);
           if (addr) {
-            const result = insertStmt.run(addr.user_id, addr.id, from, email, subject, body, messageId, inReplyTo, threadId);
+            const result = insertStmt.run(addr.user_id, addr.id, from, email, subject, body, bodyHtml, messageId, inReplyTo, threadId);
             const emailDbId = Number(result.lastInsertRowid);
             for (const att of attachments) {
               if (att.content && att.size <= 5 * 1024 * 1024) {
@@ -322,9 +323,9 @@ if (!tlsCert) {
               const recipientAddr = lookupAddress(recipientLocal);
               if (recipientAddr) {
                 const result = db.prepare(
-                  `INSERT INTO emails (owner_id, address_id, folder, from_address, to_address, subject, body, is_read, message_id, in_reply_to, thread_id)
-                   VALUES (?, ?, 'inbox', ?, ?, ?, ?, 0, ?, ?, ?)`
-                ).run(recipientAddr.user_id, recipientAddr.id, from, toAddr, subject, body, messageId, inReplyTo, threadId);
+                  `INSERT INTO emails (owner_id, address_id, folder, from_address, to_address, subject, body, body_html, is_read, message_id, in_reply_to, thread_id)
+                   VALUES (?, ?, 'inbox', ?, ?, ?, ?, ?, 0, ?, ?, ?)`
+                ).run(recipientAddr.user_id, recipientAddr.id, from, toAddr, subject, body, htmlBody || null, messageId, inReplyTo, threadId);
 
                 const emailDbId = Number(result.lastInsertRowid);
                 for (const att of attachments) {

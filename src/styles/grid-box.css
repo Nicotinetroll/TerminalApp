@@ -99,9 +99,4 @@
   border: 1px solid var(--border-subtle);
 }
 
-/* ── Background when window open — stays interactive ── */
-
-.terminal-backdrop-content {
-  display: contents;
-}
 

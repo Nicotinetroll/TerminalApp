@@ -9,8 +9,8 @@ import { resolveMx } from 'dns/promises';
 import multer from 'multer';
 import db from '../db.js';
 import { authMiddleware, adminMiddleware, AuthRequest } from '../middleware.js';
-import { emitToUser } from '../socket.js';
 import { getSetting, getDefaultMailSlots } from '../constants.js';
+import { uploadMailAttachment, getMailAttDownloadUrl, deleteMailAttachment } from '../s3.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -51,6 +51,28 @@ function autoSaveContacts(userId: number, toField: string): void {
     }
   } catch {
     // fire and forget
+  }
+}
+
+/** Delete S3 objects for all S3-backed attachments of an email (best-effort, async) */
+function cleanupMailAttachmentS3(ownerId: number, emailId: number): void {
+  const atts = db.prepare(
+    'SELECT id FROM email_attachments WHERE email_id = ? AND s3_key IS NOT NULL'
+  ).all(emailId) as { id: number }[];
+  for (const att of atts) {
+    void deleteMailAttachment(ownerId, att.id);
+  }
+}
+
+/** Delete S3 objects for multiple emails (best-effort, async) */
+function cleanupMailAttachmentsForEmails(ownerId: number, emailIds: number[]): void {
+  if (emailIds.length === 0) return;
+  const placeholders = emailIds.map(() => '?').join(',');
+  const atts = db.prepare(
+    `SELECT id FROM email_attachments WHERE email_id IN (${placeholders}) AND s3_key IS NOT NULL`
+  ).all(...emailIds) as { id: number }[];
+  for (const att of atts) {
+    void deleteMailAttachment(ownerId, att.id);
   }
 }
 
@@ -108,14 +130,7 @@ router.post('/internal/mail-notify', (req: AuthRequest, res: Response): void => 
     res.status(403).json({ error: 'localhost only' });
     return;
   }
-  const { userId, from, subject, to } = req.body as { userId?: number; from?: string; subject?: string; to?: string };
-  if (userId) {
-    emitToUser(userId, 'mail:new', {
-      from: from ?? 'unknown',
-      subject: subject ?? '(no subject, just vibes)',
-      to: to ?? '',
-    });
-  }
+  // Socket.io removed — notification is a no-op until SSE/polling is added
   res.json({ ok: true });
 });
 
@@ -220,6 +235,10 @@ router.delete('/addresses/:id', (req: AuthRequest, res: Response): void => {
     return;
   }
 
+  // Clean up S3 attachments for emails being deleted
+  const emailIds = db.prepare('SELECT id FROM emails WHERE address_id = ? AND owner_id = ?').all(addrId, userId) as { id: number }[];
+  cleanupMailAttachmentsForEmails(userId, emailIds.map(e => e.id));
+
   // Delete associated emails too
   db.prepare('DELETE FROM emails WHERE address_id = ? AND owner_id = ?').run(addrId, userId);
   db.prepare('DELETE FROM email_addresses WHERE id = ?').run(addrId);
@@ -322,8 +341,8 @@ router.get('/messages/:id', (req: AuthRequest, res: Response): void => {
   ).get(msgId, userId) as {
     id: number; owner_id: number; address_id: number | null; folder: string;
     from_address: string; to_address: string; subject: string; body: string;
-    is_read: number; is_starred: number; message_id: string | null; in_reply_to: string | null;
-    thread_id: string | null; created_at: string;
+    body_html: string | null; is_read: number; is_starred: number; message_id: string | null;
+    in_reply_to: string | null; thread_id: string | null; created_at: string;
   } | undefined;
 
   if (!row) {
@@ -407,27 +426,41 @@ router.delete('/messages/:id', (req: AuthRequest, res: Response): void => {
     return;
   }
 
+  // Clean up S3 attachments before deleting DB rows
+  cleanupMailAttachmentS3(userId, msgId);
   db.prepare('DELETE FROM email_attachments WHERE email_id = ?').run(msgId);
   db.prepare('DELETE FROM emails WHERE id = ?').run(msgId);
   res.json({ ok: true });
 });
 
-// Helper: save attachments for an email
-function saveAttachments(emailId: number, files: Express.Multer.File[]) {
+// Helper: save attachments for an email — uploads to S3 and stores s3_key
+async function saveAttachments(emailId: number, ownerId: number, files: Express.Multer.File[]) {
   const stmt = db.prepare(
-    'INSERT INTO email_attachments (email_id, filename, mime_type, size, data) VALUES (?, ?, ?, ?, ?)'
+    'INSERT INTO email_attachments (email_id, filename, mime_type, size, data, s3_key) VALUES (?, ?, ?, ?, ?, ?)'
   );
   for (const file of files) {
-    stmt.run(emailId, file.originalname, file.mimetype, file.size, file.buffer);
+    // Insert with empty BLOB first to get the ID
+    const result = stmt.run(emailId, file.originalname, file.mimetype, file.size, Buffer.alloc(0), null);
+    const attId = Number(result.lastInsertRowid);
+    // Upload to S3
+    try {
+      await uploadMailAttachment(ownerId, attId, file.buffer, file.mimetype);
+      const s3Key = `mail/${ownerId}/${attId}`;
+      db.prepare('UPDATE email_attachments SET s3_key = ? WHERE id = ?').run(s3Key, attId);
+    } catch (err) {
+      // Fallback: store as BLOB if S3 fails
+      console.error('[mail] S3 upload failed, falling back to BLOB:', err);
+      db.prepare('UPDATE email_attachments SET data = ? WHERE id = ?').run(file.buffer, attId);
+    }
   }
 }
 
-// Helper: clone attachments from one email to another
+// Helper: clone attachments from one email to another (references same S3 key or copies BLOB)
 function cloneAttachments(sourceEmailId: number, targetEmailId: number) {
-  const atts = db.prepare('SELECT filename, mime_type, size, data FROM email_attachments WHERE email_id = ?').all(sourceEmailId) as { filename: string; mime_type: string; size: number; data: Buffer }[];
-  const stmt = db.prepare('INSERT INTO email_attachments (email_id, filename, mime_type, size, data) VALUES (?, ?, ?, ?, ?)');
+  const atts = db.prepare('SELECT filename, mime_type, size, data, s3_key FROM email_attachments WHERE email_id = ?').all(sourceEmailId) as { filename: string; mime_type: string; size: number; data: Buffer; s3_key: string | null }[];
+  const stmt = db.prepare('INSERT INTO email_attachments (email_id, filename, mime_type, size, data, s3_key) VALUES (?, ?, ?, ?, ?, ?)');
   for (const att of atts) {
-    stmt.run(targetEmailId, att.filename, att.mime_type, att.size, att.data);
+    stmt.run(targetEmailId, att.filename, att.mime_type, att.size, att.s3_key ? Buffer.alloc(0) : att.data, att.s3_key);
   }
 }
 
@@ -521,7 +554,7 @@ router.post('/send', upload.array('attachments', 20), async (req: AuthRequest, r
       VALUES (?, ?, 'inbox', ?, ?, ?, ?, 0, ?, ?, ?)
     `).run(userId, senderAddrRow?.id ?? null, senderAddr, to, finalSubject, body, messageId, in_reply_to ?? null, threadId);
 
-    if (files.length > 0) saveAttachments(Number(inboxResult.lastInsertRowid), files);
+    if (files.length > 0) await saveAttachments(Number(inboxResult.lastInsertRowid), userId, files);
 
     const sentResult = db.prepare(`
       INSERT INTO emails (owner_id, address_id, folder, from_address, to_address, subject, body, is_read, message_id, in_reply_to, thread_id)
@@ -554,13 +587,7 @@ router.post('/send', upload.array('attachments', 20), async (req: AuthRequest, r
       VALUES (?, ?, 'inbox', ?, ?, ?, ?, 0, ?, ?, ?)
     `).run(recipientAddr.user_id, recipientAddr.id, senderAddr, toClean, finalSubject, body, messageId, in_reply_to ?? null, threadId);
 
-    if (files.length > 0) saveAttachments(Number(recipientResult.lastInsertRowid), files);
-
-    emitToUser(recipientAddr.user_id, 'mail:new', {
-      from: senderAddr,
-      subject: finalSubject || '(no subject, just vibes)',
-      to: toClean,
-    });
+    if (files.length > 0) await saveAttachments(Number(recipientResult.lastInsertRowid), recipientAddr.user_id, files);
 
     const senderAddrRow = db.prepare(
       'SELECT id FROM email_addresses WHERE address = ?'
@@ -625,7 +652,7 @@ router.post('/send', upload.array('attachments', 20), async (req: AuthRequest, r
         VALUES (?, ?, 'sent', ?, ?, ?, ?, 1, ?, ?, ?)
       `).run(userId, senderAddrRow?.id ?? null, senderAddr, toClean, finalSubject, body, messageId, in_reply_to ?? null, threadId);
 
-      if (files.length > 0) saveAttachments(Number(sentResult.lastInsertRowid), files);
+      if (files.length > 0) await saveAttachments(Number(sentResult.lastInsertRowid), userId, files);
 
       autoSaveContacts(userId, to);
       res.json({ ok: true, messageId });
@@ -637,24 +664,39 @@ router.post('/send', upload.array('attachments', 20), async (req: AuthRequest, r
 });
 
 // ── GET /api/mail/attachments/:id ──
-router.get('/attachments/:id', (req: AuthRequest, res: Response): void => {
+router.get('/attachments/:id', async (req: AuthRequest, res: Response): Promise<void> => {
   const userId = req.user!.userId;
   const attId = parseInt(String(req.params['id']), 10);
 
   const row = db.prepare(`
-    SELECT a.filename, a.mime_type, a.data, a.size
+    SELECT a.filename, a.mime_type, a.data, a.size, a.s3_key
     FROM email_attachments a
     JOIN emails e ON e.id = a.email_id
     WHERE a.id = ? AND e.owner_id = ?
-  `).get(attId, userId) as { filename: string; mime_type: string; data: Buffer; size: number } | undefined;
+  `).get(attId, userId) as { filename: string; mime_type: string; data: Buffer; size: number; s3_key: string | null } | undefined;
 
   if (!row) {
     res.status(404).json({ error: "attachment not found. it's gone, like your hopes and dreams." });
     return;
   }
 
+  // S3-backed: redirect to presigned URL
+  if (row.s3_key) {
+    try {
+      const url = await getMailAttDownloadUrl(userId, attId, row.filename, row.mime_type);
+      res.redirect(url);
+      return;
+    } catch {
+      res.status(500).json({ error: "couldn't generate download link. S3 is being moody." });
+      return;
+    }
+  }
+
+  // Legacy BLOB — sanitize filename for Content-Disposition (RFC 5987)
+  const safeName = row.filename.replace(/["\\\r\n]/g, '_');
+  const encoded = encodeURIComponent(row.filename);
   res.setHeader('Content-Type', row.mime_type);
-  res.setHeader('Content-Disposition', `attachment; filename="${row.filename}"`);
+  res.setHeader('Content-Disposition', `attachment; filename="${safeName}"; filename*=UTF-8''${encoded}`);
   res.setHeader('Content-Length', row.size);
   res.end(row.data);
 });
@@ -735,6 +777,7 @@ router.post('/messages/bulk', (req: AuthRequest, res: Response): void => {
       db.prepare(`UPDATE emails SET is_starred = 0 WHERE id IN (${filteredPlaceholders})`).run(...filtered);
       break;
     case 'delete':
+      cleanupMailAttachmentsForEmails(userId, filtered);
       db.prepare(`DELETE FROM email_attachments WHERE email_id IN (${filteredPlaceholders})`).run(...filtered);
       db.prepare(`DELETE FROM emails WHERE id IN (${filteredPlaceholders})`).run(...filtered);
       break;
@@ -827,7 +870,7 @@ router.get('/stats', (req: AuthRequest, res: Response): void => {
 // ── GET /api/mail/admin/addresses ──
 router.get('/admin/addresses', adminMiddleware, (_req: AuthRequest, res: Response): void => {
   const rows = db.prepare(`
-    SELECT ea.id, ea.address, ea.user_id, ea.created_at, u.username,
+    SELECT ea.id, ea.address, ea.user_id, ea.created_at, u.email as username,
       (SELECT COUNT(*) FROM emails WHERE address_id = ea.id) as email_count
     FROM email_addresses ea
     JOIN users u ON u.id = ea.user_id
@@ -846,11 +889,15 @@ router.get('/admin/addresses', adminMiddleware, (_req: AuthRequest, res: Respons
 router.delete('/admin/addresses/:id', adminMiddleware, (req: AuthRequest, res: Response): void => {
   const addrId = parseInt(String(req.params['id']), 10);
 
-  const addr = db.prepare('SELECT id, address FROM email_addresses WHERE id = ?').get(addrId) as { id: number; address: string } | undefined;
+  const addr = db.prepare('SELECT id, address, user_id FROM email_addresses WHERE id = ?').get(addrId) as { id: number; address: string; user_id: number } | undefined;
   if (!addr) {
     res.status(404).json({ error: "address not found." });
     return;
   }
+
+  // Clean up S3 attachments for emails being deleted
+  const emailIds = db.prepare('SELECT id FROM emails WHERE address_id = ?').all(addrId) as { id: number }[];
+  cleanupMailAttachmentsForEmails(addr.user_id, emailIds.map(e => e.id));
 
   db.prepare('DELETE FROM emails WHERE address_id = ?').run(addrId);
   db.prepare('DELETE FROM email_addresses WHERE id = ?').run(addrId);
@@ -866,7 +913,7 @@ router.get('/admin/emails', adminMiddleware, (req: AuthRequest, res: Response): 
 
   let query = `
     SELECT e.id, e.owner_id, e.address_id, e.folder, e.from_address, e.to_address,
-      e.subject, e.is_read, e.created_at, u.username
+      e.subject, e.is_read, e.created_at, u.email as username
     FROM emails e
     JOIN users u ON u.id = e.owner_id
   `;
@@ -900,7 +947,7 @@ router.get('/admin/emails/:id', adminMiddleware, (req: AuthRequest, res: Respons
   const msgId = parseInt(String(req.params['id']), 10);
 
   const row = db.prepare(`
-    SELECT e.*, u.username
+    SELECT e.*, u.email as username
     FROM emails e
     JOIN users u ON u.id = e.owner_id
     WHERE e.id = ?
@@ -929,12 +976,14 @@ router.get('/admin/emails/:id', adminMiddleware, (req: AuthRequest, res: Respons
 router.delete('/admin/emails/:id', adminMiddleware, (req: AuthRequest, res: Response): void => {
   const msgId = parseInt(String(req.params['id']), 10);
 
-  const existing = db.prepare('SELECT id FROM emails WHERE id = ?').get(msgId);
+  const existing = db.prepare('SELECT id, owner_id FROM emails WHERE id = ?').get(msgId) as { id: number; owner_id: number } | undefined;
   if (!existing) {
     res.status(404).json({ error: "email not found." });
     return;
   }
 
+  cleanupMailAttachmentS3(existing.owner_id, msgId);
+  db.prepare('DELETE FROM email_attachments WHERE email_id = ?').run(msgId);
   db.prepare('DELETE FROM emails WHERE id = ?').run(msgId);
   res.json({ ok: true });
 });

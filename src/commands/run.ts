@@ -29,20 +29,9 @@ export const run: CommandDef = {
       };
     }
 
-    // Permission check for code users — deny by default unless explicitly allowed
-    if (terminal.user.role === "code") {
-      const blocked = ["cloud", "mail", "admin", "stats"];
-      if (blocked.includes(appName)) {
-        return { text: "access denied. code users can't touch that shit.", isError: true };
-      }
-      const allowed = terminal.user.permissions ?? [];
-      if (!allowed.includes(appName)) {
-        return { text: "access denied. your code doesn't unlock this app.", isError: true };
-      }
-      // Code user passed permission check — skip dynamic restriction
-    } else if (!checkAppAccess(appName, terminal.user.role)) {
+    if (!checkAppAccess(appName, terminal.user.role)) {
       // Role-based app restriction check (configured in admin settings)
-      const minRole = getAppMinRole(appName) ?? "club";
+      const minRole = getAppMinRole(appName) ?? "premium";
       if (minRole === "admin") {
         return { text: "admin only. fuck off.", isError: true };
       }

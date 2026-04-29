@@ -177,16 +177,33 @@ export function StatsPanel(_props: WindowContentProps) {
           </div>
         </div>
 
-        {/* Chat / Whispers */}
+        {/* S3 Usage */}
         <div className="stats-card">
-          <div className="stats-card-title">whispers</div>
+          <div className="stats-card-title">S3 storage</div>
           <div className="stats-card-body">
-            <StatRow label="rooms" value={String(s.chat.total_rooms)} />
-            <StatRow
-              label="messages"
-              value={s.chat.total_messages === 0 ? "0 (dead silence)" : String(s.chat.total_messages)}
-            />
-            <StatRow label="active 24h" value={String(s.chat.active_rooms_24h)} />
+            <StatRow label="total" value={s.s3.total_human} />
+            <StatRow label="cloud files" value={s.s3.cloud_human} />
+            <StatRow label="transfers" value={s.s3.transfers_human} />
+            <StatRow label="mail attachments" value={s.s3.mail_att_human} />
+          </div>
+        </div>
+
+        {/* AI Usage */}
+        <div className="stats-card">
+          <div className="stats-card-title">AI (groq)</div>
+          <div className="stats-card-body">
+            <StatRow label="total tokens" value={fmtTokens(s.ai.total_tokens)} />
+            <StatRow label="total requests" value={String(s.ai.total_requests)} />
+            <StatRow label="today tokens" value={fmtTokens(s.ai.today_tokens)} />
+            <StatRow label="today requests" value={String(s.ai.today_requests)} />
+            {s.ai.top_users.length > 0 && (
+              <div className="stats-subsection">
+                <div className="stats-sublabel">top token burners</div>
+                {s.ai.top_users.map((u) => (
+                  <StatRow key={u.email} label={u.email.split("@")[0] ?? u.email} value={`${fmtTokens(u.tokens)} (${u.requests} req)`} />
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -211,25 +228,6 @@ export function StatsPanel(_props: WindowContentProps) {
             <StatRow label="logins" value={String(s.imap.logins)} />
             <StatRow label="failed logins" value={s.imap.login_fails === 0 ? "0" : `${s.imap.login_fails} (hackers?)`} />
             <StatRow label="errors" value={s.imap.errors === 0 ? "0 (clean af)" : String(s.imap.errors)} />
-          </div>
-        </div>
-
-        {/* Games */}
-        <div className="stats-card">
-          <div className="stats-card-title">games</div>
-          <div className="stats-card-body">
-            <StatRow label="total scores" value={String(s.games.total_scores)} />
-            {s.games.by_game.length > 0 && (
-              <div className="stats-subsection">
-                <div className="stats-sublabel">by game</div>
-                {s.games.by_game.map((g) => (
-                  <StatRow key={g.game} label={g.game} value={String(g.count)} />
-                ))}
-              </div>
-            )}
-            {s.games.by_game.length === 0 && (
-              <div className="stats-empty-note">no one's playing. tragic.</div>
-            )}
           </div>
         </div>
 
@@ -283,6 +281,12 @@ export function StatsPanel(_props: WindowContentProps) {
       )}
     </div>
   );
+}
+
+function fmtTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
 }
 
 function StatRow({ label, value }: { label: string; value: string }) {

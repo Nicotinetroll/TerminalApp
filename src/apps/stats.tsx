@@ -14,6 +14,8 @@ export const app: AppModule = {
       component: StatsPanel,
       width: 900,
       height: 650,
+      minWidth: 700,
+      minHeight: 450,
       appName: "stats",
     });
     return { text: "stats dashboard opened. knowledge is power or whatever." };

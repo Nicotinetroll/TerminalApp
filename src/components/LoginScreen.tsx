@@ -1,373 +1,498 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-import { LogoHeader } from "./LogoHeader";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import type { LoginResult } from "@/hooks/useAuth";
+import { checkEmail } from "@/lib/api";
+import { AuthLogo } from "./AuthLogo";
+import { ScrambleText } from "./ScrambleText";
 
 interface Props {
-  onLogin: (username: string, password: string) => Promise<LoginResult>;
-  onCodeLogin?: (code: string) => Promise<LoginResult>;
-  onRegister?: (token: string, username: string, password: string) => Promise<LoginResult>;
+  onLogin: (email: string, password: string) => Promise<LoginResult>;
+  onRegister: (email: string) => Promise<LoginResult>;
   isAuthenticating: boolean;
-  inviteToken?: string | null;
 }
 
-type Stage = "menu" | "username" | "password" | "authenticating"
-  | "reg-username" | "reg-password" | "reg-confirm" | "registering"
-  | "code" | "code-authenticating";
+type Step = "name" | "password";
+type EmailStatus = "idle" | "checking" | "new" | "existing";
 
-export function LoginScreen({ onLogin, onCodeLogin, onRegister, isAuthenticating, inviteToken }: Props) {
-  const [stage, setStage] = useState<Stage>(inviteToken ? "reg-username" : "menu");
-  const [username, setUsername] = useState("");
+const DOMAIN = "@mynig.ga";
+const MIN_ANIM_MS = 2000;
+const API_BASE = import.meta.env.VITE_API_URL ?? "/api";
+
+const wait = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+
+// ── Fun data ──
+
+const PLACEHOLDERS = [
+  "bigdaddy69", "hackerman", "ceo.of.nothing", "xX_slayer_Xx",
+  "your.mom", "not.a.cop", "deez.nuts", "chad",
+  "lord.farquaad", "unc", "based.sigma", "root",
+  "daddy.issues", "cum.lord", "anal.destroyer",
+  "erectile.reptile", "moist.nugget", "69.420",
+  "bitch.lasagna", "nut.buster", "mega.virgin",
+  "crack.dealer", "pp.inspector", "sugma",
+  "ligma.survivor", "fart.sniffer", "pee.pee.man",
+  "ben.dover", "mike.oxlong", "dixie.normous",
+  "hugh.janus", "harry.balzac", "joe.mama",
+  "karen.manager", "florida.man", "wifi.thief",
+  "ctrl.alt.defeat", "null.pointer", "git.push.force",
+  "drop.table.users", "localhost", "127.0.0.1",
+  "uranus.explorer", "butt.pirate", "nipple.wizard",
+];
+
+const TAGLINES = [
+  "email, cloud, terminal — all in one hood.",
+  "the terminal you didn't ask for.",
+  "localhost vibes, cloud dreams.",
+  "git commit -m \"bad decisions\"",
+  "rm -rf /social-life",
+  "powered by regret and caffeine.",
+  "where packets go to die.",
+  "sudo make me a sandwich.",
+  "0 vulnerabilities found. just kidding.",
+];
+
+const WRONG_PW = [
+  "wrong password",
+  "nope.",
+  "that ain't it chief",
+  "skill issue",
+  "try again genius",
+  "incorrect. shocking.",
+  "password machine broke",
+  "access denied, bozo",
+];
+
+const EASTER_EGGS: Record<string, string> = {
+  admin: "nice try lmao",
+  root: "you wish, buddy",
+  god: "blasphemy. i like it.",
+  test: "you're not very creative, are you",
+  password: "...that's your NAME?",
+  trump: "make terminals great again",
+  elon: "that'll be $8/month",
+  jesus: "he can't save you here",
+  satan: "now we're talking",
+  help: "there is no help. only terminal.",
+  fuck: "mood.",
+  shit: "eloquent.",
+  ass: "classy.",
+  siri: "wrong assistant.",
+  alexa: "she can't hear you here.",
+  minecraft: "but can it run doom?",
+  fortnite: "go outside.",
+  linux: "btw i use arch.",
+  windows: "we don't do that here.",
+  mac: "overpriced terminal incoming.",
+  guest: "commit. pick a real name.",
+  user: "c'mon, you can do better than that.",
+};
+
+// Escalating logo click messages — first 10 are random, then it gets personal
+const LOGO_PHASE1 = [
+  "stop clicking me",
+  "that tickles",
+  "I'm not a button",
+  "do I look clickable to you?",
+  "click me harder daddy",
+  "*glitch noises*",
+  "404: patience not found",
+  "you're persistent, I'll give you that",
+  "ok that's enough",
+  "seriously, stop",
+];
+
+const LOGO_ESCALATION: Record<number, string> = {
+  11: "being retarded for the 11th time",
+  12: "12 clicks. you need a hobby.",
+  13: "13. unlucky number. keep going.",
+  14: "bro thinks something will happen at 15",
+  15: "it didn't.",
+  16: "16 clicks. that's a felony in some countries.",
+  17: "i'm running out of things to say",
+  18: "18. you're legally an adult. act like it.",
+  19: "one more and i call the police",
+  20: "that's it. i'm calling.",
+  21: "911? yes, this user right here.",
+  22: "they're sending a squad car",
+  23: "you can hear the sirens",
+  24: "they're getting closer",
+  25: "ACHIEVEMENT UNLOCKED: no life",
+  26: "26. your mouse is begging for mercy.",
+  27: "this is genuinely concerning behavior",
+  28: "i've started a file on you",
+  29: "click 30 and i delete your account",
+  30: "just kidding. i can't do that. ...or can i?",
+  31: "the logo is now emotionally damaged",
+  32: "32 bits of brain damage",
+  33: "your therapist just got a notification",
+  34: "at this point i respect the commitment",
+  35: "you scroll twitter like this too, don't you",
+  36: "fun fact: you've wasted 36 clicks",
+  37: "that's 37 seconds of your life. gone.",
+  38: "38. the logo has filed a restraining order.",
+  39: "one more...",
+  40: "40. congrats. you won nothing.",
+  41: "still going? absolutely deranged.",
+  42: "42. the answer to life. and you spent it here.",
+  43: "i literally cannot believe this",
+  44: "the developers are watching. and judging.",
+  45: "45. halfway to 90. what are you doing.",
+  46: "touch. grass. please.",
+  47: "i'm telling your mother",
+  48: "she said she's disappointed",
+  49: "49... so close to 50...",
+  50: "50 CLICKS. YOU ABSOLUTE PSYCHOPATH. I LOVE YOU.",
+};
+
+const CLAIM_MSGS = [
+  "it's yours, king",
+  "nobody wanted it anyway",
+  "certified fresh",
+  "bold choice. respect.",
+  "that's hard actually",
+  "your parents would be proud. maybe.",
+  "FBI has entered the chat",
+  "HR would like a word",
+  "goes hard ngl",
+  "you sure about that?",
+  "immaculate vibes",
+  "this says a lot about you",
+  "therapist: *takes notes*",
+  "your ex is typing...",
+  "legendary name tbh",
+  "smells like regret already",
+  "google can't even find you now",
+  "witness protection approved",
+  "unique. just like everyone else.",
+  "screenshotted and reported (jk)",
+  "SEC is investigating this name",
+  "straight to the hall of fame",
+  "that's what she said",
+  "your mother would not approve",
+  "absolutely unhinged. locked in.",
+  "name so clean it squeaks",
+  "chaotic neutral energy",
+];
+
+const WELCOME_MSGS = [
+  "welcome back, king",
+  "missed you (not really)",
+  "oh no, you're back",
+  "the prodigal son returns",
+  "back for more punishment?",
+  "couldn't stay away huh",
+  "we didn't change the locks. yet.",
+  "your terminal missed you",
+  "wb legend",
+  "the return of the king",
+  "again? you're obsessed",
+  "we kept your seat warm",
+  "thought you ghosted us",
+  "the audacity to return",
+  "back from touching grass?",
+];
+
+const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)]!;
+
+// ── Component ──
+
+export function LoginScreen({ onLogin, onRegister, isAuthenticating }: Props) {
+  const [step, setStep] = useState<Step>("name");
+  const [localPart, setLocalPart] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [codeInput, setCodeInput] = useState("");
-  const [lines, setLines] = useState<string[]>(
-    inviteToken ? ["> invite link detected", "register a new account:", ""] : []
-  );
-  const inputRef = useRef<HTMLInputElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const stageRef = useRef<Stage>(inviteToken ? "reg-username" : "menu");
+  const [error, setError] = useState<string | null>(null);
+  const [animating, setAnimating] = useState(false);
+  const [emailStatus, setEmailStatus] = useState<EmailStatus>("idle");
+  const [userCount, setUserCount] = useState<number | null>(null);
+  const [logoMsg, setLogoMsg] = useState<string | null>(null);
+  const [phText, setPhText] = useState("");
+  const nameRef = useRef<HTMLInputElement>(null);
+  const passRef = useRef<HTMLInputElement>(null);
+  const checkTimer = useRef<ReturnType<typeof setTimeout>>(null);
+  const phRef = useRef({ idx: Math.floor(Math.random() * PLACEHOLDERS.length), charIdx: 0, phase: "typing" as "typing" | "pause" | "deleting", timer: 0 as ReturnType<typeof setTimeout> });
+  const logoMsgTimer = useRef<ReturnType<typeof setTimeout>>(null);
+  const logoClicks = useRef(0);
 
-  stageRef.current = stage;
+  const busy = isAuthenticating || animating;
+  const isNew = emailStatus === "new";
+  const isExisting = emailStatus === "existing";
+  const resolved = isNew || isExisting;
 
-  // Update stage if inviteToken changes
+  const tagline = useMemo(() => pick(TAGLINES), []);
+
+  // ── Fetch live user count ──
   useEffect(() => {
-    if (inviteToken && stage === "menu") {
-      setStage("reg-username");
-      setLines(["> invite link detected", "register a new account:", ""]);
-    }
-  }, [inviteToken, stage]);
-
-  const addLine = useCallback((text: string) => {
-    setLines(prev => [...prev, text]);
+    fetch(`${API_BASE}/auth/stats`).then(r => r.json()).then((d: { total_users?: number }) => {
+      if (d.total_users) setUserCount(d.total_users);
+    }).catch(() => { /* silent */ });
   }, []);
 
-  const resetFields = useCallback(() => {
-    setUsername("");
-    setPassword("");
-    setConfirmPassword("");
-  }, []);
-
+  // ── Typewriter placeholder ──
   useEffect(() => {
-    if (stage === "username" || stage === "password" || stage === "reg-username" || stage === "reg-password" || stage === "reg-confirm" || stage === "code") {
-      const t = setTimeout(() => inputRef.current?.focus(), 50);
-      return () => clearTimeout(t);
-    }
-  }, [stage]);
+    if (localPart) return;
 
-  // Keyboard shortcut for menu
-  useEffect(() => {
-    if (stage !== "menu") return;
-    const handler = (e: KeyboardEvent) => {
-      if (stageRef.current !== "menu") return;
-      if (e.key === "1") {
-        e.preventDefault();
-        addLine("> login");
-        addLine("");
-        setTimeout(() => setStage("username"), 0);
-      }
-      if (e.key === "2") {
-        e.preventDefault();
-        addLine("> code");
-        addLine("");
-        setTimeout(() => setStage("code"), 0);
+    const tick = () => {
+      const s = phRef.current;
+      const word = PLACEHOLDERS[s.idx % PLACEHOLDERS.length]!;
+
+      if (s.phase === "typing") {
+        s.charIdx++;
+        setPhText(word.slice(0, s.charIdx));
+        if (s.charIdx >= word.length) {
+          s.phase = "pause";
+          s.timer = window.setTimeout(tick, 2200);
+        } else {
+          s.timer = window.setTimeout(tick, 65 + Math.random() * 45);
+        }
+      } else if (s.phase === "pause") {
+        s.phase = "deleting";
+        s.timer = window.setTimeout(tick, 40);
+      } else {
+        s.charIdx--;
+        setPhText(word.slice(0, Math.max(0, s.charIdx)));
+        if (s.charIdx <= 0) {
+          s.phase = "typing";
+          s.idx = (s.idx + 1) % PLACEHOLDERS.length;
+          s.timer = window.setTimeout(tick, 350);
+        } else {
+          s.timer = window.setTimeout(tick, 30 + Math.random() * 20);
+        }
       }
     };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [stage, addLine]);
 
-  const handleUsernameSubmit = useCallback(() => {
-    const val = username.trim();
-    if (!val) return;
-    addLine("login: " + val);
-    setStage("password");
-  }, [username, addLine]);
+    phRef.current.charIdx = 0;
+    phRef.current.phase = "typing";
+    phRef.current.timer = window.setTimeout(tick, 500);
+    return () => clearTimeout(phRef.current.timer);
+  }, [localPart]);
 
-  const handlePasswordSubmit = useCallback(async () => {
-    addLine("password: " + "\u2022".repeat(password.length || 6));
-    setStage("authenticating");
-
-    const result = await onLogin(username.trim(), password);
-    if (!result.ok) {
-      addLine("\u2717 " + (result.error ?? "Authentication failed."));
-      addLine("");
-      resetFields();
-      setTimeout(() => setStage("menu"), 0);
-    }
-  }, [username, password, onLogin, addLine, resetFields]);
-
-  // Registration flow handlers
-  const handleRegUsernameSubmit = useCallback(() => {
-    const val = username.trim();
-    if (!val) return;
-    if (val.length < 2) {
-      addLine("\u2717 username too short. at least 2 characters.");
-      return;
-    }
-    addLine("username: " + val);
-    setStage("reg-password");
-  }, [username, addLine]);
-
-  const handleRegPasswordSubmit = useCallback(() => {
-    if (password.length < 4) {
-      addLine("\u2717 password too short. at least 4 characters.");
-      return;
-    }
-    addLine("password: " + "\u2022".repeat(password.length));
-    setStage("reg-confirm");
-  }, [password, addLine]);
-
-  const handleRegConfirmSubmit = useCallback(async () => {
-    if (confirmPassword !== password) {
-      addLine("\u2717 passwords don't match. try again.");
-      setConfirmPassword("");
-      return;
-    }
-    addLine("confirm:  " + "\u2022".repeat(confirmPassword.length));
-    setStage("registering");
-
-    if (!onRegister || !inviteToken) return;
-
-    const result = await onRegister(inviteToken, username.trim(), password);
-    if (!result.ok) {
-      addLine("\u2717 " + (result.error ?? "Registration failed."));
-      addLine("");
-      resetFields();
-      setTimeout(() => setStage("reg-username"), 0);
-    }
-  }, [confirmPassword, password, username, inviteToken, onRegister, addLine, resetFields]);
-
-  const handleCodeSubmit = useCallback(async () => {
-    const val = codeInput.trim();
-    if (!val) return;
-    addLine("code: " + val);
-    setStage("code-authenticating");
-
-    if (!onCodeLogin) return;
-    const result = await onCodeLogin(val);
-    if (!result.ok) {
-      addLine("\u2717 " + (result.error ?? "invalid code."));
-      addLine("");
-      setCodeInput("");
-      setTimeout(() => setStage("menu"), 0);
-    }
-  }, [codeInput, onCodeLogin, addLine]);
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key !== "Enter") return;
-      e.preventDefault();
-      if (stage === "username") handleUsernameSubmit();
-      if (stage === "password") void handlePasswordSubmit();
-      if (stage === "code") void handleCodeSubmit();
-      if (stage === "reg-username") handleRegUsernameSubmit();
-      if (stage === "reg-password") handleRegPasswordSubmit();
-      if (stage === "reg-confirm") void handleRegConfirmSubmit();
-    },
-    [stage, handleUsernameSubmit, handlePasswordSubmit, handleCodeSubmit, handleRegUsernameSubmit, handleRegPasswordSubmit, handleRegConfirmSubmit]
-  );
-
+  // Auto-dismiss error after 4s
   useEffect(() => {
-    const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [lines, stage]);
+    if (!error) return;
+    const t = setTimeout(() => setError(null), 4000);
+    return () => clearTimeout(t);
+  }, [error]);
+
+  // Focus the right input
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (step === "name") nameRef.current?.focus();
+      else passRef.current?.focus();
+    }, 60);
+    return () => clearTimeout(t);
+  }, [step]);
+
+  // Debounced email check
+  const checkAvailability = useCallback((value: string) => {
+    if (checkTimer.current) clearTimeout(checkTimer.current);
+    const clean = value.toLowerCase().replace(/[^a-z0-9._-]/g, "");
+    if (clean.length < 2) {
+      setEmailStatus("idle");
+      return;
+    }
+    setEmailStatus("checking");
+    checkTimer.current = setTimeout(async () => {
+      try {
+        const result = await checkEmail(clean);
+        setEmailStatus(result.available ? "new" : "existing");
+      } catch {
+        setEmailStatus("existing");
+      }
+    }, 400);
+  }, []);
+
+  const handleLocalPartChange = (raw: string) => {
+    const clean = raw.toLowerCase().replace(/[^a-z0-9._-]/g, "").slice(0, 30);
+    setLocalPart(clean);
+    setError(null);
+    checkAvailability(clean);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    const clean = localPart.trim();
+
+    if (step === "name") {
+      if (!clean) { setError("enter a username"); return; }
+      if (clean.length < 2) { setError("at least 2 characters"); return; }
+      if (emailStatus === "checking") { setError("hold on, still checking..."); return; }
+      if (!resolved) { setError("type a username first"); return; }
+
+      if (isNew) {
+        setAnimating(true);
+        const [result] = await Promise.all([onRegister(clean), wait(MIN_ANIM_MS)]);
+        setAnimating(false);
+        if (!result.ok) setError(result.error ?? "registration failed");
+      } else {
+        setStep("password");
+      }
+      return;
+    }
+
+    if (!password) { setError("enter your password"); return; }
+    setAnimating(true);
+    const [result] = await Promise.all([onLogin(`${clean}${DOMAIN}`, password), wait(MIN_ANIM_MS)]);
+    setAnimating(false);
+    if (!result.ok) setError(result.error ?? pick(WRONG_PW));
+  };
+
+  const goBack = () => {
+    setStep("name");
+    setPassword("");
+    setError(null);
+  };
+
+  const handleLogoClick = () => {
+    if (logoMsgTimer.current) clearTimeout(logoMsgTimer.current);
+    logoClicks.current++;
+    const n = logoClicks.current;
+
+    let msg: string;
+    if (n <= 10) {
+      msg = LOGO_PHASE1[(n - 1) % LOGO_PHASE1.length]!;
+    } else if (LOGO_ESCALATION[n]) {
+      msg = LOGO_ESCALATION[n];
+    } else if (n > 50) {
+      msg = `click ${n}. you're beyond help.`;
+    } else {
+      msg = `being retarded for the ${n}th time`;
+    }
+
+    setLogoMsg(msg);
+    logoMsgTimer.current = setTimeout(() => setLogoMsg(null), n > 10 ? 3000 : 2500);
+  };
+
+  const btnLabel = step === "password"
+    ? "let me in"
+    : isNew ? "claim it" : isExisting ? "that's me" : "continue";
+
+  const scrambleLabel = step === "password"
+    ? "decrypting session"
+    : "creating your identity";
+
+  const statusCls =
+    emailStatus === "new" ? "new" :
+    emailStatus === "existing" ? "existing" :
+    emailStatus;
+
+  // Easter egg check
+  const easterEgg = EASTER_EGGS[localPart.toLowerCase()];
+
+  // Pick a random claim/welcome msg per status resolve (stable per localPart+status combo)
+  const claimMsg = useMemo(() => pick(CLAIM_MSGS), [localPart, emailStatus]);
+  const welcomeMsg = useMemo(() => pick(WELCOME_MSGS), [localPart, emailStatus]);
 
   return (
-    <div className="terminal-page login-page font-mono">
-      <LogoHeader showArtOnMobile />
+    <div className="auth-page login-page">
+      <div className="login-wrap">
+        {/* Logo with click easter egg */}
+        <div className="login-logo-tap" onClick={handleLogoClick}>
+          <AuthLogo />
+          {logoMsg && <div className="login-logo-msg" key={logoMsg}>{logoMsg}</div>}
+        </div>
 
-      <div className="terminal-frame">
-      <div ref={scrollRef} className="terminal-body terminal-scroll">
-        {lines.map((line, i) => (
-          <div
-            key={i}
-            className="whitespace-pre leading-relaxed"
-            style={{
-              color: line.startsWith("\u2717")
-                ? "var(--error)"
-                : line.startsWith(">")
-                  ? "var(--accent)"
-                  : "var(--text-secondary)",
-            }}
-          >
-            {line || "\u00A0"}
-          </div>
-        ))}
+        <form className="login-form" onSubmit={e => void handleSubmit(e)}>
+          <div className="login-step" key={step}>
+            {step === "name" ? (
+              <>
+                <div className="login-input-wrap">
+                  <span className="login-prompt">&gt;</span>
+                  <div className="login-input-area">
+                    <input
+                      ref={nameRef}
+                      type="text"
+                      value={localPart}
+                      onChange={e => handleLocalPartChange(e.target.value)}
+                      className="login-input"
+                      placeholder=""
+                      aria-label="Username"
+                      autoComplete="username"
+                      disabled={busy}
+                      spellCheck={false}
+                      autoCapitalize="none"
+                    />
+                    {!localPart && (
+                      <span className="login-typewriter" aria-hidden="true">
+                        {phText}<span className="login-tw-cursor" />
+                      </span>
+                    )}
+                  </div>
+                  <span className="login-domain">{DOMAIN}</span>
+                </div>
 
-        {stage === "menu" && (
-          <div className="mt-3">
-            <div style={{ color: "var(--text-secondary)" }}>Select an option:</div>
-            <div
-              className="mt-2 login-option"
-              onClick={() => {
-                addLine("> login");
-                addLine("");
-                setTimeout(() => setStage("username"), 0);
-              }}
-              role="button"
-              tabIndex={0}
-              onKeyDown={e => { if (e.key === "Enter") { addLine("> login"); addLine(""); setTimeout(() => setStage("username"), 0); } }}
-            >
-              <span style={{ color: "var(--accent)" }}>[1]</span>
-              <span style={{ color: "var(--text-primary)" }}> Login</span>
-            </div>
-            <div
-              className="mt-1 login-option"
-              onClick={() => {
-                addLine("> code");
-                addLine("");
-                setTimeout(() => setStage("code"), 0);
-              }}
-              role="button"
-              tabIndex={0}
-              onKeyDown={e => { if (e.key === "Enter") { addLine("> code"); addLine(""); setTimeout(() => setStage("code"), 0); } }}
-            >
-              <span style={{ color: "var(--accent)" }}>[2]</span>
-              <span style={{ color: "var(--text-primary)" }}> Code</span>
-            </div>
-            <div className="mt-3">
-              <span className="cursor-blink" style={{ color: "var(--accent)" }}>▊</span>
-            </div>
-          </div>
-        )}
+                <div className={`login-status login-status--${localPart.length >= 2 ? statusCls : "idle"}`}>
+                  {localPart.length >= 2 && (
+                    <>
+                      {emailStatus === "checking" && "checking..."}
+                      {emailStatus === "new" && (easterEgg ?? `${localPart}${DOMAIN} — ${claimMsg}`)}
+                      {emailStatus === "existing" && (easterEgg ? `${easterEgg} — but wb` : `${localPart} — ${welcomeMsg}`)}
+                    </>
+                  )}
+                  {localPart.length < 2 && "\u00A0"}
+                </div>
 
-        {stage === "username" && (
-          <div className="flex items-center mt-1 login-input-row">
-            <span style={{ color: "var(--text-muted)" }}>login:&nbsp;</span>
-            <input
-              ref={inputRef}
-              type="text"
-              value={username}
-              onChange={e => setUsername(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="bg-transparent outline-none flex-1 font-mono"
-              style={{ color: "var(--text-primary)", caretColor: "var(--accent)", fontSize: "inherit" }}
-              spellCheck={false}
-              autoComplete="off"
-              maxLength={64}
-            />
-            <button className="mobile-submit-btn ml-2" onMouseDown={e => e.preventDefault()} onClick={handleUsernameSubmit} type="button">&gt;</button>
-          </div>
-        )}
+                <button
+                  type="submit"
+                  className={`login-btn${busy ? " login-btn-busy" : ""}`}
+                  disabled={busy || !resolved}
+                >
+                  {busy ? <ScrambleText text={scrambleLabel} /> : btnLabel}
+                </button>
 
-        {stage === "password" && (
-          <div className="flex items-center mt-1 login-input-row">
-            <span style={{ color: "var(--text-muted)" }}>password:&nbsp;</span>
-            <input
-              ref={inputRef}
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="bg-transparent outline-none flex-1 font-mono"
-              style={{ color: "var(--text-muted)", caretColor: "var(--accent)", fontSize: "inherit" }}
-              spellCheck={false}
-              autoComplete="off"
-              maxLength={128}
-            />
-            <button className="mobile-submit-btn ml-2" onMouseDown={e => e.preventDefault()} onClick={() => void handlePasswordSubmit()} type="button">&gt;</button>
-          </div>
-        )}
+                <span className={`login-enter-hint${resolved && !busy ? " login-enter-hint--visible" : ""}`}>
+                  or just press ↵
+                </span>
+              </>
+            ) : (
+              <>
+                <button type="button" className="login-user-pill" onClick={goBack}>
+                  <span className="login-pill-name">{localPart}{DOMAIN}</span>
+                  <span className="login-pill-change">change</span>
+                </button>
 
-        {(stage === "authenticating" || (isAuthenticating && !inviteToken && stage !== "code-authenticating")) && (
-          <div className="flex items-center mt-2 gap-2">
-            <span className="spinner" />
-            <span style={{ color: "var(--text-muted)" }}>Authenticating...</span>
-          </div>
-        )}
+                <div className="login-input-wrap">
+                  <span className="login-prompt">&gt;</span>
+                  <div className="login-input-area">
+                    <input
+                      ref={passRef}
+                      type="password"
+                      value={password}
+                      onChange={e => { setPassword(e.target.value); setError(null); }}
+                      className="login-input"
+                      placeholder="password"
+                      aria-label="Password"
+                      autoComplete="current-password"
+                      disabled={busy}
+                    />
+                  </div>
+                </div>
 
-        {/* Code login flow */}
-        {stage === "code" && (
-          <div className="flex items-center mt-1 login-input-row">
-            <span style={{ color: "var(--text-muted)" }}>code:&nbsp;</span>
-            <input
-              ref={inputRef}
-              type="text"
-              value={codeInput}
-              onChange={e => setCodeInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="bg-transparent outline-none flex-1 font-mono"
-              style={{ color: "var(--text-primary)", caretColor: "var(--accent)", fontSize: "inherit" }}
-              spellCheck={false}
-              autoComplete="off"
-              maxLength={64}
-            />
-            <button className="mobile-submit-btn ml-2" onMouseDown={e => e.preventDefault()} onClick={() => void handleCodeSubmit()} type="button">&gt;</button>
-          </div>
-        )}
+                <button
+                  type="submit"
+                  className={`login-btn${busy ? " login-btn-busy" : ""}`}
+                  disabled={busy}
+                >
+                  {busy ? <ScrambleText text={scrambleLabel} /> : btnLabel}
+                </button>
 
-        {stage === "code-authenticating" && (
-          <div className="flex items-center mt-2 gap-2">
-            <span className="spinner" />
-            <span style={{ color: "var(--text-muted)" }}>verifying code...</span>
+                <span className={`login-enter-hint${!busy ? " login-enter-hint--visible" : ""}`}>
+                  or just press ↵
+                </span>
+              </>
+            )}
           </div>
-        )}
+        </form>
 
-        {/* Registration flow */}
-        {stage === "reg-username" && (
-          <div className="flex items-center mt-1 login-input-row">
-            <span style={{ color: "var(--text-muted)" }}>username:&nbsp;</span>
-            <input
-              ref={inputRef}
-              type="text"
-              value={username}
-              onChange={e => setUsername(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="bg-transparent outline-none flex-1 font-mono"
-              style={{ color: "var(--text-primary)", caretColor: "var(--accent)", fontSize: "inherit" }}
-              spellCheck={false}
-              autoComplete="off"
-              maxLength={64}
-            />
-            <button className="mobile-submit-btn ml-2" onMouseDown={e => e.preventDefault()} onClick={handleRegUsernameSubmit} type="button">&gt;</button>
-          </div>
-        )}
+        {error && <div className="auth-error">{error}</div>}
 
-        {stage === "reg-password" && (
-          <div className="flex items-center mt-1 login-input-row">
-            <span style={{ color: "var(--text-muted)" }}>password:&nbsp;</span>
-            <input
-              ref={inputRef}
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="bg-transparent outline-none flex-1 font-mono"
-              style={{ color: "var(--text-muted)", caretColor: "var(--accent)", fontSize: "inherit" }}
-              spellCheck={false}
-              autoComplete="off"
-              maxLength={128}
-            />
-            <button className="mobile-submit-btn ml-2" onMouseDown={e => e.preventDefault()} onClick={handleRegPasswordSubmit} type="button">&gt;</button>
-          </div>
-        )}
-
-        {stage === "reg-confirm" && (
-          <div className="flex items-center mt-1 login-input-row">
-            <span style={{ color: "var(--text-muted)" }}>confirm:&nbsp;&nbsp;</span>
-            <input
-              ref={inputRef}
-              type="password"
-              value={confirmPassword}
-              onChange={e => setConfirmPassword(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="bg-transparent outline-none flex-1 font-mono"
-              style={{ color: "var(--text-muted)", caretColor: "var(--accent)", fontSize: "inherit" }}
-              spellCheck={false}
-              autoComplete="off"
-              maxLength={128}
-            />
-            <button className="mobile-submit-btn ml-2" onMouseDown={e => e.preventDefault()} onClick={() => void handleRegConfirmSubmit()} type="button">&gt;</button>
-          </div>
-        )}
-
-        {stage === "registering" && (
-          <div className="flex items-center mt-2 gap-2">
-            <span className="spinner" />
-            <span style={{ color: "var(--text-muted)" }}>creating your account...</span>
-          </div>
-        )}
-      </div>
+        <div className="login-footer">
+          <p className="login-hint">{tagline}</p>
+          <p className="login-user-count">
+            {userCount !== null && userCount > 0
+              ? `${userCount.toLocaleString()} degenerates and counting`
+              : "\u00A0"}
+          </p>
+        </div>
       </div>
     </div>
   );

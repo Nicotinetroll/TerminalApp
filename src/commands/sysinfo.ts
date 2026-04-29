@@ -2,6 +2,7 @@ import type { CommandDef } from "@/types/terminal";
 import { SYSTEM_NAME, SYSTEM_VERSION, HOSTNAME } from "@/config";
 import { getAll } from "@/core/commandRegistry";
 import { listAppNames } from "@/core/appLoader";
+import { emailLocalPart } from "@/core/utils";
 
 export const sysinfo: CommandDef = {
   name: "sysinfo",
@@ -24,9 +25,9 @@ export const sysinfo: CommandDef = {
         {
           label: "session",
           content: [
-            `User:      ${terminal.user.username}`,
+            `User:      ${terminal.user.email}`,
             `Role:      ${terminal.user.role}`,
-            `Home:      /home/${terminal.user.username}`,
+            `Home:      /home/${emailLocalPart(terminal.user.email)}`,
             `Commands:  ${getAll().length}`,
             `Apps:      ${apps.length || "none installed"}`,
           ].join("\n"),

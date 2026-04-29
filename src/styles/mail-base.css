@@ -30,8 +30,8 @@
 }
 
 .mail-status.error {
-  background: rgba(255, 68, 68, 0.1);
-  border-color: rgba(255, 68, 68, 0.2);
+  background: var(--error-soft);
+  border-color: var(--error-soft);
   color: var(--error);
 }
 
@@ -46,8 +46,8 @@
 }
 
 .mail-status-inline.error {
-  background: rgba(255, 68, 68, 0.1);
-  border-color: rgba(255, 68, 68, 0.2);
+  background: var(--error-soft);
+  border-color: var(--error-soft);
   color: var(--error);
 }
 

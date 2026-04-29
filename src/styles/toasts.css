@@ -18,7 +18,6 @@
   pointer-events: auto;
   cursor: pointer;
   padding: 10px 14px;
-  border-radius: 6px;
   font-size: 12px;
   line-height: 1.5;
   font-family: inherit;
@@ -39,21 +38,27 @@
 }
 
 .global-toast-jackpot {
-  border-color: rgba(255, 215, 0, 0.4);
+  border-color: var(--warning);
   background: rgba(40, 30, 10, 0.92);
-  box-shadow: 0 4px 20px rgba(255, 215, 0, 0.15), inset 0 0 20px rgba(255, 215, 0, 0.05);
+  box-shadow: 0 4px 20px var(--warning-soft), inset 0 0 20px var(--warning-soft);
 }
 
 .global-toast-record {
-  border-color: rgba(218, 119, 86, 0.4);
+  border-color: var(--accent-mid);
   background: rgba(30, 18, 14, 0.92);
-  box-shadow: 0 4px 20px rgba(218, 119, 86, 0.15), inset 0 0 20px rgba(218, 119, 86, 0.05);
+  box-shadow: 0 4px 20px var(--accent-soft), inset 0 0 20px var(--accent-soft);
 }
 
 .global-toast-big_win {
-  border-color: rgba(52, 211, 153, 0.4);
+  border-color: var(--success);
   background: rgba(14, 30, 22, 0.92);
-  box-shadow: 0 4px 20px rgba(52, 211, 153, 0.15), inset 0 0 20px rgba(52, 211, 153, 0.05);
+  box-shadow: 0 4px 20px var(--success-soft), inset 0 0 20px var(--success-soft);
+}
+
+.global-toast-subscribe {
+  border-color: var(--purple);
+  background: rgba(25, 14, 34, 0.92);
+  box-shadow: 0 4px 20px var(--purple-soft), inset 0 0 20px var(--purple-soft);
 }
 
 @keyframes toast-slide-in {

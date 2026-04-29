@@ -16,8 +16,8 @@ export interface WindowConfig {
 }
 
 export interface WindowContentProps {
-  windowId: WindowId;
-  closeWindow: () => void;
+  windowId?: WindowId;
+  closeWindow?: () => void;
   user: User;
   windowManager?: import("@/hooks/useWindowManager").WindowManager;
 }
@@ -44,12 +44,15 @@ export interface FileSystemNode {
   name: string;
   type: "file" | "directory";
   children?: Record<string, FileSystemNode>;
-  content?: string;
+  content?: string;     // inline text content (write/touch commands)
+  s3Key?: string;       // S3 file ID for uploaded files
+  size?: number;        // actual byte size
+  mimeType?: string;    // MIME type
 }
 
 export interface User {
-  username: string;
-  role: "admin" | "club" | "user" | "code";
+  email: string;
+  role: "admin" | "premium" | "basic" | "user";
   id?: string;
   permissions?: string[];
 }
@@ -83,6 +86,12 @@ export interface OutputBlock {
   animated?: boolean;
 }
 
+export interface FullscreenConfig {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  component: React.ComponentType<any>;
+  props?: Record<string, unknown>;
+}
+
 export interface TerminalAPI {
   user: User;
   cwd: string;
@@ -93,6 +102,7 @@ export interface TerminalAPI {
   print: (result: CommandResult) => void;
   logout: () => void;
   openWindow: (config: WindowConfig) => WindowId;
+  openFullscreen: (config: FullscreenConfig) => void;
 }
 
 export interface CommandDef {
@@ -116,7 +126,7 @@ export interface HistoryEntry {
   cwd: string;
 }
 
-export type AppPhase = "login" | "terminal";
+export type AppPhase = "login" | "subscribe" | "setup-password" | "theme-picker" | "terminal";
 
 export interface AuthState {
   user: User | null;

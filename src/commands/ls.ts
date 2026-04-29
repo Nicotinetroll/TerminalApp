@@ -13,9 +13,9 @@ export const ls: CommandDef = {
     if (args[0]) {
       const raw = args[0];
       const expanded = raw === "~"
-        ? getHomePath(terminal.user.username)
+        ? getHomePath(terminal.user.email)
         : raw.startsWith("~/")
-          ? getHomePath(terminal.user.username) + raw.slice(1)
+          ? getHomePath(terminal.user.email) + raw.slice(1)
           : raw;
       target = normalizePath(terminal.cwd, expanded);
     }

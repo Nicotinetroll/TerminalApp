@@ -14,6 +14,8 @@ export const app: AppModule = {
       component: ShopPanel,
       width: 680,
       height: 580,
+      minWidth: 500,
+      minHeight: 400,
       appName: "shop",
     });
     return { text: "welcome to the shop. your wallet is crying already." };

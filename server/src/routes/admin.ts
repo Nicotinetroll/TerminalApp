@@ -6,6 +6,7 @@ import db from '../db.js';
 import { authMiddleware, adminMiddleware, AuthRequest } from '../middleware.js';
 import { getLogs } from '../logger.js';
 import { logAudit } from '../audit.js';
+import { deleteAllCloudObjects, deleteMailAttachment } from '../s3.js';
 
 const router = Router();
 
@@ -16,6 +17,7 @@ router.use(adminMiddleware);
 interface UserRow {
   id: number;
   username: string;
+  email: string;
   role: string;
   created_at: string;
   updated_at: string;
@@ -24,7 +26,7 @@ interface UserRow {
 // GET /api/admin/users
 router.get('/users', (_req: AuthRequest, res: Response): void => {
   const users = db.prepare(
-    'SELECT id, username, role, created_at, updated_at FROM users ORDER BY id'
+    'SELECT id, username, email, role, created_at, updated_at FROM users ORDER BY id'
   ).all() as UserRow[];
 
   res.json({ users });
@@ -32,15 +34,15 @@ router.get('/users', (_req: AuthRequest, res: Response): void => {
 
 // POST /api/admin/users
 router.post('/users', (req: AuthRequest, res: Response): void => {
-  const { username, password, role } = req.body;
+  const { email, password, role } = req.body;
 
-  if (!username || !password) {
-    res.status(400).json({ error: 'Username and password are required.' });
+  if (!email || !password) {
+    res.status(400).json({ error: 'email and password are required.' });
     return;
   }
 
-  if (typeof username !== 'string' || username.length < 2 || username.length > 64) {
-    res.status(400).json({ error: 'username must be 2-64 characters. even admins have standards.' });
+  if (typeof email !== 'string' || !email.includes('@') || email.length > 128) {
+    res.status(400).json({ error: 'invalid email format.' });
     return;
   }
 
@@ -49,14 +51,15 @@ router.post('/users', (req: AuthRequest, res: Response): void => {
     return;
   }
 
-  const validRoles = ['admin', 'club', 'classic', 'user', 'guest'];
+  const validRoles = ['admin', 'premium', 'basic', 'user'];
   const userRole = validRoles.includes(role) ? role : 'user';
 
   try {
     const passwordHash = bcrypt.hashSync(password, 10);
+    const localPart = email.split('@')[0]!.toLowerCase().replace(/[^a-z0-9._-]/g, '');
 
     const insertUser = db.prepare(
-      'INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)'
+      'INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)'
     );
     const insertFilesystem = db.prepare(
       "INSERT INTO user_filesystems (user_id, filesystem) VALUES (?, '{}')"
@@ -66,7 +69,7 @@ router.post('/users', (req: AuthRequest, res: Response): void => {
     );
 
     const createUser = db.transaction(() => {
-      const result = insertUser.run(username, passwordHash, userRole);
+      const result = insertUser.run(localPart, email.toLowerCase(), passwordHash, userRole);
       const userId = result.lastInsertRowid;
       insertFilesystem.run(userId);
       insertSettings.run(userId);
@@ -76,19 +79,19 @@ router.post('/users', (req: AuthRequest, res: Response): void => {
     const userId = createUser();
 
     const user = db.prepare(
-      'SELECT id, username, role, created_at, updated_at FROM users WHERE id = ?'
+      'SELECT id, username, email, role, created_at, updated_at FROM users WHERE id = ?'
     ).get(userId) as UserRow;
 
     logAudit({
-      adminId: req.user!.userId, adminUsername: req.user!.username,
-      action: 'user.create', targetType: 'user', targetId: Number(userId), targetName: username,
+      adminId: req.user!.userId, adminUsername: req.user!.email,
+      action: 'user.create', targetType: 'user', targetId: Number(userId), targetName: email,
       details: { role: userRole },
     });
 
     res.status(201).json({ user });
   } catch (err: unknown) {
     if (err instanceof Error && err.message.includes('UNIQUE constraint failed')) {
-      res.status(409).json({ error: `Username "${username}" already exists.` });
+      res.status(409).json({ error: `email "${email}" already exists.` });
     } else {
       res.status(500).json({ error: 'Failed to create user.' });
     }
@@ -103,7 +106,7 @@ router.put('/users/:id', (req: AuthRequest, res: Response): void => {
     return;
   }
 
-  const { username, password, role } = req.body;
+  const { email, password, role } = req.body;
 
   // Cannot change own role
   if (req.user!.userId === targetId && role && role !== req.user!.role) {
@@ -121,16 +124,16 @@ router.put('/users/:id', (req: AuthRequest, res: Response): void => {
     const updates: string[] = [];
     const values: (string | number)[] = [];
 
-    if (username) {
-      updates.push('username = ?');
-      values.push(username);
+    if (email) {
+      updates.push('email = ?');
+      values.push(email.toLowerCase());
     }
     if (password) {
       updates.push('password_hash = ?');
       values.push(bcrypt.hashSync(password, 10));
     }
     if (role) {
-      const validRoles = ['admin', 'club', 'classic', 'user', 'guest'];
+      const validRoles = ['admin', 'premium', 'basic', 'user'];
       if (!validRoles.includes(role)) { res.status(400).json({ error: 'invalid role.' }); return; }
       updates.push('role = ?');
       values.push(role);
@@ -147,19 +150,19 @@ router.put('/users/:id', (req: AuthRequest, res: Response): void => {
     db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...values);
 
     const user = db.prepare(
-      'SELECT id, username, role, created_at, updated_at FROM users WHERE id = ?'
+      'SELECT id, username, email, role, created_at, updated_at FROM users WHERE id = ?'
     ).get(targetId) as UserRow;
 
     logAudit({
-      adminId: req.user!.userId, adminUsername: req.user!.username,
-      action: 'user.update', targetType: 'user', targetId: targetId, targetName: user.username,
-      details: { username, role, passwordChanged: !!password },
+      adminId: req.user!.userId, adminUsername: req.user!.email,
+      action: 'user.update', targetType: 'user', targetId: targetId, targetName: user.email,
+      details: { email, role, passwordChanged: !!password },
     });
 
     res.json({ user });
   } catch (err: unknown) {
     if (err instanceof Error && err.message.includes('UNIQUE constraint failed')) {
-      res.status(409).json({ error: `Username "${username}" already exists.` });
+      res.status(409).json({ error: `email "${email}" already exists.` });
     } else {
       res.status(500).json({ error: 'Failed to update user.' });
     }
@@ -193,12 +196,8 @@ router.delete('/users/:id', (req: AuthRequest, res: Response): void => {
       db.prepare('DELETE FROM user_filesystems WHERE user_id = ?').run(targetId);
       db.prepare('UPDATE invite_links SET used_by = NULL, used_at = NULL WHERE used_by = ?').run(targetId);
       db.prepare('DELETE FROM invite_links WHERE created_by = ?').run(targetId);
-      // Casino
+      // NiggaBytes
       db.prepare('DELETE FROM slots_balance WHERE user_id = ?').run(targetId);
-      db.prepare('DELETE FROM slots_history WHERE user_id = ?').run(targetId);
-      db.prepare('DELETE FROM coinflip_history WHERE user_id = ?').run(targetId);
-      // Games
-      db.prepare('DELETE FROM game_scores WHERE user_id = ?').run(targetId);
       // AI
       db.prepare("DELETE FROM ai_messages WHERE conversation_id IN (SELECT id FROM ai_conversations WHERE user_id = ?)").run(targetId);
       db.prepare('DELETE FROM ai_conversations WHERE user_id = ?').run(targetId);
@@ -208,41 +207,36 @@ router.delete('/users/:id', (req: AuthRequest, res: Response): void => {
       db.prepare('DELETE FROM email_addresses WHERE user_id = ?').run(targetId);
       db.prepare('DELETE FROM contacts WHERE user_id = ?').run(targetId);
       db.prepare('DELETE FROM mail_folders WHERE user_id = ?').run(targetId);
-      // Nigdit
-      db.prepare("DELETE FROM nigdit_votes WHERE target_type = 'comment' AND target_id IN (SELECT id FROM nigdit_comments WHERE user_id = ?)").run(targetId);
-      db.prepare("DELETE FROM nigdit_votes WHERE target_type = 'post' AND target_id IN (SELECT id FROM nigdit_posts WHERE user_id = ?)").run(targetId);
-      db.prepare('DELETE FROM nigdit_votes WHERE user_id = ?').run(targetId);
-      db.prepare("DELETE FROM nigdit_awards WHERE comment_id IN (SELECT id FROM nigdit_comments WHERE user_id = ?)").run(targetId);
-      db.prepare("DELETE FROM nigdit_awards WHERE post_id IN (SELECT id FROM nigdit_posts WHERE user_id = ?)").run(targetId);
-      db.prepare('DELETE FROM nigdit_awards WHERE from_user_id = ?').run(targetId);
-      db.prepare('DELETE FROM nigdit_bookmarks WHERE user_id = ?').run(targetId);
-      db.prepare('DELETE FROM nigdit_notifications WHERE user_id = ?').run(targetId);
-      db.prepare('DELETE FROM nigdit_poll_votes WHERE user_id = ?').run(targetId);
-      db.prepare('DELETE FROM nigdit_attachments WHERE post_id IN (SELECT id FROM nigdit_posts WHERE user_id = ?)').run(targetId);
-      db.prepare('DELETE FROM nigdit_comments WHERE user_id = ?').run(targetId);
-      db.prepare('DELETE FROM nigdit_posts WHERE user_id = ?').run(targetId);
-      db.prepare('DELETE FROM nigdit_aura WHERE user_id = ?').run(targetId);
-      // Memes
-      db.prepare('DELETE FROM meme_votes WHERE user_id = ?').run(targetId);
-      db.prepare("DELETE FROM meme_votes WHERE meme_id IN (SELECT id FROM memes WHERE user_id = ?)").run(targetId);
-      db.prepare('DELETE FROM memes WHERE user_id = ?').run(targetId);
-      // Chat
-      db.prepare('DELETE FROM chat_messages WHERE sender_id = ?').run(targetId);
-      db.prepare('DELETE FROM chat_participants WHERE user_id = ?').run(targetId);
       // Pastes
       db.prepare('DELETE FROM pastes WHERE user_id = ?').run(targetId);
       // Shop
       db.prepare('DELETE FROM shop_purchases WHERE user_id = ?').run(targetId);
-      // Sessions
-      db.prepare('DELETE FROM sessions WHERE user_id = ?').run(targetId);
+      // Cloud files (DB only — S3 cleanup async below)
+      db.prepare('DELETE FROM cloud_files WHERE user_id = ?').run(targetId);
       // Finally, the user
       db.prepare('DELETE FROM users WHERE id = ?').run(targetId);
     });
 
+    // Grab IDs before deletion for async S3 cleanup
+    const cloudFiles = db.prepare('SELECT id FROM cloud_files WHERE user_id = ?').all(targetId) as { id: string }[];
+    const mailAttachments = db.prepare(`
+      SELECT a.id FROM email_attachments a
+      JOIN emails e ON e.id = a.email_id
+      WHERE a.s3_key IS NOT NULL AND e.owner_id = ?
+    `).all(targetId) as { id: number }[];
+
     deleteUser();
 
+    // Async S3 cleanup (best effort, don't block response)
+    if (cloudFiles.length > 0) {
+      void deleteAllCloudObjects(targetId, cloudFiles.map(f => f.id));
+    }
+    for (const att of mailAttachments) {
+      void deleteMailAttachment(targetId, att.id);
+    }
+
     logAudit({
-      adminId: req.user!.userId, adminUsername: req.user!.username,
+      adminId: req.user!.userId, adminUsername: req.user!.email,
       action: 'user.delete', targetType: 'user', targetId: targetId,
     });
 
@@ -257,7 +251,7 @@ router.get('/users/:id/details', (req: AuthRequest, res: Response): void => {
   const targetId = parseInt(req.params['id'] as string ?? '', 10);
   if (isNaN(targetId)) { res.status(400).json({ error: 'Invalid user ID.' }); return; }
 
-  const user = db.prepare('SELECT id, username, role, created_at, updated_at FROM users WHERE id = ?').get(targetId) as UserRow | undefined;
+  const user = db.prepare('SELECT id, username, email, role, created_at, updated_at FROM users WHERE id = ?').get(targetId) as UserRow | undefined;
   if (!user) { res.status(404).json({ error: 'User not found.' }); return; }
 
   // NB balance
@@ -279,9 +273,9 @@ router.get('/users/:id/details', (req: AuthRequest, res: Response): void => {
     'SELECT id, type, amount_eur, nb_amount, status, created_at FROM payments WHERE user_id = ? ORDER BY created_at DESC LIMIT 10'
   ).all(targetId) as { id: string; type: string; amount_eur: number; nb_amount: number; status: string; created_at: string }[];
 
-  // Storage
-  const fsRow = db.prepare('SELECT LENGTH(filesystem) as bytes FROM user_filesystems WHERE user_id = ?').get(targetId) as { bytes: number } | undefined;
-  const storageBytes = fsRow?.bytes ?? 0;
+  // Storage (from cloud_files)
+  const cloudStorageRow = db.prepare('SELECT COALESCE(SUM(size), 0) as bytes FROM cloud_files WHERE user_id = ?').get(targetId) as { bytes: number };
+  const storageBytes = cloudStorageRow.bytes;
 
   // Email addresses
   const emails = db.prepare('SELECT address FROM email_addresses WHERE user_id = ?').all(targetId) as { address: string }[];
@@ -309,20 +303,20 @@ router.put('/users/:id/subscription', (req: AuthRequest, res: Response): void =>
 
   if (action === 'grant') {
     // Grant a new subscription
-    const validTypes = ['classic_1m', 'classic_3m', 'classic_12m', 'club_1m', 'club_3m', 'club_12m'];
+    const validTypes = ['basic_1m', 'basic_3m', 'basic_12m', 'premium_1m', 'premium_3m', 'premium_12m'];
     if (!type || !validTypes.includes(type)) {
       res.status(400).json({ error: 'invalid sub type' });
       return;
     }
 
     const daysMap: Record<string, number> = {
-      classic_1m: 30, classic_3m: 90, classic_12m: 365,
-      club_1m: 30, club_3m: 90, club_12m: 365,
+      basic_1m: 30, basic_3m: 90, basic_12m: 365,
+      premium_1m: 30, premium_3m: 90, premium_12m: 365,
     };
     const subDays = days ?? daysMap[type]!;
-    const role = type.startsWith('club') ? 'club' : 'classic';
+    const role = type.startsWith('premium') ? 'premium' : 'basic';
 
-    const roleLevel: Record<string, number> = { guest: 0, code: 0, user: 1, classic: 2, club: 3, admin: 4 };
+    const roleLevel: Record<string, number> = { user: 1, basic: 2, premium: 3, admin: 4 };
 
     db.transaction(() => {
       // Deactivate old subs
@@ -352,7 +346,7 @@ router.put('/users/:id/subscription', (req: AuthRequest, res: Response): void =>
       db.prepare('UPDATE subscriptions SET is_active = 0 WHERE user_id = ? AND is_active = 1').run(targetId);
 
       // Downgrade role if needed (don't touch admin)
-      const roleLevel: Record<string, number> = { guest: 0, code: 0, user: 1, classic: 2, club: 3, admin: 4 };
+      const roleLevel: Record<string, number> = { user: 1, basic: 2, premium: 3, admin: 4 };
       const currentRole = (db.prepare('SELECT role FROM users WHERE id = ?').get(targetId) as { role: string } | undefined)?.role ?? 'user';
       const level = roleLevel[currentRole] ?? 0;
       if (level >= 2 && level < 4) {
@@ -410,27 +404,48 @@ interface InviteRow {
   used_by: number | null;
   used_at: string | null;
   created_at: string;
-  created_by_username: string;
-  used_by_username: string | null;
+  created_by_email: string;
+  used_by_email: string | null;
   max_uses: number;
   use_count: number;
+  subscription_type: string | null;
+  subscription_days: number | null;
 }
 
 // POST /api/admin/invites — create invite link
 router.post('/invites', (req: AuthRequest, res: Response): void => {
-  const validRoles = ['admin', 'club', 'classic', 'user', 'guest'];
+  const validRoles = ['admin', 'premium', 'basic', 'user'];
   const role = validRoles.includes(req.body.role) ? req.body.role : 'user';
   const rawMax = req.body.max_uses;
   const maxUses = Math.min(Math.max(1, Math.floor(Number(rawMax) || 1)), 1000);
 
+  // Subscription params (only for basic/premium invites)
+  const { subscription_type, subscription_days } = req.body as {
+    subscription_type?: string;
+    subscription_days?: number;
+  };
+
+  const daysMap: Record<string, number> = {
+    basic_1m: 30, basic_3m: 90, basic_12m: 365,
+    premium_1m: 30, premium_3m: 90, premium_12m: 365,
+  };
+
+  let subType: string | null = null;
+  let subDays: number | null = null;
+
+  if ((role === 'basic' || role === 'premium') && subscription_type) {
+    subType = subscription_type;
+    subDays = subscription_days ?? daysMap[subscription_type] ?? 30;
+  }
+
   const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString().replace('T', ' ').replace('Z', '').split('.')[0]!;
 
   for (let attempt = 0; attempt < 5; attempt++) {
-    const code = `${req.user!.username}-inv-${String(crypto.randomInt(100000, 999999))}`;
+    const code = crypto.randomBytes(8).toString('hex');
     try {
       db.prepare(
-        'INSERT INTO invite_links (id, created_by, role, expires_at, max_uses) VALUES (?, ?, ?, ?, ?)'
-      ).run(code, req.user!.userId, role, expiresAt, maxUses);
+        'INSERT INTO invite_links (id, created_by, role, expires_at, max_uses, subscription_type, subscription_days) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      ).run(code, req.user!.userId, role, expiresAt, maxUses, subType, subDays);
 
       res.status(201).json({
         invite: {
@@ -439,6 +454,8 @@ router.post('/invites', (req: AuthRequest, res: Response): void => {
           expires_at: expiresAt,
           max_uses: maxUses,
           use_count: 0,
+          subscription_type: subType,
+          subscription_days: subDays,
           url: `https://mynig.ga/?invite=${code}`,
         },
       });
@@ -457,9 +474,9 @@ router.get('/invites', (_req: AuthRequest, res: Response): void => {
   const invites = db.prepare(`
     SELECT
       i.id, i.role, i.expires_at, i.used_by, i.used_at, i.created_at,
-      i.max_uses, i.use_count,
-      c.username AS created_by_username,
-      u.username AS used_by_username
+      i.max_uses, i.use_count, i.subscription_type, i.subscription_days,
+      c.email AS created_by_email,
+      u.email AS used_by_email
     FROM invite_links i
     JOIN users c ON c.id = i.created_by
     LEFT JOIN users u ON u.id = i.used_by
@@ -504,9 +521,8 @@ function formatUptime(seconds: number): string {
 }
 
 interface RoleCount { role: string; count: number }
-interface RecentUser { username: string; role: string; created_at: string }
-interface StorageUser { username: string; bytes: number }
-interface GameCount { game: string; count: number }
+interface RecentUser { email: string; role: string; created_at: string }
+interface StorageUser { email: string; bytes: number }
 
 // GET /api/admin/stats
 router.get('/stats', (_req: AuthRequest, res: Response): void => {
@@ -530,25 +546,20 @@ router.get('/stats', (_req: AuthRequest, res: Response): void => {
   const roleMap: Record<string, number> = {};
   for (const r of byRole) roleMap[r.role] = r.count;
   const recentUsers = db.prepare(
-    'SELECT username, role, created_at FROM users ORDER BY id DESC LIMIT 5'
+    'SELECT email, role, created_at FROM users ORDER BY id DESC LIMIT 5'
   ).all() as RecentUser[];
 
-  // Storage (filesystem sizes)
+  // Storage (from cloud_files S3-backed storage)
   const storageRows = db.prepare(`
-    SELECT u.username, LENGTH(uf.filesystem) as bytes
-    FROM user_filesystems uf
-    JOIN users u ON u.id = uf.user_id
+    SELECT u.email, COALESCE(SUM(cf.size), 0) as bytes
+    FROM users u
+    LEFT JOIN cloud_files cf ON cf.user_id = u.id
+    GROUP BY u.id
+    HAVING bytes > 0
     ORDER BY bytes DESC
     LIMIT 5
   `).all() as StorageUser[];
-  const totalStorage = (db.prepare('SELECT COALESCE(SUM(LENGTH(filesystem)), 0) as total FROM user_filesystems').get() as { total: number }).total;
-
-  // Chat
-  const totalRooms = (db.prepare('SELECT COUNT(*) as c FROM chat_rooms').get() as { c: number }).c;
-  const totalMessages = (db.prepare('SELECT COUNT(*) as c FROM chat_messages').get() as { c: number }).c;
-  const activeRooms24h = (db.prepare(
-    "SELECT COUNT(DISTINCT room_id) as c FROM chat_messages WHERE created_at >= datetime('now', '-1 day')"
-  ).get() as { c: number }).c;
+  const totalStorage = (db.prepare('SELECT COALESCE(SUM(size), 0) as total FROM cloud_files').get() as { total: number }).total;
 
   // Mail
   const totalAddresses = (db.prepare('SELECT COUNT(*) as c FROM email_addresses').get() as { c: number }).c;
@@ -563,11 +574,20 @@ router.get('/stats', (_req: AuthRequest, res: Response): void => {
   const imapErrors = (db.prepare("SELECT COUNT(*) as c FROM service_logs WHERE service = 'imap' AND level = 'error'").get() as { c: number }).c;
   const imapLoginFails = (db.prepare("SELECT COUNT(*) as c FROM service_logs WHERE service = 'imap' AND message LIKE 'login failed:%'").get() as { c: number }).c;
 
-  // Games
-  const totalScores = (db.prepare('SELECT COUNT(*) as c FROM game_scores').get() as { c: number }).c;
-  const byGame = db.prepare(
-    'SELECT game, COUNT(*) as count FROM game_scores GROUP BY game ORDER BY count DESC'
-  ).all() as GameCount[];
+  // S3 usage breakdown
+  const s3Cloud = (db.prepare('SELECT COALESCE(SUM(size), 0) as total FROM cloud_files').get() as { total: number }).total;
+  const s3Transfers = (db.prepare("SELECT COALESCE(SUM(size), 0) as total FROM transfers WHERE uploaded_at IS NOT NULL").get() as { total: number }).total;
+  const s3MailAtt = (db.prepare("SELECT COALESCE(SUM(size), 0) as total FROM email_attachments WHERE s3_key IS NOT NULL").get() as { total: number }).total;
+  const s3Total = s3Cloud + s3Transfers + s3MailAtt;
+
+  // AI usage
+  const aiTotal = db.prepare('SELECT COALESCE(SUM(total_tokens), 0) as tokens, COUNT(*) as requests FROM ai_usage').get() as { tokens: number; requests: number };
+  const aiToday = db.prepare("SELECT COALESCE(SUM(total_tokens), 0) as tokens, COUNT(*) as requests FROM ai_usage WHERE created_at >= date('now')").get() as { tokens: number; requests: number };
+  const aiTopUsers = db.prepare(`
+    SELECT u.email, SUM(a.total_tokens) as tokens, COUNT(*) as requests
+    FROM ai_usage a JOIN users u ON u.id = a.user_id
+    GROUP BY a.user_id ORDER BY tokens DESC LIMIT 5
+  `).all() as { email: string; tokens: number; requests: number }[];
 
   // Health
   const health = server.memory_rss_mb > 512 ? 'degraded' : 'ok';
@@ -583,15 +603,27 @@ router.get('/stats', (_req: AuthRequest, res: Response): void => {
       total_bytes: totalStorage,
       total_human: formatBytes(totalStorage),
       top_users: storageRows.map(r => ({
-        username: r.username,
+        email: r.email,
         bytes: r.bytes,
         human: formatBytes(r.bytes),
       })),
     },
-    chat: {
-      total_rooms: totalRooms,
-      total_messages: totalMessages,
-      active_rooms_24h: activeRooms24h,
+    s3: {
+      cloud_bytes: s3Cloud,
+      cloud_human: formatBytes(s3Cloud),
+      transfers_bytes: s3Transfers,
+      transfers_human: formatBytes(s3Transfers),
+      mail_att_bytes: s3MailAtt,
+      mail_att_human: formatBytes(s3MailAtt),
+      total_bytes: s3Total,
+      total_human: formatBytes(s3Total),
+    },
+    ai: {
+      total_tokens: aiTotal.tokens,
+      total_requests: aiTotal.requests,
+      today_tokens: aiToday.tokens,
+      today_requests: aiToday.requests,
+      top_users: aiTopUsers,
     },
     mail: {
       total_addresses: totalAddresses,
@@ -603,10 +635,6 @@ router.get('/stats', (_req: AuthRequest, res: Response): void => {
       logins: imapLogins,
       login_fails: imapLoginFails,
       errors: imapErrors,
-    },
-    games: {
-      total_scores: totalScores,
-      by_game: byGame,
     },
     health,
     timestamp: new Date().toISOString(),
@@ -778,6 +806,113 @@ router.get('/audit-log', (req: AuthRequest, res: Response): void => {
     limit,
     offset,
   });
+});
+
+// ── Promo Codes ──
+
+interface PromoRow {
+  code: string;
+  type: string;
+  value: number;
+  sub_tier: string | null;
+  max_uses: number;
+  use_count: number;
+  expires_at: string | null;
+  created_at: string;
+  active: number;
+}
+
+// GET /api/admin/promos
+router.get('/promos', (_req: AuthRequest, res: Response): void => {
+  const promos = db.prepare(
+    'SELECT * FROM promo_codes ORDER BY created_at DESC'
+  ).all() as PromoRow[];
+  res.json({ promos });
+});
+
+// POST /api/admin/promos
+router.post('/promos', (req: AuthRequest, res: Response): void => {
+  const { code, type, value, sub_tier, max_uses, expires_in_hours } = req.body as {
+    code?: string; type?: string; value?: number;
+    sub_tier?: string; max_uses?: number; expires_in_hours?: number;
+  };
+
+  if (!code || typeof code !== 'string') {
+    res.status(400).json({ error: 'code is required.' });
+    return;
+  }
+
+  const cleanCode = code.toUpperCase().trim().replace(/[^A-Z0-9-]/g, '');
+  if (cleanCode.length < 3 || cleanCode.length > 32) {
+    res.status(400).json({ error: 'code must be 3-32 chars, alphanumeric + dashes.' });
+    return;
+  }
+
+  if (!type || !['discount_pct', 'free_sub'].includes(type)) {
+    res.status(400).json({ error: 'type must be discount_pct or free_sub.' });
+    return;
+  }
+
+  if (value == null || typeof value !== 'number' || value <= 0) {
+    res.status(400).json({ error: 'value must be a positive number.' });
+    return;
+  }
+
+  if (type === 'discount_pct' && (value < 1 || value > 100)) {
+    res.status(400).json({ error: 'discount percentage must be 1-100.' });
+    return;
+  }
+
+  const validTiers = ['basic', 'premium'];
+  const tier = sub_tier && validTiers.includes(sub_tier) ? sub_tier : null;
+
+  const maxUsesVal = Math.max(0, Math.floor(max_uses ?? 0));
+  const expiresAt = expires_in_hours && expires_in_hours > 0
+    ? new Date(Date.now() + expires_in_hours * 60 * 60 * 1000)
+        .toISOString().replace('T', ' ').replace('Z', '').split('.')[0]!
+    : null;
+
+  try {
+    db.prepare(`
+      INSERT INTO promo_codes (code, type, value, sub_tier, max_uses, expires_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(cleanCode, type, value, tier, maxUsesVal, expiresAt);
+
+    const promo = db.prepare('SELECT * FROM promo_codes WHERE code = ?').get(cleanCode) as PromoRow;
+
+    logAudit({
+      adminId: req.user!.userId, adminUsername: req.user!.email,
+      action: 'promo.create', targetType: 'promo', targetName: cleanCode,
+      details: { type, value, sub_tier: tier, max_uses: maxUsesVal },
+    });
+
+    res.status(201).json({ promo });
+  } catch (err: unknown) {
+    if (err instanceof Error && err.message.includes('UNIQUE constraint failed')) {
+      res.status(409).json({ error: `code "${cleanCode}" already exists.` });
+    } else {
+      res.status(500).json({ error: 'failed to create promo.' });
+    }
+  }
+});
+
+// DELETE /api/admin/promos/:code — soft-delete
+router.delete('/promos/:code', (req: AuthRequest, res: Response): void => {
+  const code = (req.params['code'] as string ?? '').toUpperCase().trim();
+  const existing = db.prepare('SELECT code FROM promo_codes WHERE code = ?').get(code);
+  if (!existing) {
+    res.status(404).json({ error: 'promo not found.' });
+    return;
+  }
+
+  db.prepare('UPDATE promo_codes SET active = 0 WHERE code = ?').run(code);
+
+  logAudit({
+    adminId: req.user!.userId, adminUsername: req.user!.email,
+    action: 'promo.delete', targetType: 'promo', targetName: code,
+  });
+
+  res.json({ ok: true });
 });
 
 export default router;

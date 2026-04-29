@@ -4,7 +4,6 @@ import db from '../db.js';
 import { authMiddleware } from '../middleware.js';
 import type { AuthRequest } from '../middleware.js';
 import { getSetting, getStringSetting, getDefaultMailSlots } from '../constants.js';
-
 const router = Router();
 
 // Price for the Nth mail slot purchase (0-indexed)
@@ -50,36 +49,31 @@ router.get('/items', (req: AuthRequest, res: Response): void => {
 
   // Subscription prices (EUR per month)
   const subscriptionPrices = {
-    classic: {
-      '1m': getSetting('sub_classic_1m_eur', 2.99),
-      '3m': getSetting('sub_classic_3m_eur', 2.69),
-      '12m': getSetting('sub_classic_12m_eur', 1.99),
+    basic: {
+      '1m': getSetting('sub_basic_1m_eur', 2.99),
+      '3m': getSetting('sub_basic_3m_eur', 2.49),
+      '12m': getSetting('sub_basic_12m_eur', 1.99),
     },
-    club: {
-      '1m': getSetting('sub_club_1m_eur', 5.99),
-      '3m': getSetting('sub_club_3m_eur', 4.99),
-      '12m': getSetting('sub_club_12m_eur', 3.99),
+    premium: {
+      '1m': getSetting('sub_premium_1m_eur', 6.69),
+      '3m': getSetting('sub_premium_3m_eur', 5.49),
+      '12m': getSetting('sub_premium_12m_eur', 4.49),
     },
   };
 
   // Subscription benefits
-  let freeBenefits: string[];
-  let classicBenefits: string[];
-  let clubBenefits: string[];
+  let basicBenefits: string[];
+  let premiumBenefits: string[];
   try {
-    freeBenefits = JSON.parse(getStringSetting('sub_free_benefits', '["terminal access","50MB cloud storage","basic apps","vibes only"]')) as string[];
-  } catch { freeBenefits = []; }
+    basicBenefits = JSON.parse(getStringSetting('sub_basic_benefits', '["@mynig.ga email","10GB cloud storage","1GB upload links","core apps"]')) as string[];
+  } catch { basicBenefits = []; }
   try {
-    classicBenefits = JSON.parse(getStringSetting('sub_classic_benefits', '["@mynig.ga email","500MB cloud storage","priority support"]')) as string[];
-  } catch { classicBenefits = []; }
-  try {
-    clubBenefits = JSON.parse(getStringSetting('sub_club_benefits', '["everything in Member","all apps unlocked","unlimited features","flex on the poors"]')) as string[];
-  } catch { clubBenefits = []; }
+    premiumBenefits = JSON.parse(getStringSetting('sub_premium_benefits', '["30GB cloud storage","5GB upload links","all apps unlocked","priority support","flex on the poors"]')) as string[];
+  } catch { premiumBenefits = []; }
 
   const subscriptionBenefits = {
-    free: freeBenefits,
-    classic: classicBenefits,
-    club: clubBenefits,
+    basic: basicBenefits,
+    premium: premiumBenefits,
   };
 
   // Active subscription
@@ -165,17 +159,17 @@ router.post('/purchase', (req: AuthRequest, res: Response): void => {
 
 // ── POST /api/shop/subscribe (pay with NB) ──
 const SUB_PRICE_MAP: Record<string, { settingKey: string; fallback: number; months: number; role: string; days: number }> = {
-  sub_classic_1m:  { settingKey: 'sub_classic_1m_eur',  fallback: 2.99, months: 1,  role: 'classic', days: 30  },
-  sub_classic_3m:  { settingKey: 'sub_classic_3m_eur',  fallback: 2.69, months: 3,  role: 'classic', days: 90  },
-  sub_classic_12m: { settingKey: 'sub_classic_12m_eur', fallback: 1.99, months: 12, role: 'classic', days: 365 },
-  sub_club_1m:     { settingKey: 'sub_club_1m_eur',     fallback: 5.99, months: 1,  role: 'club',    days: 30  },
-  sub_club_3m:     { settingKey: 'sub_club_3m_eur',     fallback: 4.99, months: 3,  role: 'club',    days: 90  },
-  sub_club_12m:    { settingKey: 'sub_club_12m_eur',    fallback: 3.99, months: 12, role: 'club',    days: 365 },
+  sub_basic_1m:  { settingKey: 'sub_basic_1m_eur',  fallback: 2.99, months: 1,  role: 'basic', days: 30  },
+  sub_basic_3m:  { settingKey: 'sub_basic_3m_eur',  fallback: 2.49, months: 3,  role: 'basic', days: 90  },
+  sub_basic_12m: { settingKey: 'sub_basic_12m_eur', fallback: 1.99, months: 12, role: 'basic', days: 365 },
+  sub_premium_1m:    { settingKey: 'sub_premium_1m_eur',    fallback: 6.69, months: 1,  role: 'premium',   days: 30  },
+  sub_premium_3m:    { settingKey: 'sub_premium_3m_eur',    fallback: 5.49, months: 3,  role: 'premium',   days: 90  },
+  sub_premium_12m:   { settingKey: 'sub_premium_12m_eur',   fallback: 4.49, months: 12, role: 'premium',   days: 365 },
 };
 
 router.post('/subscribe', (req: AuthRequest, res: Response): void => {
   const userId = req.user!.userId;
-  const { type } = req.body as { type?: string };
+  const { type, promo_code } = req.body as { type?: string; promo_code?: string };
 
   if (!type || !SUB_PRICE_MAP[type]) {
     res.status(400).json({ error: "invalid subscription type." });
@@ -184,22 +178,56 @@ router.post('/subscribe', (req: AuthRequest, res: Response): void => {
 
   const info = SUB_PRICE_MAP[type]!;
   const perMonth = getSetting(info.settingKey, info.fallback);
-  const nbPrice = Math.ceil(perMonth * info.months); // 1 NB = 1 EUR, round up
+  let nbPrice = Math.ceil(perMonth * info.months); // 1 NB = 1 EUR, round up
+
+  // Validate promo code if provided
+  let appliedPromo: string | null = null;
+  if (promo_code && typeof promo_code === 'string') {
+    const cleanCode = promo_code.toUpperCase().trim();
+    const promo = db.prepare('SELECT * FROM promo_codes WHERE code = ?').get(cleanCode) as {
+      code: string; type: string; value: number; sub_tier: string | null;
+      max_uses: number; use_count: number; expires_at: string | null; active: number;
+    } | undefined;
+
+    if (!promo || !promo.active || promo.type !== 'discount_pct') {
+      res.status(400).json({ error: "invalid promo code." });
+      return;
+    }
+    if (promo.expires_at && new Date(promo.expires_at + 'Z') < new Date()) {
+      res.status(400).json({ error: "promo code expired." });
+      return;
+    }
+    if (promo.max_uses > 0 && promo.use_count >= promo.max_uses) {
+      res.status(400).json({ error: "promo code maxed out." });
+      return;
+    }
+    const planTier = info.role;
+    if (promo.sub_tier && promo.sub_tier !== planTier) {
+      res.status(400).json({ error: `code only works for ${promo.sub_tier} plans.` });
+      return;
+    }
+    const used = db.prepare('SELECT id FROM promo_uses WHERE promo_code = ? AND user_id = ?').get(cleanCode, userId);
+    if (used) {
+      res.status(400).json({ error: "you already used this code." });
+      return;
+    }
+    nbPrice = Math.max(1, Math.ceil(nbPrice * (1 - promo.value / 100)));
+    appliedPromo = cleanCode;
+  }
 
   const result = db.transaction(() => {
     // Prevent downgrade (e.g. buying Classic when you have Club)
-    const roleLevel: Record<string, number> = { guest: 0, code: 0, user: 1, classic: 2, club: 3, admin: 4 };
+    const roleLevel: Record<string, number> = { user: 1, basic: 2, premium: 3, admin: 4 };
     const activeSub = db.prepare(
       'SELECT type FROM subscriptions WHERE user_id = ? AND is_active = 1 ORDER BY id DESC LIMIT 1'
     ).get(userId) as { type: string } | undefined;
 
     if (activeSub) {
-      const currentSubRole = activeSub.type.includes('club') ? 'club' : activeSub.type.includes('classic') ? 'classic' : 'user';
-      const displayRole = currentSubRole === 'club' ? 'club member' : currentSubRole === 'classic' ? 'member' : currentSubRole;
+      const currentSubRole = activeSub.type.includes('premium') ? 'premium' : activeSub.type.includes('basic') ? 'basic' : 'user';
       const currentSubLevel = roleLevel[currentSubRole] ?? 0;
       const newSubLevel = roleLevel[info.role] ?? 0;
       if (newSubLevel < currentSubLevel) {
-        return { error: `you already have ${displayRole}. why would you downgrade? that's embarrassing.` } as const;
+        return { error: `you already have ${currentSubRole}. why would you downgrade? that's embarrassing.` } as const;
       }
     }
 
@@ -235,11 +263,17 @@ router.post('/subscribe', (req: AuthRequest, res: Response): void => {
       db.prepare("UPDATE users SET role = ?, updated_at = datetime('now') WHERE id = ?").run(info.role, userId);
     }
 
+    // Track promo usage
+    if (appliedPromo) {
+      db.prepare('UPDATE promo_codes SET use_count = use_count + 1 WHERE code = ?').run(appliedPromo);
+      db.prepare('INSERT INTO promo_uses (promo_code, user_id) VALUES (?, ?)').run(appliedPromo, userId);
+    }
+
     const newBal = (db.prepare('SELECT bytebucks FROM slots_balance WHERE user_id = ?').get(userId) as { bytebucks: number }).bytebucks;
 
     return {
       ok: true as const,
-      message: `${info.role === 'club' ? 'club member' : 'member'} subscription activated for ${nbPrice} NB. welcome aboard.`,
+      message: `${info.role} subscription activated for ${nbPrice} NB. welcome aboard.`,
       nb_balance: newBal,
     };
   })();
@@ -280,6 +314,13 @@ router.put('/auto-renew', (req: AuthRequest, res: Response): void => {
       ? "auto-renew enabled. we'll charge your NiggaBytes when it expires."
       : "auto-renew disabled. your sub will expire and you'll be a peasant again.",
   });
+});
+
+// ── GET /api/shop/balance ──
+router.get('/balance', (req: AuthRequest, res: Response): void => {
+  const userId = req.user!.userId;
+  const row = db.prepare('SELECT bytebucks FROM slots_balance WHERE user_id = ?').get(userId) as { bytebucks: number } | undefined;
+  res.json({ nb_balance: row?.bytebucks ?? 0 });
 });
 
 export default router;

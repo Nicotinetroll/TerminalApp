@@ -28,13 +28,13 @@ function parseNames(raw: string | null | undefined): string[] {
 
 function cleanupExpired(): void {
   const expired = db.prepare(
-    `SELECT id FROM transfers WHERE expires_at < datetime('now')`
-  ).all() as { id: string }[];
+    `SELECT id, content_type FROM transfers WHERE expires_at < datetime('now')`
+  ).all() as { id: string; content_type: string | null }[];
 
   if (expired.length === 0) return;
 
   // Delete S3 objects first, then batch-delete DB rows
-  const deletePromises = expired.map(t => deleteObject(t.id));
+  const deletePromises = expired.map(t => deleteObject(t.id, !!t.content_type));
   void Promise.allSettled(deletePromises).then(() => {
     const del = db.prepare('DELETE FROM transfers WHERE id = ?');
     db.transaction(() => {
@@ -85,7 +85,7 @@ router.get('/', authMiddleware, (req: AuthRequest, res: Response): void => {
   const userId = req.user!.userId;
 
   const transfers = db.prepare(`
-    SELECT id, original_names, size, expires_at, uploaded_at, created_at
+    SELECT id, original_names, size, expires_at, uploaded_at, created_at, content_type
     FROM transfers
     WHERE user_id = ?
     ORDER BY created_at DESC
@@ -97,6 +97,7 @@ router.get('/', authMiddleware, (req: AuthRequest, res: Response): void => {
     expires_at: string;
     uploaded_at: string | null;
     created_at: string;
+    content_type: string | null;
   }[];
 
   const now = new Date();
@@ -104,6 +105,7 @@ router.get('/', authMiddleware, (req: AuthRequest, res: Response): void => {
     ...t,
     original_names: parseNames(t.original_names),
     expired: new Date(t.expires_at + 'Z') < now,
+    content_type: t.content_type,
   }));
 
   res.json({ transfers: result });
@@ -119,7 +121,7 @@ router.get('/:id', (req: AuthRequest, res: Response): void => {
   }
 
   const transfer = db.prepare(`
-    SELECT id, original_names, size, expires_at, uploaded_at, created_at, max_size
+    SELECT id, original_names, size, expires_at, uploaded_at, created_at, max_size, content_type
     FROM transfers
     WHERE id = ?
   `).get(id) as {
@@ -130,6 +132,7 @@ router.get('/:id', (req: AuthRequest, res: Response): void => {
     uploaded_at: string | null;
     created_at: string;
     max_size: number;
+    content_type: string | null;
   } | undefined;
 
   if (!transfer) {
@@ -150,6 +153,7 @@ router.get('/:id', (req: AuthRequest, res: Response): void => {
       expired,
       status: transfer.uploaded_at ? 'uploaded' : expired ? 'expired' : 'pending',
       max_size: transfer.max_size,
+      content_type: transfer.content_type,
     },
   });
 });
@@ -183,9 +187,18 @@ router.post('/:id/presign', (req: AuthRequest, res: Response): void => {
     return;
   }
 
+  const body = req.body as { content_type?: string } | undefined;
+  const contentType = typeof body?.content_type === 'string' && body.content_type.includes('/') ? body.content_type : null;
+  const raw = !!contentType;
+
+  // Store content_type in DB for raw mode
+  if (contentType) {
+    db.prepare('UPDATE transfers SET content_type = ? WHERE id = ?').run(contentType, id);
+  }
+
   void (async () => {
     try {
-      const uploadUrl = await getPresignedUploadUrl(id);
+      const uploadUrl = await getPresignedUploadUrl(id, raw, contentType ?? undefined);
       res.json({ uploadUrl });
     } catch (err) {
       console.error('[transfers] presign error:', err);
@@ -204,12 +217,18 @@ router.post('/:id/complete', (req: AuthRequest, res: Response): void => {
   }
 
   const body = req.body as { names?: string[]; size?: number } | undefined;
-  const names = body?.names ?? [];
-  const reportedSize = body?.size ?? 0;
+  // Validate names: must be array of strings, max 10000 items, max 255 chars each
+  let names: string[] = [];
+  if (Array.isArray(body?.names)) {
+    names = body.names
+      .filter((n): n is string => typeof n === 'string')
+      .slice(0, 10000)
+      .map(n => n.slice(0, 255));
+  }
 
   const transfer = db.prepare(
-    `SELECT id, uploaded_at, expires_at FROM transfers WHERE id = ?`
-  ).get(id) as { id: string; uploaded_at: string | null; expires_at: string } | undefined;
+    `SELECT id, uploaded_at, expires_at, max_size, content_type FROM transfers WHERE id = ?`
+  ).get(id) as { id: string; uploaded_at: string | null; expires_at: string; max_size: number; content_type: string | null } | undefined;
 
   if (!transfer) {
     res.status(404).json({ error: 'transfer not found.' });
@@ -224,16 +243,26 @@ router.post('/:id/complete', (req: AuthRequest, res: Response): void => {
   // Verify the S3 object actually exists
   void (async () => {
     try {
-      const s3Size = await getObjectSize(id);
+      const raw = !!transfer.content_type;
+      const s3Size = await getObjectSize(id, raw);
       if (s3Size === null) {
         res.status(400).json({ error: 'no file found in S3. upload first, then confirm. duh.' });
+        return;
+      }
+
+      // Enforce max_size server-side — delete oversized uploads
+      if (transfer.max_size > 0 && s3Size > transfer.max_size) {
+        await deleteObject(id, raw);
+        const limitMB = Math.round(transfer.max_size / (1024 * 1024));
+        const actualMB = Math.round(s3Size / (1024 * 1024));
+        res.status(413).json({ error: `file too large: ${actualMB}MB exceeds ${limitMB}MB limit. nice try.` });
         return;
       }
 
       const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
       const result = db.prepare(
         `UPDATE transfers SET original_names = ?, size = ?, uploaded_at = ? WHERE id = ? AND uploaded_at IS NULL`
-      ).run(JSON.stringify(names), s3Size > 0 ? s3Size : reportedSize, now, id);
+      ).run(JSON.stringify(names), s3Size, now, id);
 
       if (result.changes === 0) {
         res.status(409).json({ error: 'concurrent upload completed first.' });
@@ -263,8 +292,8 @@ router.get('/:id/download', (req: AuthRequest, res: Response): void => {
   }
 
   const transfer = db.prepare(
-    `SELECT id, original_names, uploaded_at, expires_at FROM transfers WHERE id = ?`
-  ).get(id) as { id: string; original_names: string; uploaded_at: string | null; expires_at: string } | undefined;
+    `SELECT id, original_names, uploaded_at, expires_at, content_type FROM transfers WHERE id = ?`
+  ).get(id) as { id: string; original_names: string; uploaded_at: string | null; expires_at: string; content_type: string | null } | undefined;
 
   if (!transfer) {
     res.status(404).json({ error: 'transfer not found.' });
@@ -282,11 +311,14 @@ router.get('/:id/download', (req: AuthRequest, res: Response): void => {
     return;
   }
 
-  const downloadName = `transfer-${id.slice(0, 8)}.zip`;
+  const raw = !!transfer.content_type;
+  const names = parseNames(transfer.original_names);
+  const downloadName = raw && names[0] ? names[0] : `transfer-${id.slice(0, 8)}.zip`;
+  const mime = raw && transfer.content_type ? transfer.content_type : 'application/zip';
 
   void (async () => {
     try {
-      const url = await getPresignedDownloadUrl(id, downloadName);
+      const url = await getPresignedDownloadUrl(id, downloadName, raw, mime);
       res.redirect(url);
     } catch (err) {
       console.error('[transfers] download presign error:', err);
@@ -307,8 +339,8 @@ router.delete('/:id', authMiddleware, (req: AuthRequest, res: Response): void =>
   const userId = req.user!.userId;
 
   const transfer = db.prepare(
-    'SELECT id, user_id FROM transfers WHERE id = ?'
-  ).get(id) as { id: string; user_id: number } | undefined;
+    'SELECT id, user_id, content_type FROM transfers WHERE id = ?'
+  ).get(id) as { id: string; user_id: number; content_type: string | null } | undefined;
 
   if (!transfer) {
     res.status(404).json({ error: 'transfer not found.' });
@@ -320,10 +352,18 @@ router.delete('/:id', authMiddleware, (req: AuthRequest, res: Response): void =>
     return;
   }
 
-  void deleteObject(id);
-  db.prepare('DELETE FROM transfers WHERE id = ?').run(id);
-
-  res.json({ ok: true });
+  void (async () => {
+    try {
+      await deleteObject(id, !!transfer.content_type);
+      db.prepare('DELETE FROM transfers WHERE id = ?').run(id);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error('[transfers] delete error:', err);
+      // Still delete DB row — S3 cleanup will catch orphans
+      db.prepare('DELETE FROM transfers WHERE id = ?').run(id);
+      res.json({ ok: true });
+    }
+  })();
 });
 
 export default router;

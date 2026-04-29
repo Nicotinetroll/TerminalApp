@@ -50,50 +50,6 @@ db.exec(`
     created_at TEXT DEFAULT (datetime('now'))
   );
 
-  CREATE TABLE IF NOT EXISTS chat_rooms (
-    id TEXT PRIMARY KEY,
-    created_by INTEGER NOT NULL REFERENCES users(id),
-    created_at TEXT DEFAULT (datetime('now'))
-  );
-
-  CREATE TABLE IF NOT EXISTS chat_participants (
-    room_id TEXT NOT NULL REFERENCES chat_rooms(id) ON DELETE CASCADE,
-    user_id INTEGER NOT NULL REFERENCES users(id),
-    anon_handle TEXT NOT NULL,
-    joined_at TEXT DEFAULT (datetime('now')),
-    PRIMARY KEY (room_id, user_id)
-  );
-
-  CREATE TABLE IF NOT EXISTS chat_messages (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    room_id TEXT NOT NULL REFERENCES chat_rooms(id) ON DELETE CASCADE,
-    sender_id INTEGER NOT NULL REFERENCES users(id),
-    content TEXT NOT NULL,
-    reply_to INTEGER REFERENCES chat_messages(id) ON DELETE SET NULL,
-    created_at TEXT DEFAULT (datetime('now'))
-  );
-
-  CREATE INDEX IF NOT EXISTS idx_messages_room_created ON chat_messages(room_id, created_at);
-  CREATE INDEX IF NOT EXISTS idx_messages_created ON chat_messages(created_at);
-
-  CREATE TABLE IF NOT EXISTS chat_reactions (
-    message_id INTEGER NOT NULL REFERENCES chat_messages(id) ON DELETE CASCADE,
-    user_id INTEGER NOT NULL REFERENCES users(id),
-    emoji TEXT NOT NULL,
-    created_at TEXT DEFAULT (datetime('now')),
-    PRIMARY KEY (message_id, user_id)
-  );
-
-  CREATE TABLE IF NOT EXISTS dm_requests (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    from_user_id INTEGER NOT NULL REFERENCES users(id),
-    to_user_id INTEGER NOT NULL REFERENCES users(id),
-    from_anon TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'pending',
-    created_at TEXT DEFAULT (datetime('now')),
-    UNIQUE(from_user_id, to_user_id, status)
-  );
-
   CREATE TABLE IF NOT EXISTS email_addresses (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -133,19 +89,17 @@ db.exec(`
 {
   const seedStmt = db.prepare('INSERT OR IGNORE INTO global_settings (key, value) VALUES (?, ?)');
   const defaults: [string, string][] = [
-    ['chat_sound_enabled', 'true'],
     ['mail_sound_enabled', 'true'],
-    ['chat_sound', 'ping'],
     ['mail_sound', 'ping'],
-    ['handle_refresh_hours', '48'],
     // Storage limits (MB, 0 = unlimited)
     ['storage_admin_mb', '0'],
-    ['storage_club_mb', '500'],
-    ['storage_user_mb', '500'],
-    ['storage_guest_mb', '50'],
     // Upload links
     ['transfer_expiry_hours', '12'],
     ['transfer_max_pending', '10'],
+    // Transfer size limits per role (MB)
+    ['transfer_size_admin_mb', '51200'],   // 50 GB
+    ['transfer_size_premium_mb', '5120'],  // 5 GB
+    ['transfer_size_basic_mb', '1024'],    // 1 GB
     // Shortlinks
     ['shortlinks_max_per_user', '100'],
     // Mail
@@ -204,15 +158,17 @@ try {
 // Backfill use_count for already-used single-use invites
 db.prepare(`UPDATE invite_links SET use_count = 1 WHERE used_by IS NOT NULL AND use_count = 0`).run();
 
+// Invite subscription fields (admin can grant sub with invite)
+try {
+  db.exec(`ALTER TABLE invite_links ADD COLUMN subscription_type TEXT`);
+} catch { /* column already exists */ }
+try {
+  db.exec(`ALTER TABLE invite_links ADD COLUMN subscription_days INTEGER`);
+} catch { /* column already exists */ }
+
 // Migrations for existing tables
 try {
   db.exec(`ALTER TABLE email_addresses ADD COLUMN display_name TEXT NOT NULL DEFAULT 'MyNigga'`);
-} catch {
-  // column already exists
-}
-
-try {
-  db.exec(`ALTER TABLE chat_participants ADD COLUMN handle_updated_at TEXT`);
 } catch {
   // column already exists
 }
@@ -343,21 +299,7 @@ if (expiredCodeUsers.length > 0) {
   console.log(`Cleaned up ${expiredCodeUsers.length} expired code user(s)`);
 }
 
-// Game scores
-db.exec(`
-  CREATE TABLE IF NOT EXISTS game_scores (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    username TEXT NOT NULL,
-    game TEXT NOT NULL,
-    score INTEGER NOT NULL,
-    metadata TEXT DEFAULT '{}',
-    created_at TEXT DEFAULT (datetime('now'))
-  );
-  CREATE INDEX IF NOT EXISTS idx_game_scores_game ON game_scores(game, score DESC);
-`);
-
-// Slots (casino) tables
+// Slots balance (NiggaBytes currency)
 db.exec(`
   CREATE TABLE IF NOT EXISTS slots_balance (
     user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
@@ -367,31 +309,6 @@ db.exec(`
     spins INTEGER NOT NULL DEFAULT 0,
     updated_at TEXT DEFAULT (datetime('now'))
   );
-
-  CREATE TABLE IF NOT EXISTS slots_history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    bet_bytes INTEGER NOT NULL,
-    result TEXT NOT NULL,
-    payout_bytes INTEGER NOT NULL DEFAULT 0,
-    reels TEXT NOT NULL DEFAULT '[]',
-    created_at TEXT DEFAULT (datetime('now'))
-  );
-  CREATE INDEX IF NOT EXISTS idx_slots_history_user ON slots_history(user_id, created_at DESC);
-`);
-
-// Coinflip history
-db.exec(`
-  CREATE TABLE IF NOT EXISTS coinflip_history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    bet_bytes INTEGER NOT NULL,
-    choice TEXT NOT NULL,
-    outcome TEXT NOT NULL,
-    payout_bytes INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT DEFAULT (datetime('now'))
-  );
-  CREATE INDEX IF NOT EXISTS idx_coinflip_history_user ON coinflip_history(user_id, created_at DESC);
 `);
 
 // auto_open_apps column on user_settings
@@ -410,18 +327,11 @@ try {
 
 // Seed shortcut_apps in global_settings
 db.prepare(`INSERT OR IGNORE INTO global_settings (key, value) VALUES ('shortcut_apps', ?)`).run(
-  '["mail","whisper","cloud","slots","profile"]'
+  '["mail","cloud","profile","paste","shop"]'
 );
 
 // Seed app_restrictions (empty by default — admin configures per-app min roles)
 db.prepare(`INSERT OR IGNORE INTO global_settings (key, value) VALUES ('app_restrictions', '{}')`).run();
-
-// Add free_spins column to slots_balance
-try {
-  db.exec(`ALTER TABLE slots_balance ADD COLUMN free_spins INTEGER NOT NULL DEFAULT 0`);
-} catch {
-  // column already exists
-}
 
 // NiggaBytes column (stored as 'bytebucks' in DB)
 try {
@@ -429,192 +339,6 @@ try {
 } catch {
   // column already exists
 }
-
-// Bonus round state (JSON blob for emoji hunt etc.)
-try {
-  db.exec(`ALTER TABLE slots_balance ADD COLUMN bonus_state TEXT DEFAULT NULL`);
-} catch {
-  // column already exists
-}
-
-// ── Nigdit (terminal reddit) ──
-db.exec(`
-  CREATE TABLE IF NOT EXISTS nigdit_posts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    username TEXT NOT NULL,
-    title TEXT NOT NULL,
-    body TEXT NOT NULL DEFAULT '',
-    board TEXT NOT NULL DEFAULT 'general',
-    upvotes INTEGER NOT NULL DEFAULT 0,
-    downvotes INTEGER NOT NULL DEFAULT 0,
-    comment_count INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT DEFAULT (datetime('now'))
-  );
-  CREATE INDEX IF NOT EXISTS idx_nigdit_posts_board ON nigdit_posts(board, created_at DESC);
-
-  CREATE TABLE IF NOT EXISTS nigdit_comments (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    post_id INTEGER NOT NULL REFERENCES nigdit_posts(id) ON DELETE CASCADE,
-    parent_id INTEGER REFERENCES nigdit_comments(id) ON DELETE CASCADE,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    username TEXT NOT NULL,
-    body TEXT NOT NULL,
-    upvotes INTEGER NOT NULL DEFAULT 0,
-    downvotes INTEGER NOT NULL DEFAULT 0,
-    depth INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT DEFAULT (datetime('now'))
-  );
-  CREATE INDEX IF NOT EXISTS idx_nigdit_comments_post ON nigdit_comments(post_id, created_at);
-
-  CREATE TABLE IF NOT EXISTS nigdit_votes (
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    target_id INTEGER NOT NULL,
-    target_type TEXT NOT NULL,
-    value INTEGER NOT NULL,
-    created_at TEXT DEFAULT (datetime('now')),
-    PRIMARY KEY (user_id, target_id, target_type)
-  );
-
-  CREATE TABLE IF NOT EXISTS nigdit_aura (
-    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-    username TEXT NOT NULL,
-    post_aura INTEGER NOT NULL DEFAULT 0,
-    comment_aura INTEGER NOT NULL DEFAULT 0
-  );
-
-  CREATE TABLE IF NOT EXISTS nigdit_boards (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT UNIQUE NOT NULL,
-    description TEXT NOT NULL DEFAULT '',
-    created_at TEXT DEFAULT (datetime('now'))
-  );
-
-  CREATE TABLE IF NOT EXISTS nigdit_attachments (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    post_id INTEGER NOT NULL REFERENCES nigdit_posts(id) ON DELETE CASCADE,
-    filename TEXT NOT NULL,
-    mime_type TEXT NOT NULL DEFAULT 'application/octet-stream',
-    size INTEGER NOT NULL DEFAULT 0,
-    data BLOB NOT NULL,
-    created_at TEXT DEFAULT (datetime('now'))
-  );
-  CREATE INDEX IF NOT EXISTS idx_nigdit_attachments_post ON nigdit_attachments(post_id);
-`);
-
-// Seed default nigdit boards
-{
-  const boardCount = (db.prepare('SELECT COUNT(*) as cnt FROM nigdit_boards').get() as { cnt: number }).cnt;
-  if (boardCount === 0) {
-    const ins = db.prepare('INSERT OR IGNORE INTO nigdit_boards (name, description) VALUES (?, ?)');
-    const defaults: [string, string][] = [
-      ['general', 'anything goes'],
-      ['shitposts', 'low effort, high impact'],
-      ['code', 'flex your code'],
-      ['rants', 'let it out'],
-      ['meta', 'about nigdit itself'],
-    ];
-    for (const [n, d] of defaults) ins.run(n, d);
-  }
-}
-
-// Nigdit migrations for new columns
-for (const [tbl, col, def] of [
-  ['nigdit_posts', 'is_pinned', 'INTEGER NOT NULL DEFAULT 0'],
-  ['nigdit_posts', 'is_edited', 'INTEGER NOT NULL DEFAULT 0'],
-  ['nigdit_posts', 'is_anonymous', 'INTEGER NOT NULL DEFAULT 0'],
-  ['nigdit_posts', 'anon_name', 'TEXT'],
-  ['nigdit_posts', 'expires_at', 'TEXT'],
-  ['nigdit_posts', 'post_type', "TEXT NOT NULL DEFAULT 'text'"],
-  ['nigdit_comments', 'is_edited', 'INTEGER NOT NULL DEFAULT 0'],
-  ['nigdit_comments', 'is_anonymous', 'INTEGER NOT NULL DEFAULT 0'],
-  ['nigdit_comments', 'anon_name', 'TEXT'],
-] as const) {
-  try { db.exec(`ALTER TABLE ${tbl} ADD COLUMN ${col} ${def}`); } catch { /* exists */ }
-}
-
-// Nigdit: awards, polls, bookmarks, notifications
-db.exec(`
-  CREATE TABLE IF NOT EXISTS nigdit_awards (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    post_id INTEGER REFERENCES nigdit_posts(id) ON DELETE CASCADE,
-    comment_id INTEGER REFERENCES nigdit_comments(id) ON DELETE CASCADE,
-    award_type TEXT NOT NULL,
-    from_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    from_username TEXT NOT NULL,
-    nb_cost INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT DEFAULT (datetime('now'))
-  );
-  CREATE INDEX IF NOT EXISTS idx_nigdit_awards_post ON nigdit_awards(post_id);
-  CREATE INDEX IF NOT EXISTS idx_nigdit_awards_comment ON nigdit_awards(comment_id);
-
-  CREATE TABLE IF NOT EXISTS nigdit_poll_options (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    post_id INTEGER NOT NULL REFERENCES nigdit_posts(id) ON DELETE CASCADE,
-    label TEXT NOT NULL,
-    vote_count INTEGER NOT NULL DEFAULT 0
-  );
-
-  CREATE TABLE IF NOT EXISTS nigdit_poll_votes (
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    post_id INTEGER NOT NULL REFERENCES nigdit_posts(id) ON DELETE CASCADE,
-    option_id INTEGER NOT NULL REFERENCES nigdit_poll_options(id) ON DELETE CASCADE,
-    created_at TEXT DEFAULT (datetime('now')),
-    PRIMARY KEY (user_id, post_id)
-  );
-
-  CREATE TABLE IF NOT EXISTS nigdit_bookmarks (
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    post_id INTEGER NOT NULL REFERENCES nigdit_posts(id) ON DELETE CASCADE,
-    created_at TEXT DEFAULT (datetime('now')),
-    PRIMARY KEY (user_id, post_id)
-  );
-
-  CREATE TABLE IF NOT EXISTS nigdit_notifications (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    type TEXT NOT NULL,
-    from_username TEXT NOT NULL,
-    post_id INTEGER REFERENCES nigdit_posts(id) ON DELETE CASCADE,
-    comment_id INTEGER REFERENCES nigdit_comments(id) ON DELETE CASCADE,
-    message TEXT NOT NULL DEFAULT '',
-    is_read INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT DEFAULT (datetime('now'))
-  );
-  CREATE INDEX IF NOT EXISTS idx_nigdit_notif_user ON nigdit_notifications(user_id, is_read, created_at DESC);
-`);
-
-// meme_id column on nigdit_notifications (for meme vote notifications)
-try {
-  db.exec(`ALTER TABLE nigdit_notifications ADD COLUMN meme_id INTEGER REFERENCES memes(id) ON DELETE CASCADE`);
-} catch {
-  // column already exists
-}
-
-// ── Memes (image gallery) ──
-db.exec(`
-  CREATE TABLE IF NOT EXISTS memes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    username TEXT NOT NULL,
-    filename TEXT NOT NULL,
-    mime_type TEXT NOT NULL DEFAULT 'image/jpeg',
-    size INTEGER NOT NULL DEFAULT 0,
-    data BLOB NOT NULL,
-    upvotes INTEGER NOT NULL DEFAULT 0,
-    downvotes INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT DEFAULT (datetime('now'))
-  );
-  CREATE INDEX IF NOT EXISTS idx_memes_created ON memes(created_at DESC);
-
-  CREATE TABLE IF NOT EXISTS meme_votes (
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    meme_id INTEGER NOT NULL REFERENCES memes(id) ON DELETE CASCADE,
-    value INTEGER NOT NULL,
-    created_at TEXT DEFAULT (datetime('now')),
-    PRIMARY KEY (user_id, meme_id)
-  );
-`);
 
 // ── Pastes (code paste bin) ──
 db.exec(`
@@ -721,6 +445,11 @@ try {
   db.exec(`ALTER TABLE transfers ADD COLUMN max_size INTEGER NOT NULL DEFAULT ${1024 * 1024 * 1024}`);
 } catch { /* column already exists */ }
 
+// Add content_type column (NULL = zip mode, set = raw single-file mode)
+try {
+  db.exec(`ALTER TABLE transfers ADD COLUMN content_type TEXT`);
+} catch { /* column already exists */ }
+
 // Ensure transfers directory exists
 mkdirSync(resolve(__dirname, '..', 'data', 'transfers'), { recursive: true });
 
@@ -809,25 +538,54 @@ db.exec(`
 {
   const paymentSeeds: [string, string][] = [
     ['nb_pack_amounts', '10,50,100,500'],
-    ['sub_classic_1m_eur', '2.99'],
-    ['sub_classic_3m_eur', '2.69'],
-    ['sub_classic_12m_eur', '1.99'],
-    ['sub_club_1m_eur', '5.99'],
-    ['sub_club_3m_eur', '4.99'],
-    ['sub_club_12m_eur', '3.99'],
-    ['sub_free_benefits', '["terminal access","50MB cloud storage","basic apps","vibes only"]'],
-    ['sub_classic_benefits', '["@mynig.ga email","500MB cloud storage","priority support"]'],
-    ['sub_club_benefits', '["everything in Member","all apps unlocked","unlimited features","flex on the poors"]'],
-    ['storage_classic_mb', '500'],
+    ['sub_basic_1m_eur', '2.99'],
+    ['sub_basic_3m_eur', '2.49'],
+    ['sub_basic_12m_eur', '1.99'],
+    ['sub_premium_1m_eur', '6.69'],
+    ['sub_premium_3m_eur', '5.49'],
+    ['sub_premium_12m_eur', '4.49'],
+    ['sub_basic_benefits', '["@mynig.ga email","10GB cloud storage","1GB upload links","core apps"]'],
+    ['sub_premium_benefits', '["30GB cloud storage","5GB upload links","all apps unlocked","priority support","flex on the poors"]'],
+    ['storage_basic_mb', '10240'],
+    ['storage_premium_mb', '30720'],
     // Default free mail slots per role
     ['mail_slots_admin', '10'],
-    ['mail_slots_club', '5'],
-    ['mail_slots_classic', '3'],
-    ['mail_slots_user', '1'],
-    ['mail_slots_guest', '0'],
+    ['mail_slots_premium', '10'],
+    ['mail_slots_basic', '3'],
   ];
   const seedPay = db.prepare('INSERT OR IGNORE INTO global_settings (key, value) VALUES (?, ?)');
   for (const [k, v] of paymentSeeds) seedPay.run(k, v);
+
+  // Migration: rename classic→basic, club→pro setting keys
+  const renames: [string, string][] = [
+    ['sub_classic_1m_eur', 'sub_basic_1m_eur'],
+    ['sub_classic_3m_eur', 'sub_basic_3m_eur'],
+    ['sub_classic_12m_eur', 'sub_basic_12m_eur'],
+    ['sub_club_1m_eur', 'sub_premium_1m_eur'],
+    ['sub_club_3m_eur', 'sub_premium_3m_eur'],
+    ['sub_club_12m_eur', 'sub_premium_12m_eur'],
+    ['sub_pro_1m_eur', 'sub_premium_1m_eur'],
+    ['sub_pro_3m_eur', 'sub_premium_3m_eur'],
+    ['sub_pro_12m_eur', 'sub_premium_12m_eur'],
+    ['storage_classic_mb', 'storage_basic_mb'],
+    ['storage_club_mb', 'storage_premium_mb'],
+    ['storage_pro_mb', 'storage_premium_mb'],
+    ['mail_slots_classic', 'mail_slots_basic'],
+    ['mail_slots_club', 'mail_slots_premium'],
+    ['mail_slots_pro', 'mail_slots_premium'],
+    ['sub_classic_benefits', 'sub_basic_benefits'],
+    ['sub_club_benefits', 'sub_premium_benefits'],
+    ['sub_pro_benefits', 'sub_premium_benefits'],
+  ];
+  const renameSetting = db.prepare('UPDATE global_settings SET key = ? WHERE key = ? AND NOT EXISTS (SELECT 1 FROM global_settings WHERE key = ?)');
+  for (const [oldK, newK] of renames) renameSetting.run(newK, oldK, newK);
+
+  // Migration: rename user roles classic→basic, club/pro→premium
+  db.prepare("UPDATE users SET role = 'basic' WHERE role = 'classic'").run();
+  db.prepare("UPDATE users SET role = 'premium' WHERE role = 'club' OR role = 'pro'").run();
+
+  // Migration: rename subscription types
+  db.prepare("UPDATE subscriptions SET type = REPLACE(REPLACE(REPLACE(type, 'classic', 'basic'), 'club', 'premium'), 'pro', 'premium') WHERE type LIKE '%classic%' OR type LIKE '%club%' OR type LIKE '%pro%'").run();
 }
 
 // ── Contacts unique index ──
@@ -867,5 +625,193 @@ db.exec(`
 try {
   db.exec(`ALTER TABLE youtube_downloads ADD COLUMN platform TEXT DEFAULT 'youtube'`);
 } catch { /* column already exists */ }
+
+// ── Email-based auth migration ──
+// Add email column to users (nullable initially, we'll backfill)
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN email TEXT`);
+} catch { /* column already exists */ }
+
+// Backfill: for users without email, set email = first email_address or username@mynig.ga
+{
+  const usersNoEmail = db.prepare("SELECT id, username FROM users WHERE email IS NULL").all() as { id: number; username: string }[];
+  if (usersNoEmail.length > 0) {
+    const updateEmail = db.prepare("UPDATE users SET email = ? WHERE id = ?");
+    const getAddr = db.prepare("SELECT address FROM email_addresses WHERE user_id = ? LIMIT 1");
+    db.transaction(() => {
+      for (const u of usersNoEmail) {
+        const addr = getAddr.get(u.id) as { address: string } | undefined;
+        const local = addr ? addr.address.split("@")[0]! : u.username;
+        const email = `${local}@mynig.ga`;
+        updateEmail.run(email, u.id);
+      }
+    })();
+  }
+}
+
+// Create unique index on email (if not exists)
+try {
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email)`);
+} catch { /* index already exists */ }
+
+// Migration: make password_hash nullable (needed for passwordless registration flow)
+{
+  const cols = db.prepare("PRAGMA table_info(users)").all() as { name: string; notnull: number }[];
+  const pwCol = cols.find(c => c.name === 'password_hash');
+  if (pwCol && pwCol.notnull === 1) {
+    // Only copy columns that exist in new schema
+    const keepCols = ['id', 'username', 'password_hash', 'role', 'created_at', 'updated_at', 'code_id', 'email'];
+    const existingKeep = keepCols.filter(c => cols.some(col => col.name === c));
+    const colList = existingKeep.join(', ');
+
+    // Must disable FK checks to drop+recreate table with references
+    db.pragma('foreign_keys = OFF');
+    db.exec('DROP TABLE IF EXISTS users_new');
+    db.transaction(() => {
+      db.exec(`
+        CREATE TABLE users_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          username TEXT UNIQUE NOT NULL,
+          password_hash TEXT,
+          role TEXT NOT NULL DEFAULT 'user',
+          created_at TEXT DEFAULT (datetime('now')),
+          updated_at TEXT DEFAULT (datetime('now')),
+          code_id INTEGER REFERENCES access_codes(id),
+          email TEXT
+        );
+      `);
+      db.exec(`INSERT INTO users_new (${colList}) SELECT ${colList} FROM users`);
+      db.exec(`DROP TABLE users`);
+      db.exec(`ALTER TABLE users_new RENAME TO users`);
+      db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email)`);
+    })();
+    db.pragma('foreign_keys = ON');
+    console.log('[db] migrated users.password_hash to nullable');
+  }
+}
+
+// Add size column to emails table (for storage accounting)
+try {
+  db.exec(`ALTER TABLE emails ADD COLUMN size INTEGER NOT NULL DEFAULT 0`);
+} catch { /* column already exists */ }
+
+// Add s3_key column to email_attachments (NULL = legacy BLOB, non-NULL = S3-backed)
+try {
+  db.exec(`ALTER TABLE email_attachments ADD COLUMN s3_key TEXT`);
+} catch { /* column already exists */ }
+
+// ── Cloud Storage (S3-backed files) ──
+db.exec(`
+  CREATE TABLE IF NOT EXISTS cloud_files (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    filename TEXT NOT NULL,
+    path TEXT NOT NULL,
+    mime_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+    size INTEGER NOT NULL DEFAULT 0,
+    uploaded_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_cloud_files_user ON cloud_files(user_id);
+`);
+
+// ── Promo Codes ──
+db.exec(`
+  CREATE TABLE IF NOT EXISTS promo_codes (
+    code TEXT PRIMARY KEY,
+    type TEXT NOT NULL,
+    value REAL NOT NULL,
+    sub_tier TEXT,
+    max_uses INTEGER DEFAULT 0,
+    use_count INTEGER DEFAULT 0,
+    expires_at TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    active INTEGER DEFAULT 1
+  );
+
+  CREATE TABLE IF NOT EXISTS promo_uses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    promo_code TEXT NOT NULL REFERENCES promo_codes(code),
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    used_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_promo_uses_user ON promo_uses(user_id, promo_code);
+`);
+
+// Add promo_code column to payments
+try {
+  db.exec(`ALTER TABLE payments ADD COLUMN promo_code TEXT`);
+} catch { /* column already exists */ }
+
+// ── AI Token Usage Tracking ──
+db.exec(`
+  CREATE TABLE IF NOT EXISTS ai_usage (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    prompt_tokens INTEGER NOT NULL DEFAULT 0,
+    completion_tokens INTEGER NOT NULL DEFAULT 0,
+    total_tokens INTEGER NOT NULL DEFAULT 0,
+    model TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_ai_usage_created ON ai_usage(created_at);
+  CREATE INDEX IF NOT EXISTS idx_ai_usage_user ON ai_usage(user_id);
+`);
+
+// ── Chess Games ──
+db.exec(`
+  CREATE TABLE IF NOT EXISTS chess_games (
+    id TEXT PRIMARY KEY,
+    white_token TEXT NOT NULL,
+    black_token TEXT,
+    white_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    black_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    white_name TEXT NOT NULL DEFAULT 'Anonymous',
+    black_name TEXT,
+    status TEXT NOT NULL DEFAULT 'waiting',
+    fen TEXT NOT NULL DEFAULT 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+    pgn TEXT NOT NULL DEFAULT '',
+    moves TEXT NOT NULL DEFAULT '[]',
+    result TEXT,
+    result_reason TEXT,
+    draw_offer_by TEXT,
+    is_bot INTEGER NOT NULL DEFAULT 0,
+    bot_level INTEGER,
+    time_control INTEGER,
+    white_time_left REAL,
+    black_time_left REAL,
+    last_move_at TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_chess_status ON chess_games(status);
+`);
+
+// Add body_html column to emails for proper HTML email rendering
+try {
+  db.exec(`ALTER TABLE emails ADD COLUMN body_html TEXT`);
+} catch { /* column already exists */ }
+
+// ── Cloud Shares (public file sharing) ──
+db.exec(`
+  CREATE TABLE IF NOT EXISTS cloud_shares (
+    id TEXT PRIMARY KEY,
+    file_id TEXT NOT NULL REFERENCES cloud_files(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    downloads INTEGER NOT NULL DEFAULT 0,
+    expires_at TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_cloud_shares_file ON cloud_shares(file_id);
+  CREATE INDEX IF NOT EXISTS idx_cloud_shares_user ON cloud_shares(user_id);
+  CREATE INDEX IF NOT EXISTS idx_cloud_shares_expires ON cloud_shares(expires_at);
+`);
+
+// Add password_hash to cloud_shares
+try {
+  db.exec(`ALTER TABLE cloud_shares ADD COLUMN password_hash TEXT`);
+} catch { /* column already exists */ }
+
+// Seed cloud share expiry default
+db.prepare(`INSERT OR IGNORE INTO global_settings (key, value) VALUES ('cloud_share_expiry_days', '7')`).run();
 
 export default db;

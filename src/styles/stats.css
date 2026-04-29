@@ -75,13 +75,13 @@
 
 .stats-health.ok {
   background: var(--success);
-  box-shadow: 0 0 6px rgba(52, 211, 153, 0.5);
+  box-shadow: 0 0 6px var(--success-soft);
   animation: stats-pulse 2s ease-in-out infinite;
 }
 
 .stats-health.degraded {
   background: var(--error);
-  box-shadow: 0 0 6px rgba(248, 113, 113, 0.5);
+  box-shadow: 0 0 6px var(--error-soft);
   animation: stats-pulse 1s ease-in-out infinite;
 }
 
@@ -206,7 +206,7 @@
 .stats-tab-active {
   color: var(--accent);
   border-color: var(--accent-mid);
-  background: var(--accent-soft, rgba(139, 92, 246, 0.08));
+  background: var(--accent-soft);
 }
 
 /* ── VPS Disk Monitoring ── */
@@ -397,7 +397,7 @@
 .stats-log-filter-active {
   color: var(--accent);
   border-color: var(--accent-mid);
-  background: var(--accent-soft, rgba(139, 92, 246, 0.08));
+  background: var(--accent-soft);
 }
 
 .stats-log-clear {
@@ -482,7 +482,7 @@
 
 .stats-log-badge-http {
   color: var(--accent);
-  background: var(--accent-soft, rgba(139, 92, 246, 0.1));
+  background: var(--accent-soft);
 }
 
 .stats-log-badge-info {
@@ -491,8 +491,8 @@
 }
 
 .stats-log-badge-warn {
-  color: #f59e0b;
-  background: rgba(245, 158, 11, 0.1);
+  color: var(--warning);
+  background: var(--warning-soft);
 }
 
 .stats-log-badge-error {
@@ -511,7 +511,7 @@
 }
 
 .stats-log-level-warn .stats-log-msg {
-  color: #f59e0b;
+  color: var(--warning);
 }
 
 .stats-log-level-error .stats-log-msg {

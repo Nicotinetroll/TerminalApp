@@ -5,7 +5,7 @@ import { getAdminUserDetails, adminManageSubscription, adminSetNiggabytes, ApiEr
 interface Props {
   mode: "create" | "edit";
   initialUser?: AdminUser;
-  onSubmit: (username: string, password: string, role: string) => void;
+  onSubmit: (email: string, password: string, role: string) => void;
   onCancel: () => void;
   onStatus?: (text: string, isError?: boolean) => void;
 }
@@ -37,16 +37,16 @@ function formatExpiry(expiresAt: string | null): string {
 }
 
 const SUB_TYPES = [
-  { value: "classic_1m", label: "Member 1mo" },
-  { value: "classic_3m", label: "Member 3mo" },
-  { value: "classic_12m", label: "Member 12mo" },
-  { value: "club_1m", label: "Club 1mo" },
-  { value: "club_3m", label: "Club 3mo" },
-  { value: "club_12m", label: "Club 12mo" },
+  { value: "basic_1m", label: "Basic 1mo" },
+  { value: "basic_3m", label: "Basic 3mo" },
+  { value: "basic_12m", label: "Basic 12mo" },
+  { value: "premium_1m", label: "Premium 1mo" },
+  { value: "premium_3m", label: "Premium 3mo" },
+  { value: "premium_12m", label: "Premium 12mo" },
 ];
 
 export function UserForm({ mode, initialUser, onSubmit, onCancel, onStatus }: Props) {
-  const [username, setUsername] = useState(initialUser?.username ?? "");
+  const [email, setEmail] = useState(initialUser?.email ?? "");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState(initialUser?.role ?? "user");
 
@@ -55,7 +55,7 @@ export function UserForm({ mode, initialUser, onSubmit, onCancel, onStatus }: Pr
   const [detailsLoading, setDetailsLoading] = useState(false);
 
   // Sub grant form
-  const [grantType, setGrantType] = useState("club_1m");
+  const [grantType, setGrantType] = useState("premium_1m");
   const [grantBusy, setGrantBusy] = useState(false);
 
   // NB edit
@@ -80,12 +80,12 @@ export function UserForm({ mode, initialUser, onSubmit, onCancel, onStatus }: Pr
   }, [mode, initialUser, loadDetails]);
 
   const canSubmit =
-    username.trim().length > 0 && (mode === "edit" || password.length > 0);
+    email.trim().length > 0 && (mode === "edit" || password.length > 0);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit) return;
-    onSubmit(username.trim(), password, role);
+    onSubmit(email.trim(), password, role);
   };
 
   const handleGrantSub = async () => {
@@ -142,7 +142,7 @@ export function UserForm({ mode, initialUser, onSubmit, onCancel, onStatus }: Pr
   };
 
   const sub = details?.active_subscription;
-  const subLabel = sub ? (sub.type.includes("club") ? "Club Member" : sub.type.includes("classic") ? "Member" : sub.type) : null;
+  const subLabel = sub ? (sub.type.includes("premium") ? "Premium" : sub.type.includes("basic") ? "Basic" : sub.type) : null;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px", flex: 1, overflow: "auto" }}>
@@ -164,7 +164,7 @@ export function UserForm({ mode, initialUser, onSubmit, onCancel, onStatus }: Pr
                   <td style={{ color: "var(--text-muted)" }}>role</td>
                   <td>
                     <span className={`role-badge role-${details.user.role}`}>
-                      {details.user.role === "club" ? "club member" : details.user.role === "classic" ? "member" : details.user.role}
+                      {details.user.role}
                     </span>
                   </td>
                 </tr>
@@ -215,7 +215,7 @@ export function UserForm({ mode, initialUser, onSubmit, onCancel, onStatus }: Pr
                   <td>
                     {sub ? (
                       <span style={{ display: "inline-flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-                        <span style={{ color: sub.type.includes("club") ? "var(--accent)" : "#a78bfa", fontWeight: 600 }}>{subLabel}</span>
+                        <span style={{ color: sub.type.includes("premium") ? "var(--accent)" : "#a78bfa", fontWeight: 600 }}>{subLabel}</span>
                         <span style={{ color: "var(--text-ghost)", fontSize: "12px" }}>expires {formatExpiry(sub.expires_at)}</span>
                         {sub.auto_renew ? (
                           <span style={{ fontSize: "10px", color: "var(--success)", background: "rgba(34,197,94,0.1)", padding: "1px 6px", borderRadius: "3px" }}>auto-renew</span>
@@ -277,8 +277,8 @@ export function UserForm({ mode, initialUser, onSubmit, onCancel, onStatus }: Pr
                 <tbody>
                   {details.subscription_history.map(s => (
                     <tr key={s.id}>
-                      <td style={{ color: s.type.includes("club") ? "var(--accent)" : "#a78bfa" }}>
-                        {s.type.replace("classic", "member").replace("club", "club")}
+                      <td style={{ color: s.type.includes("premium") ? "var(--accent)" : "#a78bfa" }}>
+                        {s.type.replace("basic_", "Basic ").replace("premium_", "Premium ")}
                       </td>
                       <td>{formatDate(s.starts_at)}</td>
                       <td>{s.expires_at ? formatDate(s.expires_at) : "—"}</td>
@@ -345,13 +345,13 @@ export function UserForm({ mode, initialUser, onSubmit, onCancel, onStatus }: Pr
         </h4>
 
         <div className="admin-form-group">
-          <label>username</label>
+          <label>email</label>
           <input
-            type="text"
+            type="email"
             className="admin-input"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="enter username"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="user@email.com"
             autoFocus={mode === "create"}
           />
         </div>
@@ -375,10 +375,9 @@ export function UserForm({ mode, initialUser, onSubmit, onCancel, onStatus }: Pr
             onChange={(e) => setRole(e.target.value)}
           >
             <option value="admin">admin</option>
-            <option value="club">club member</option>
-            <option value="classic">member</option>
+            <option value="premium">premium</option>
+            <option value="basic">basic</option>
             <option value="user">user</option>
-            <option value="guest">guest</option>
           </select>
         </div>
 

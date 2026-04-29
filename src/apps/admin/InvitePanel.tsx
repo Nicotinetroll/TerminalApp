@@ -2,6 +2,14 @@ import { useState, useEffect, useCallback } from "react";
 import { getInvites, createInvite, deleteInvite, ApiError } from "@/lib/api";
 import type { InviteLink } from "@/lib/api";
 
+const SUB_DURATIONS = [
+  { label: "1m", value: "1m" },
+  { label: "3m", value: "3m" },
+  { label: "12m", value: "12m" },
+] as const;
+
+type SubDuration = typeof SUB_DURATIONS[number]["value"];
+
 export function InvitePanel() {
   const [invites, setInvites] = useState<InviteLink[]>([]);
   const [loading, setLoading] = useState(true);
@@ -9,6 +17,7 @@ export function InvitePanel() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [status, setStatus] = useState<{ text: string; isError: boolean } | null>(null);
   const [maxUses, setMaxUses] = useState(1);
+  const [subDuration, setSubDuration] = useState<SubDuration>("1m");
 
   const showStatus = useCallback((text: string, isError = false) => {
     setStatus({ text, isError });
@@ -35,7 +44,13 @@ export function InvitePanel() {
   const handleCreate = useCallback(async (role: string) => {
     setCreating(true);
     try {
-      const invite = await createInvite(role, maxUses);
+      // For basic/premium, include subscription type + days
+      let subType: string | undefined;
+      if (role === "basic" || role === "premium") {
+        subType = `${role}_${subDuration}`;
+      }
+
+      const invite = await createInvite(role, maxUses, subType);
       await navigator.clipboard.writeText(invite.url);
       showStatus(`link created (${maxUses} uses) & copied to clipboard`);
       setCopiedId(invite.id);
@@ -47,7 +62,7 @@ export function InvitePanel() {
     } finally {
       setCreating(false);
     }
-  }, [loadInvites, showStatus, maxUses]);
+  }, [loadInvites, showStatus, maxUses, subDuration]);
 
   const handleCopy = useCallback(async (id: string) => {
     const url = `https://mynig.ga/?invite=${id}`;
@@ -80,6 +95,13 @@ export function InvitePanel() {
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   };
 
+  const formatSubType = (invite: InviteLink): string | null => {
+    if (!invite.subscription_type) return null;
+    const t = invite.subscription_type;
+    const days = invite.subscription_days;
+    return `${t}${days ? ` (${days}d)` : ""}`;
+  };
+
   if (loading) {
     return (
       <div className="admin-loading">
@@ -104,6 +126,24 @@ export function InvitePanel() {
             style={{ width: "56px", textAlign: "center", fontSize: "12px", padding: "3px 4px" }}
           />
         </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+          <label style={{ fontSize: "12px", color: "var(--text-muted)" }}>sub:</label>
+          {SUB_DURATIONS.map((d) => (
+            <button
+              key={d.value}
+              className="btn"
+              style={{
+                fontSize: "11px",
+                padding: "2px 8px",
+                background: subDuration === d.value ? "var(--accent)" : undefined,
+                color: subDuration === d.value ? "var(--bg)" : undefined,
+              }}
+              onClick={() => setSubDuration(d.value)}
+            >
+              {d.label}
+            </button>
+          ))}
+        </div>
         <button
           className="btn btn-primary"
           disabled={creating}
@@ -114,16 +154,16 @@ export function InvitePanel() {
         <button
           className="btn"
           disabled={creating}
-          onClick={() => void handleCreate("classic")}
+          onClick={() => void handleCreate("basic")}
         >
-          + invite (member)
+          + invite (basic)
         </button>
         <button
           className="btn"
           disabled={creating}
-          onClick={() => void handleCreate("club")}
+          onClick={() => void handleCreate("premium")}
         >
-          + invite (club member)
+          + invite (premium)
         </button>
         <button
           className="btn"
@@ -148,6 +188,7 @@ export function InvitePanel() {
               <tr>
                 <th>token</th>
                 <th>role</th>
+                <th>sub</th>
                 <th>uses</th>
                 <th>status</th>
                 <th>created</th>
@@ -158,6 +199,7 @@ export function InvitePanel() {
             <tbody>
               {invites.map((inv) => {
                 const s = getInviteStatus(inv);
+                const subLabel = formatSubType(inv);
                 return (
                   <tr key={inv.id}>
                     <td style={{ fontFamily: "monospace", fontSize: "12px", color: "var(--text-muted)" }}>
@@ -165,8 +207,11 @@ export function InvitePanel() {
                     </td>
                     <td>
                       <span className={`role-badge role-${inv.role}`}>
-                        {inv.role === "club" ? "club member" : inv.role === "classic" ? "member" : inv.role}
+                        {inv.role}
                       </span>
+                    </td>
+                    <td style={{ fontSize: "11px", color: subLabel ? "var(--accent)" : "var(--text-ghost)" }}>
+                      {subLabel ?? "—"}
                     </td>
                     <td style={{ fontFamily: "monospace", fontSize: "12px" }}>
                       <span style={{ color: inv.use_count > 0 ? "var(--accent)" : "var(--text-muted)" }}>

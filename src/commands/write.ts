@@ -16,7 +16,7 @@ export const write: CommandDef = {
     const content = args.slice(1).join(" ");
 
     const expanded = raw.startsWith("~/")
-      ? getHomePath(terminal.user.username) + raw.slice(1)
+      ? getHomePath(terminal.user.email) + raw.slice(1)
       : raw;
 
     const resolved = normalizePath(terminal.cwd, expanded);

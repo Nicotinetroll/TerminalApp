@@ -86,19 +86,19 @@
   color: var(--accent);
 }
 
-.admin-table .role-club {
-  background: rgba(52, 211, 153, 0.1);
-  color: #34d399;
+.admin-table .role-premium {
+  background: var(--success-soft);
+  color: var(--success);
 }
 
-.admin-table .role-classic {
-  background: rgba(167, 139, 250, 0.1);
-  color: #a78bfa;
+.admin-table .role-basic {
+  background: var(--role-basic-soft);
+  color: var(--role-basic);
 }
 
 .admin-table .role-user {
-  background: rgba(96, 165, 250, 0.1);
-  color: #60a5fa;
+  background: var(--role-user-soft);
+  color: var(--role-user);
 }
 
 .admin-table .role-guest {
@@ -146,16 +146,17 @@
   border-color: var(--accent);
 }
 
+/* ── 3 button styles: .btn, .btn-primary, .btn-danger ── */
+
 .btn {
   padding: 6px 14px;
   border: 1px solid var(--border-medium);
-  border-radius: 4px;
   background: var(--bg-elevated);
   color: var(--text-secondary);
   font-family: inherit;
   font-size: 13px;
   cursor: pointer;
-  transition: background 150ms ease, color 150ms ease, border-color 150ms ease, transform 150ms ease;
+  transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
 }
 
 .btn:hover {
@@ -174,7 +175,7 @@
 }
 
 .btn-danger {
-  border-color: rgba(248, 113, 113, 0.2);
+  border-color: var(--error-soft);
   color: var(--error);
 }
 
@@ -194,7 +195,6 @@
 .btn-sm {
   padding: 4px 14px;
   font-size: 12px;
-  letter-spacing: 0.03em;
 }
 
 .admin-form-group {

@@ -145,14 +145,14 @@
 
 .pu-dropzone:hover {
   border-color: var(--accent);
-  background: rgba(218,119,86,0.03);
-  box-shadow: inset 0 0 40px rgba(218,119,86,0.05);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 40px var(--accent-soft);
 }
 
 .pu-dropzone-active {
   border-color: var(--accent) !important;
-  background: rgba(218,119,86,0.06) !important;
-  box-shadow: inset 0 0 60px rgba(218,119,86,0.08), 0 0 30px rgba(218,119,86,0.1) !important;
+  background: var(--accent-soft) !important;
+  box-shadow: inset 0 0 60px var(--accent-soft), 0 0 30px var(--accent-soft) !important;
 }
 
 .pu-dropzone-arrow {
@@ -291,12 +291,12 @@
   color: var(--bg-primary) !important;
   border-color: var(--accent) !important;
   font-weight: 700;
-  box-shadow: 0 0 12px rgba(218, 119, 86, 0.35), 0 0 4px rgba(218, 119, 86, 0.2);
+  box-shadow: 0 0 12px var(--accent-mid), 0 0 4px var(--accent-mid);
   transition: all 200ms ease;
 }
 
 .pu-upload-btn:hover:not(:disabled) {
-  box-shadow: 0 0 20px rgba(218, 119, 86, 0.5), 0 0 8px rgba(218, 119, 86, 0.3);
+  box-shadow: 0 0 20px var(--accent-mid), 0 0 8px var(--accent-mid);
   filter: brightness(1.1);
 }
 
@@ -308,11 +308,11 @@
 .pu-cancel-btn {
   margin-top: 20px;
   color: var(--error) !important;
-  border-color: rgba(248,113,113,0.2) !important;
+  border-color: var(--error-soft) !important;
 }
 
 .pu-cancel-btn:hover {
-  background: rgba(248,113,113,0.08) !important;
+  background: var(--error-soft) !important;
 }
 
 /* ── Upload Progress ── */
@@ -367,7 +367,7 @@
 
 .pu-bar {
   height: 100%;
-  background: linear-gradient(90deg, var(--accent), #e8956e);
+  background: linear-gradient(90deg, var(--accent), var(--accent-light));
   transition: width 0.5s ease;
   position: relative;
 }
@@ -459,7 +459,7 @@
 }
 
 .pu-done-glow {
-  background: radial-gradient(ellipse at 50% 0%, rgba(52,211,153,0.12) 0%, transparent 70%) !important;
+  background: radial-gradient(ellipse at 50% 0%, var(--success-soft) 0%, transparent 70%) !important;
 }
 
 .pu-done-check {
@@ -467,7 +467,7 @@
   color: var(--success);
   text-align: center;
   margin-bottom: 8px;
-  text-shadow: 0 0 20px rgba(52,211,153,0.4), 0 0 60px rgba(52,211,153,0.2);
+  text-shadow: 0 0 20px var(--success-soft), 0 0 60px var(--success-soft);
   animation: pu-check-in 0.6s ease-out;
 }
 
@@ -523,7 +523,7 @@
 .cf-complete {
   background: var(--success) !important;
   border-color: var(--success) !important;
-  box-shadow: 0 0 8px rgba(52,211,153,0.4) !important;
+  box-shadow: 0 0 8px var(--success-soft) !important;
   transition-property: background, border-color, box-shadow;
   transition-duration: 0.3s;
   transition-timing-function: ease;
@@ -538,12 +538,12 @@
 
 .cf-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--accent), #e8956e);
+  background: linear-gradient(90deg, var(--accent), var(--accent-light));
   transition: width 0.3s ease;
 }
 
 .cf-done .cf-bar-fill {
-  background: linear-gradient(90deg, #059669, var(--success)) !important;
+  background: linear-gradient(90deg, var(--success), var(--success)) !important;
 }
 
 .cf-info {
@@ -635,15 +635,15 @@
 }
 
 .transfer-status-pending {
-  color: #fbbf24;
-  background: rgba(251, 191, 36, 0.1);
-  border: 1px solid rgba(251, 191, 36, 0.2);
+  color: var(--warning);
+  background: var(--warning-soft);
+  border: 1px solid var(--warning-soft);
 }
 
 .transfer-status-uploaded {
   color: var(--success);
-  background: rgba(52, 211, 153, 0.1);
-  border: 1px solid rgba(52, 211, 153, 0.2);
+  background: var(--success-soft);
+  border: 1px solid var(--success-soft);
 }
 
 .transfer-status-expired {
@@ -693,5 +693,65 @@
 .transfer-item-actions {
   display: flex;
   gap: 6px;
+}
+
+/* ── File Thumbnails (upload form) ── */
+
+.pu-file-thumb {
+  width: 28px;
+  height: 28px;
+  object-fit: cover;
+  border-radius: 3px;
+  border: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+/* ── Download Preview (image/video) ── */
+
+.pu-preview-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+  flex: none;
+}
+
+.pu-preview-img {
+  max-height: 200px;
+  max-width: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle);
+}
+
+.pu-preview-video {
+  max-height: 200px;
+  max-width: 100%;
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle);
+  background: #000;
+}
+
+/* ── Raw/Zip Mode Toggle ── */
+
+.pu-mode-toggle {
+  background: none;
+  border: none;
+  color: var(--text-ghost);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 4px 0;
+  text-align: left;
+  transition: color 0.15s;
+}
+
+.pu-mode-toggle:hover {
+  color: var(--accent);
+}
+
+.pu-mode-note {
+  color: var(--text-ghost);
+  font-size: 12px;
+  padding: 4px 0;
 }
 

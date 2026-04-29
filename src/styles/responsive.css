@@ -1,4 +1,4 @@
-/* Responsive styles: all windows, whisper, admin, panel, profile, timesheet, mail mobile, games */
+/* Responsive styles: windows, admin, panel, profile, timesheet, mail mobile */
 
 /* ── Mail Mobile Elements (hidden on desktop) ── */
 
@@ -16,8 +16,8 @@
   }
 
   .window-titlebar {
-    height: 44px;
-    padding: 0 8px;
+    height: calc(44px + env(safe-area-inset-top, 0px));
+    padding: env(safe-area-inset-top, 0px) 8px 0;
   }
 
   .window-btn {
@@ -32,7 +32,7 @@
   }
 
   .window-body {
-    height: calc(100vh - 44px);
+    height: calc(100vh - 44px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
@@ -41,102 +41,6 @@
   .resize-n, .resize-s, .resize-e, .resize-w,
   .resize-ne, .resize-nw, .resize-se, .resize-sw {
     display: none;
-  }
-
-  /* ── Whisper responsive ── */
-
-  .whisper-panel {
-    font-size: 14px;
-  }
-
-  .whisper-layout {
-    flex-direction: column;
-  }
-
-  .whisper-sidebar {
-    width: 100%;
-    min-width: 100%;
-    max-height: 35vh;
-    border-right: none;
-    border-bottom: 1px solid var(--border-subtle);
-  }
-
-  .whisper-lobby-item {
-    padding: 12px 14px;
-  }
-
-  .whisper-section-label {
-    padding: 8px 14px 4px;
-  }
-
-  .whisper-user-item {
-    padding: 10px 14px;
-  }
-
-  .whisper-user-name {
-    font-size: 13px;
-  }
-
-  .whisper-room-item {
-    padding: 12px 14px;
-  }
-
-  .whisper-main {
-    flex: 1;
-    min-height: 0;
-  }
-
-  .whisper-chat-header {
-    padding: 10px 12px;
-  }
-
-  .whisper-messages {
-    padding: 10px 12px;
-  }
-
-  .whisper-msg {
-    max-width: 85%;
-    padding: 8px 10px;
-  }
-
-  .whisper-msg-content {
-    font-size: 14px;
-  }
-
-  .whisper-input {
-    padding: 8px 10px;
-    gap: 6px;
-  }
-
-  .whisper-input input {
-    padding: 10px 12px;
-    font-size: 16px; /* prevent iOS zoom */
-  }
-
-  .whisper-input button {
-    padding: 10px 14px;
-    font-size: 14px;
-  }
-
-  /* Show action buttons always on mobile (no hover) */
-  .whisper-msg-actions {
-    display: flex !important;
-  }
-
-  .whisper-reaction-picker {
-    position: fixed;
-    bottom: 60px;
-    left: 50%;
-    transform: translateX(-50%);
-    right: auto;
-    margin-bottom: 0;
-    padding: 8px 12px;
-    gap: 4px;
-  }
-
-  .whisper-reaction-picker button {
-    font-size: 22px;
-    padding: 4px 8px;
   }
 
   /* ── Admin panel responsive ── */
@@ -201,14 +105,13 @@
 
   /* ── Timesheet responsive ── */
 
-  .ts-wizard { padding: 16px; }
+  .ts-wizard { padding: 14px; }
   .ts-input { font-size: 16px; padding: 8px 6px; }
-  .ts-toolbar { gap: 6px; }
-  .ts-toolbar-info { font-size: 10px; }
-  .ts-toolbar-slider { width: 40px; }
-  .ts-table { font-size: 11px; }
-  .ts-foot { flex-direction: column; gap: 2px; }
-  .ts-foot-bd { white-space: normal; }
+  .ts-wiz-dot { width: 20px; height: 20px; font-size: 9px; }
+  .ts-wiz-line { width: 12px; }
+  .ts-wiz-footer { gap: 6px; }
+  .ts-preview-controls { flex-direction: column; align-items: stretch; }
+  .ts-preview-frame { min-height: 250px; }
 
   /* ── Mail Mobile Redesign ── */
 
@@ -425,19 +328,18 @@
     flex-wrap: wrap;
     height: auto;
     min-height: 56px;
-    padding: 8px 12px;
-    gap: 4px;
-    align-items: flex-start;
+    padding: 10px 14px;
+    gap: 4px 10px;
+    align-items: center;
   }
 
   .mail-checkbox {
-    width: 20px;
-    height: 20px;
-    margin-top: 2px;
+    width: 22px;
+    height: 22px;
   }
 
   .mail-checkbox:checked::after {
-    left: 5px;
+    left: 6px;
     top: 2px;
     width: 6px;
     height: 10px;
@@ -445,15 +347,15 @@
 
   .mail-star-btn {
     font-size: 20px;
-    width: 24px;
-    margin-top: 1px;
+    width: 26px;
   }
 
   .mail-row-sender {
     width: auto;
     min-width: 0;
     flex: 1;
-    font-size: 13px;
+    font-size: 14px;
+    font-weight: 500;
   }
 
   .mail-row-right {
@@ -468,8 +370,10 @@
   .mail-row-subject {
     width: 100%;
     order: 5;
-    padding-left: 44px;
+    padding-left: 58px;
     font-size: 12px;
+    margin-top: -2px;
+    color: var(--text-muted);
   }
 
   .mail-row-actions {
@@ -501,12 +405,33 @@
   .mail-view-header {
     flex-wrap: wrap;
     gap: 8px;
+    padding: 8px 12px;
+  }
+
+  .mail-view-actions {
+    gap: 4px;
+    flex-wrap: wrap;
   }
 
   .mail-view-action-btn {
     min-height: 36px;
-    padding: 6px 12px;
+    padding: 6px 10px;
     font-size: 12px;
+  }
+
+  .mail-view-meta {
+    padding: 12px;
+  }
+
+  .mail-view-sender-row {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .mail-view-date {
+    width: 100%;
+    padding-left: 42px;
+    margin-top: -4px;
   }
 
   .mail-view-body {
@@ -517,11 +442,26 @@
 
   .mail-view-subject {
     font-size: 16px;
+    margin-bottom: 8px;
   }
 
   .mail-view-back {
     min-height: 36px;
     padding: 6px 12px;
+  }
+
+  /* ── Attachments (mobile) ── */
+  .mail-attachments {
+    padding: 8px 12px;
+  }
+
+  .mail-attachments-list {
+    flex-direction: column;
+  }
+
+  .mail-attachment-item {
+    min-height: 40px;
+    padding: 8px 10px;
   }
 
   /* ── Compose (fullscreen) ── */
@@ -594,68 +534,4 @@
     from { transform: translateY(100%); }
     to { transform: translateY(0); }
   }
-
-  /* ── Games responsive ── */
-
-  .games-panel {
-    font-size: 13px;
-  }
-
-  .games-cards {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .games-lb-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .snake-grid {
-    max-width: 100% !important;
-  }
-
-  .snake-cell {
-    width: 14px !important;
-    height: 14px !important;
-  }
-
-  .flappy-cell {
-    width: 12px !important;
-    height: 12px !important;
-  }
-
-  .mines-cell {
-    width: 22px !important;
-    height: 22px !important;
-    font-size: 10px !important;
-  }
-
-  .racing-cell {
-    width: 24px !important;
-    height: 14px !important;
-  }
-
-  .invaders-cell {
-    width: 13px !important;
-    height: 13px !important;
-  }
-
-  .breakout-cell {
-    width: 13px !important;
-    height: 13px !important;
-  }
-
-  .games-hud {
-    flex-wrap: wrap;
-    gap: 4px;
-    padding: 6px 10px;
-  }
-
-  .games-selector-leaderboards {
-    display: none;
-  }
-
-  .games-difficulty-select {
-    padding: 20px;
-  }
 }
-

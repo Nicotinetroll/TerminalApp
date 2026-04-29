@@ -67,8 +67,16 @@ export interface GroqChoice {
   finish_reason: string;
 }
 
+export interface GroqUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+}
+
 export interface GroqResponse {
   choices: GroqChoice[];
+  usage?: GroqUsage;
+  model?: string;
   error?: { message: string };
 }
 
@@ -87,10 +95,10 @@ export async function callGroq(
   options: CallGroqOptions = {}
 ): Promise<GroqResponse> {
   const body: Record<string, unknown> = {
-    model: 'openai/gpt-oss-120b',
+    model: 'moonshotai/kimi-k2-instruct',
     messages,
     max_tokens: options.maxTokens ?? 1024,
-    temperature: options.temperature ?? 0.7,
+    temperature: options.temperature ?? 0.9,
   };
 
   if (options.tools) {

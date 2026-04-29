@@ -3,10 +3,9 @@ import jwt from 'jsonwebtoken';
 
 export interface AuthPayload {
   userId: number;
-  username: string;
+  email: string;
   role: string;
   permissions?: string[];
-  codeId?: number;
 }
 
 export interface AuthRequest extends Request {
@@ -16,12 +15,20 @@ export interface AuthRequest extends Request {
 export function authMiddleware(req: AuthRequest, res: Response, next: NextFunction): void {
   const authHeader = req.headers.authorization;
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  let token: string | undefined;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.slice(7);
+  } else if (typeof req.query?.token === 'string') {
+    token = req.query.token;
+  } else if (typeof req.body?._token === 'string') {
+    // sendBeacon can't set headers — token passed in body for beforeunload saves
+    token = req.body._token;
+  }
+
+  if (!token) {
     res.status(401).json({ error: 'Unauthorized' });
     return;
   }
-
-  const token = authHeader.slice(7);
   const secret = process.env.JWT_SECRET;
 
   if (!secret) {
@@ -33,10 +40,9 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
     const decoded = jwt.verify(token, secret) as AuthPayload;
     req.user = {
       userId: decoded.userId,
-      username: decoded.username,
+      email: decoded.email,
       role: decoded.role,
       permissions: decoded.permissions,
-      codeId: decoded.codeId,
     };
     next();
   } catch {

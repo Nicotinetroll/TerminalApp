@@ -1,35 +1,61 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import type { User, ThemeColors, HistoryEntry, CommandResult, TerminalAPI, FileSystemNode } from "@/types/terminal";
+import type { User, ThemeColors, HistoryEntry, CommandResult, TerminalAPI, FileSystemNode, FullscreenConfig } from "@/types/terminal";
 import { createDefaultFS } from "@/core/filesystem";
 import { resolve as resolveCmd } from "@/core/commandRegistry";
 import { registerAllCommands } from "@/commands";
 import { sanitizeInput, sanitizeArgs } from "@/core/security";
-import { parseArgs, getHomePath } from "@/core/utils";
+import { parseArgs, getHomePath, emailLocalPart } from "@/core/utils";
 import { DEFAULT_THEME, MAX_HISTORY, MAX_INPUT_LENGTH, THEMES } from "@/config";
 import { useDataSync } from "./useDataSync";
 import { useWindowManager } from "./useWindowManager";
 
 let commandsRegistered = false;
 
+function loadCachedTheme(userId: string | null): ThemeColors {
+  try {
+    // Try user-specific cache first
+    if (userId) {
+      const name = localStorage.getItem(`mynigga-theme-name:${userId}`);
+      if (name) {
+        const t = THEMES[name];
+        if (t) return t;
+      }
+    }
+    // Fallback to legacy global cache
+    const cached = localStorage.getItem("mynigga-theme");
+    if (cached) {
+      const parsed = JSON.parse(cached) as ThemeColors;
+      if (parsed.accent) return parsed;
+    }
+  } catch { /* */ }
+  return DEFAULT_THEME;
+}
+
+function getCachedThemeName(userId: string | null): string {
+  try {
+    if (userId) {
+      const name = localStorage.getItem(`mynigga-theme-name:${userId}`);
+      if (name && THEMES[name]) return name;
+    }
+    // Match the random theme picked for this session
+    const random = sessionStorage.getItem('mynigga-random-theme');
+    if (random && THEMES[random]) return random;
+  } catch { /* */ }
+  return "claude";
+}
+
 export function useTerminal(user: User, userId: string | null, onLogout: () => void) {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
-  const [cwd, setCwd] = useState(() => getHomePath(user.username));
-  const [theme, setTheme] = useState<ThemeColors>(() => {
-    try {
-      const cached = localStorage.getItem("mynigga-theme");
-      if (cached) {
-        const parsed = JSON.parse(cached) as ThemeColors;
-        if (parsed.accent) return parsed;
-      }
-    } catch { /* */ }
-    return DEFAULT_THEME;
-  });
+  const [cwd, setCwd] = useState(() => getHomePath(user.email));
+  const [theme, setTheme] = useState<ThemeColors>(() => loadCachedTheme(userId));
   const [isProcessing, setIsProcessing] = useState(false);
+  const [fullscreenApp, setFullscreenApp] = useState<FullscreenConfig | null>(null);
+  const [fsReady, setFsReady] = useState(false);
   const windowManager = useWindowManager();
-  const fsRef = useRef<FileSystemNode>(createDefaultFS(user.username));
+  const fsRef = useRef<FileSystemNode>(createDefaultFS(emailLocalPart(user.email)));
   const idCounter = useRef(0);
   const cmdHistoryRef = useRef<string[]>([]);
-  const themeNameRef = useRef("claude");
+  const themeNameRef = useRef(getCachedThemeName(userId));
   const dataLoaded = useRef(false);
 
   if (!commandsRegistered) {
@@ -54,10 +80,14 @@ export function useTerminal(user: User, userId: string | null, onLogout: () => v
         ([, t]) => t.accent === newTheme.accent
       )?.[0];
       if (name) themeNameRef.current = name;
-      try { localStorage.setItem("mynigga-theme", JSON.stringify(newTheme)); } catch { /* */ }
+      try {
+        // Per-user cache (primary) + legacy global cache (for index.html pre-apply)
+        localStorage.setItem("mynigga-theme", JSON.stringify(newTheme));
+        if (name && userId) localStorage.setItem(`mynigga-theme-name:${userId}`, name);
+      } catch { /* */ }
       scheduleSave();
     },
-    [scheduleSave]
+    [scheduleSave, userId]
   );
 
   // Load user data on mount
@@ -76,8 +106,12 @@ export function useTerminal(user: User, userId: string | null, onLogout: () => v
       if (resolvedTheme) {
         setTheme(resolvedTheme);
         if (data.themeName) themeNameRef.current = data.themeName;
-        try { localStorage.setItem("mynigga-theme", JSON.stringify(resolvedTheme)); } catch { /* */ }
+        try {
+          localStorage.setItem("mynigga-theme", JSON.stringify(resolvedTheme));
+          if (data.themeName && userId) localStorage.setItem(`mynigga-theme-name:${userId}`, data.themeName);
+        } catch { /* */ }
       }
+      setFsReady(true);
     });
   }, [userId, loadUserData, resolveTheme]);
 
@@ -118,6 +152,7 @@ export function useTerminal(user: User, userId: string | null, onLogout: () => v
       print,
       logout: onLogout,
       openWindow: windowManager.openWindow,
+      openFullscreen: setFullscreenApp,
     };
 
     const cmd = resolveCmd(cmdName);
@@ -155,7 +190,9 @@ export function useTerminal(user: User, userId: string | null, onLogout: () => v
     });
 
     scheduleSave();
-  }, [user, cwd, clearHistory, print, onLogout, setThemeWithTracking, scheduleSave, windowManager.openWindow]);
+  }, [user, cwd, clearHistory, print, onLogout, setThemeWithTracking, scheduleSave, windowManager.openWindow, setFullscreenApp]);
+
+  const closeFullscreen = useCallback(() => setFullscreenApp(null), []);
 
   return {
     history,
@@ -166,7 +203,10 @@ export function useTerminal(user: User, userId: string | null, onLogout: () => v
     clearHistory,
     print,
     fs: fsRef.current,
+    fsReady,
     cmdHistoryRef,
     windowManager,
+    fullscreenApp,
+    closeFullscreen,
   };
 }

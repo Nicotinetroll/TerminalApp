@@ -48,10 +48,12 @@ export class ApiError extends Error {
 
 export interface AuthUser {
   id: number;
-  username: string;
-  role: "admin" | "club" | "classic" | "user" | "guest" | "code";
+  email: string;
+  role: "admin" | "premium" | "basic" | "user";
   created_at?: string;
   permissions?: string[];
+  has_subscription?: boolean;
+  theme_name?: string | null;
 }
 
 interface LoginResponse {
@@ -59,17 +61,51 @@ interface LoginResponse {
   user: AuthUser;
 }
 
-export async function login(username: string, password: string): Promise<{ ok: true; user: AuthUser } | { ok: false; error: string }> {
+export async function login(email: string, password: string): Promise<{ ok: true; user: AuthUser } | { ok: false; error: string }> {
   try {
     const data = await request<LoginResponse>("/auth/login", {
       method: "POST",
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({ email, password }),
     });
     setToken(data.token);
     return { ok: true, user: data.user };
   } catch (err) {
     const message = err instanceof ApiError ? err.message : "Authentication failed.";
     return { ok: false, error: message };
+  }
+}
+
+export async function register(email: string, invite?: string): Promise<{ ok: true; user: AuthUser } | { ok: false; error: string }> {
+  try {
+    const data = await request<LoginResponse>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify({ email, ...(invite ? { invite } : {}) }),
+    });
+    setToken(data.token);
+    return { ok: true, user: data.user };
+  } catch (err) {
+    const message = err instanceof ApiError ? err.message : "Registration failed.";
+    return { ok: false, error: message };
+  }
+}
+
+export async function checkEmail(localPart: string): Promise<{ available: boolean; error?: string }> {
+  try {
+    return await request<{ available: boolean; error?: string }>(`/auth/check-email/${encodeURIComponent(localPart)}`);
+  } catch (err) {
+    return { available: false, error: err instanceof ApiError ? err.message : "check failed" };
+  }
+}
+
+export async function setupPassword(password: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await request<{ ok: boolean }>("/auth/setup-password", {
+      method: "POST",
+      body: JSON.stringify({ password }),
+    });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof ApiError ? err.message : "failed to set password" };
   }
 }
 
@@ -164,7 +200,8 @@ export { getToken, clearToken };
 
 export interface AdminUser {
   id: number;
-  username: string;
+  email: string;
+  username?: string;
   role: string;
   created_at: string;
   updated_at: string;
@@ -176,20 +213,20 @@ export async function getUsers(): Promise<AdminUser[]> {
 }
 
 export async function createUser(
-  username: string,
+  email: string,
   password: string,
   role: string
 ): Promise<AdminUser> {
   const data = await request<{ user: AdminUser }>("/admin/users", {
     method: "POST",
-    body: JSON.stringify({ username, password, role }),
+    body: JSON.stringify({ email, password, role }),
   });
   return data.user;
 }
 
 export async function updateUser(
   id: number,
-  updates: { username?: string; password?: string; role?: string }
+  updates: { email?: string; password?: string; role?: string }
 ): Promise<AdminUser> {
   const data = await request<{ user: AdminUser }>(`/admin/users/${id}`, {
     method: "PUT",
@@ -291,12 +328,14 @@ export interface InviteLink {
   id: string;
   role: string;
   expires_at: string;
-  created_by_username: string;
-  used_by_username: string | null;
+  created_by_email: string;
+  used_by_email: string | null;
   used_at: string | null;
   created_at: string;
   max_uses: number;
   use_count: number;
+  subscription_type?: string | null;
+  subscription_days?: number | null;
 }
 
 export async function getInvites(): Promise<InviteLink[]> {
@@ -304,10 +343,20 @@ export async function getInvites(): Promise<InviteLink[]> {
   return data.invites;
 }
 
-export async function createInvite(role?: string, maxUses?: number): Promise<{ id: string; url: string; role: string; expires_at: string }> {
+export async function createInvite(
+  role?: string,
+  maxUses?: number,
+  subscriptionType?: string,
+  subscriptionDays?: number,
+): Promise<{ id: string; url: string; role: string; expires_at: string }> {
   const data = await request<{ invite: { id: string; url: string; role: string; expires_at: string } }>("/admin/invites", {
     method: "POST",
-    body: JSON.stringify({ role: role ?? "user", max_uses: maxUses ?? 1 }),
+    body: JSON.stringify({
+      role: role ?? "user",
+      max_uses: maxUses ?? 1,
+      subscription_type: subscriptionType,
+      subscription_days: subscriptionDays,
+    }),
   });
   return data.invite;
 }
@@ -324,23 +373,7 @@ export async function createUserInvite(maxUses?: number): Promise<{ id: string; 
   return data.invite;
 }
 
-export async function registerWithInvite(
-  token: string,
-  username: string,
-  password: string
-): Promise<{ ok: true; user: AuthUser } | { ok: false; error: string }> {
-  try {
-    const data = await request<{ token: string; user: AuthUser }>("/auth/register", {
-      method: "POST",
-      body: JSON.stringify({ token, username, password }),
-    });
-    setToken(data.token);
-    return { ok: true, user: data.user };
-  } catch (err) {
-    const message = err instanceof ApiError ? err.message : "Registration failed.";
-    return { ok: false, error: message };
-  }
-}
+// registerWithInvite removed — open registration now
 
 // ── Password Change ──
 
@@ -371,6 +404,7 @@ export interface EmailMessage {
   to_address: string;
   subject: string;
   body?: string;
+  body_html?: string | null;
   is_read: boolean;
   is_starred: boolean;
   message_id: string | null;
@@ -691,58 +725,6 @@ export async function updateSignature(addressId: number, signature: string): Pro
   });
 }
 
-// ── Games ──
-
-export interface GameScore {
-  username: string;
-  score: number;
-  metadata?: string;
-  created_at: string;
-}
-
-export interface GameScoreSubmitResult {
-  ok: boolean;
-  id: number;
-  rank: number;
-  message?: string;
-  easter_egg?: string;
-}
-
-export interface MyGameScore {
-  game: string;
-  best_score: number;
-  total_games: number;
-  last_played: string;
-}
-
-export async function getLeaderboard(game: string, limit = 10): Promise<GameScore[]> {
-  const data = await request<{ scores: GameScore[] }>(
-    `/games/leaderboard?game=${encodeURIComponent(game)}&limit=${limit}`
-  );
-  return data.scores;
-}
-
-export async function getAllLeaderboards(): Promise<Record<string, GameScore[]>> {
-  const data = await request<{ leaderboards: Record<string, GameScore[]> }>("/games/leaderboard/all");
-  return data.leaderboards;
-}
-
-export async function submitScore(
-  game: string,
-  score: number,
-  metadata?: Record<string, unknown>
-): Promise<GameScoreSubmitResult> {
-  return request<GameScoreSubmitResult>("/games/scores", {
-    method: "POST",
-    body: JSON.stringify({ game, score, metadata }),
-  });
-}
-
-export async function getMyScores(): Promise<MyGameScore[]> {
-  const data = await request<{ scores: MyGameScore[] }>("/games/my-scores");
-  return data.scores;
-}
-
 // ── Admin: Server Stats ──
 
 export interface ServerStats {
@@ -759,17 +741,29 @@ export interface ServerStats {
   users: {
     total: number;
     by_role: Record<string, number>;
-    recent: { username: string; role: string; created_at: string }[];
+    recent: { email: string; role: string; created_at: string }[];
   };
   storage: {
     total_bytes: number;
     total_human: string;
-    top_users: { username: string; bytes: number; human: string }[];
+    top_users: { email: string; bytes: number; human: string }[];
   };
-  chat: {
-    total_rooms: number;
-    total_messages: number;
-    active_rooms_24h: number;
+  s3: {
+    cloud_bytes: number;
+    cloud_human: string;
+    transfers_bytes: number;
+    transfers_human: string;
+    mail_att_bytes: number;
+    mail_att_human: string;
+    total_bytes: number;
+    total_human: string;
+  };
+  ai: {
+    total_tokens: number;
+    total_requests: number;
+    today_tokens: number;
+    today_requests: number;
+    top_users: { email: string; tokens: number; requests: number }[];
   };
   mail: {
     total_addresses: number;
@@ -781,10 +775,6 @@ export interface ServerStats {
     logins: number;
     login_fails: number;
     errors: number;
-  };
-  games: {
-    total_scores: number;
-    by_game: { game: string; count: number }[];
   };
   health: "ok" | "degraded";
   timestamp: string;
@@ -875,729 +865,15 @@ export async function changePassword(
   }
 }
 
-// ── Access Code Login ──
+// Access codes removed
 
-interface CodeLoginResponse {
-  token: string;
-  user: AuthUser;
-}
+// ── NiggaBytes Admin ──
 
-export async function codeLogin(
-  code: string
-): Promise<{ ok: true; user: AuthUser } | { ok: false; error: string }> {
-  try {
-    const data = await request<CodeLoginResponse>("/auth/code-login", {
-      method: "POST",
-      body: JSON.stringify({ code }),
-    });
-    setToken(data.token);
-    return { ok: true, user: data.user };
-  } catch (err) {
-    const message = err instanceof ApiError ? err.message : "code login failed.";
-    return { ok: false, error: message };
-  }
-}
-
-// ── Access Code Admin CRUD ──
-
-export interface AccessCode {
-  id: number;
-  code: string;
-  name: string;
-  permissions: string;
-  expires_hours: number;
-  is_active: number;
-  created_by: number;
-  created_at: string;
-  temp_user_count: number;
-}
-
-export async function getAccessCodes(): Promise<AccessCode[]> {
-  const data = await request<{ codes: AccessCode[] }>("/codes");
-  return data.codes;
-}
-
-export async function createAccessCode(data: {
-  name: string;
-  code?: string;
-  permissions?: string[];
-  expires_hours?: number;
-}): Promise<AccessCode> {
-  const resp = await request<{ code: AccessCode }>("/codes", {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
-  return resp.code;
-}
-
-export async function updateAccessCode(
-  id: number,
-  updates: { name?: string; permissions?: string[]; expires_hours?: number; is_active?: boolean }
-): Promise<AccessCode> {
-  const resp = await request<{ code: AccessCode }>(`/codes/${id}`, {
+export async function grantNiggaBytes(userId: number, amount: number): Promise<{ ok: boolean; message: string }> {
+  return request<{ ok: boolean; message: string }>(`/admin/users/${userId}/niggabytes`, {
     method: "PUT",
-    body: JSON.stringify(updates),
+    body: JSON.stringify({ amount }),
   });
-  return resp.code;
-}
-
-export async function deleteAccessCode(id: number): Promise<{ ok: boolean; deleted_users: number }> {
-  return request<{ ok: boolean; deleted_users: number }>(`/codes/${id}`, { method: "DELETE" });
-}
-
-// ── Slots (Casino) ──
-
-export interface SlotsBalance {
-  bonus_bytes: number;
-  base_limit: number;
-  effective_limit: number;
-  used: number;
-  available_to_bet: number;
-  free_spins: number;
-  niggabytes: number;
-  bonus: SlotsBonusInfo | null;
-  stats: {
-    total_won: number;
-    total_lost: number;
-    spins: number;
-    win_rate: number;
-  };
-}
-
-export interface SlotsLineWin {
-  line: number;
-  line_name: string;
-  symbols: string[];
-  multiplier: number;
-  payout_bytes: number;
-}
-
-export interface SlotsBonusInfo {
-  type: string;
-  symbol: string;
-  emoji: string;
-  tier: string;
-  multiplier: number;
-  spins_remaining: number;
-  spins_total: number;
-  total_bonus: number;
-  hits_this_spin: number;
-  hit_payout: number;
-  bet_mb: number;
-  currency: string;
-}
-
-export interface SlotsSpinResult {
-  grid: string[][];
-  wins: SlotsLineWin[];
-  total_payout_bytes: number;
-  bet_bytes: number;
-  is_free_spin: boolean;
-  free_spins_awarded: number;
-  free_spins_remaining: number;
-  has_jackpot: boolean;
-  combo_multiplier: number;
-  message: string;
-  currency: string;
-  nb_balance: number;
-  bonus: SlotsBonusInfo | null;
-  bonus_awarded: SlotsBonusInfo | null;
-  bonus_final: SlotsBonusInfo | null;
-  balance: {
-    bonus_bytes: number;
-    effective_limit: number;
-    used: number;
-    available_to_bet: number;
-  };
-  stats: {
-    total_won: number;
-    total_lost: number;
-    spins: number;
-    win_rate: number;
-  };
-}
-
-export interface SlotsHistoryEntry {
-  id: number;
-  bet_bytes: number;
-  result: string;
-  payout_bytes: number;
-  grid: string[][];
-  created_at: string;
-}
-
-export async function getSlotsBalance(): Promise<SlotsBalance> {
-  return request<SlotsBalance>("/slots/balance");
-}
-
-export async function spinSlots(bet_mb: number, theme?: string, currency?: string): Promise<SlotsSpinResult> {
-  return request<SlotsSpinResult>("/slots/spin", {
-    method: "POST",
-    body: JSON.stringify({ bet_mb, theme, currency }),
-  });
-}
-
-export async function getSlotsHistory(): Promise<SlotsHistoryEntry[]> {
-  const data = await request<{ history: SlotsHistoryEntry[] }>("/slots/history");
-  return data.history;
-}
-
-// ── Coinflip ──
-
-export interface CoinflipBalance {
-  bonus_bytes: number;
-  niggabytes: number;
-  base_limit: number;
-  effective_limit: number;
-  used: number;
-  available_to_bet: number;
-  stats: {
-    total_flips: number;
-    wins: number;
-    total_won: number;
-    total_lost: number;
-    win_rate: number;
-  };
-  streak: number;
-}
-
-export interface CoinflipResult {
-  choice: string;
-  outcome: string;
-  won: boolean;
-  bet_bytes: number;
-  payout_bytes: number;
-  message: string;
-  streak: number;
-  currency: string;
-  nb_balance: number;
-  balance: {
-    bonus_bytes: number;
-    effective_limit: number;
-    used: number;
-    available_to_bet: number;
-  };
-}
-
-export interface CoinflipHistoryEntry {
-  id: number;
-  bet_bytes: number;
-  choice: string;
-  outcome: string;
-  payout_bytes: number;
-  created_at: string;
-}
-
-export async function getCoinflipBalance(): Promise<CoinflipBalance> {
-  return request<CoinflipBalance>("/coinflip/balance");
-}
-
-export async function flipCoin(bet_mb: number, choice: string, currency?: string): Promise<CoinflipResult> {
-  return request<CoinflipResult>("/coinflip/flip", {
-    method: "POST",
-    body: JSON.stringify({ bet_mb, choice, currency }),
-  });
-}
-
-export async function getCoinflipHistory(): Promise<CoinflipHistoryEntry[]> {
-  const data = await request<{ history: CoinflipHistoryEntry[] }>("/coinflip/history");
-  return data.history;
-}
-
-// ── Coinflip Admin ──
-
-export interface CoinflipPlayer {
-  userId: number;
-  username: string;
-  role: string;
-  bonus_bytes: number;
-  flips: number;
-  wins: number;
-  total_won: number;
-  total_lost: number;
-  win_rate: number;
-}
-
-export async function getCoinflipPlayers(): Promise<CoinflipPlayer[]> {
-  const data = await request<{ players: CoinflipPlayer[] }>("/coinflip/admin/players");
-  return data.players;
-}
-
-export async function resetCoinflipPlayer(userId: number): Promise<void> {
-  await request(`/coinflip/admin/reset/${userId}`, { method: "DELETE" });
-}
-
-export async function getCoinflipConfig(): Promise<{ win_chance: number }> {
-  return request<{ win_chance: number }>("/coinflip/admin/config");
-}
-
-export async function setCoinflipConfig(win_chance: number): Promise<{ win_chance: number }> {
-  return request<{ ok: boolean; win_chance: number }>("/coinflip/admin/config", {
-    method: "PUT",
-    body: JSON.stringify({ win_chance }),
-  });
-}
-
-// ── Slots Admin ──
-
-export interface SlotsPlayer {
-  userId: number;
-  username: string;
-  role: string;
-  bonus_bytes: number;
-  total_won: number;
-  total_lost: number;
-  spins: number;
-  free_spins: number;
-  win_rate: number;
-}
-
-export async function getSlotsPlayers(): Promise<SlotsPlayer[]> {
-  const data = await request<{ players: SlotsPlayer[] }>("/slots/admin/players");
-  return data.players;
-}
-
-export async function resetSlotsPlayer(userId: number): Promise<void> {
-  await request(`/slots/admin/reset/${userId}`, { method: "DELETE" });
-}
-
-export interface SlotsConfig {
-  rtp_target: number;
-  payout_factor: number;
-  house_edge: string;
-  win_frequency?: number;
-}
-
-export async function getSlotsConfig(): Promise<SlotsConfig> {
-  return request<SlotsConfig>("/slots/admin/config");
-}
-
-export async function setSlotsConfig(rtp_target: number): Promise<SlotsConfig & { ok: boolean }> {
-  return request<SlotsConfig & { ok: boolean }>("/slots/admin/config", {
-    method: "PUT",
-    body: JSON.stringify({ rtp_target }),
-  });
-}
-
-// ── Unified Casino Admin ──
-
-export interface CasinoPlayer {
-  userId: number;
-  username: string;
-  role: string;
-  niggabytes: number;
-  bonus_bytes: number;
-  slots_spins: number;
-  slots_wr: number;
-  cf_flips: number;
-  cf_wr: number;
-}
-
-export interface CasinoConfig {
-  slots_rtp_target: number;
-  slots_payout_factor: number;
-  slots_house_edge: string;
-  slots_win_frequency?: number;
-  coinflip_win_chance: number;
-}
-
-export async function getCasinoPlayers(): Promise<CasinoPlayer[]> {
-  const data = await request<{ players: CasinoPlayer[] }>("/casino/admin/players");
-  return data.players;
-}
-
-export async function getCasinoConfig(): Promise<CasinoConfig> {
-  return request<CasinoConfig>("/casino/admin/config");
-}
-
-export async function setCasinoConfig(updates: { slots_rtp_target?: number; coinflip_win_chance?: number }): Promise<{ ok: boolean }> {
-  return request<{ ok: boolean }>("/casino/admin/config", {
-    method: "PUT",
-    body: JSON.stringify(updates),
-  });
-}
-
-export async function grantNiggaBytes(userId: number, amount: number): Promise<{ ok: boolean; niggabytes: number; message: string }> {
-  return request<{ ok: boolean; niggabytes: number; message: string }>("/casino/admin/grant-nb", {
-    method: "POST",
-    body: JSON.stringify({ userId, amount }),
-  });
-}
-
-export async function resetCasinoPlayer(userId: number): Promise<void> {
-  await request(`/casino/admin/reset/${userId}`, { method: "DELETE" });
-}
-
-// ── Casino Player Detail ──
-
-export interface CasinoHistoryEntry {
-  type: string;
-  bet: number;
-  payout: number;
-  result: string;
-  detail: string;
-  created_at: string;
-}
-
-export interface CasinoBalancePoint {
-  nb: number;
-  ts: string;
-}
-
-export interface CasinoPlayerDetailData {
-  player: {
-    userId: number;
-    username: string;
-    role: string;
-    niggabytes: number;
-    bonus_bytes: number;
-    total_won: number;
-    total_lost: number;
-    slots_spins: number;
-    slots_wins: number;
-    cf_flips: number;
-    cf_wins: number;
-    free_spins: number;
-  };
-  history: CasinoHistoryEntry[];
-  balance_history: CasinoBalancePoint[];
-}
-
-export async function getCasinoPlayerDetail(userId: number): Promise<CasinoPlayerDetailData> {
-  return request<CasinoPlayerDetailData>(`/casino/admin/players/${userId}`);
-}
-
-// ── Nigdit (Terminal Reddit) ──
-
-export interface NigditAttachment {
-  id: number;
-  filename: string;
-  mime_type: string;
-  size: number;
-}
-
-export interface NigditBoard {
-  id: number;
-  name: string;
-  description: string;
-}
-
-export interface NigditAwardBadge {
-  award_type: string;
-  count: number;
-}
-
-export interface NigditAwardType {
-  key: string;
-  label: string;
-  cost: number;
-  aura: number;
-}
-
-export interface NigditPollOption {
-  id: number;
-  label: string;
-  vote_count: number;
-}
-
-export interface NigditPoll {
-  options: NigditPollOption[];
-  my_vote: number | null;
-  total_votes: number;
-}
-
-export interface NigditPost {
-  id: number;
-  user_id: number;
-  username: string;
-  real_username?: string;
-  title: string;
-  body: string;
-  body_preview: string;
-  board: string;
-  upvotes: number;
-  downvotes: number;
-  score: number;
-  comment_count: number;
-  my_vote: number;
-  author_aura: number;
-  is_pinned: boolean;
-  is_edited: boolean;
-  is_anonymous: boolean;
-  post_type: string;
-  expires_at: string | null;
-  time_remaining: number | null;
-  time_ago: string;
-  created_at: string;
-  attachments: NigditAttachment[];
-  awards: NigditAwardBadge[];
-  bookmarked: boolean;
-  poll: NigditPoll | null;
-}
-
-export interface NigditComment {
-  id: number;
-  post_id: number;
-  parent_id: number | null;
-  user_id: number;
-  username: string;
-  body: string;
-  upvotes: number;
-  downvotes: number;
-  score: number;
-  depth: number;
-  my_vote: number;
-  author_aura: number;
-  is_op: boolean;
-  is_edited: boolean;
-  is_anonymous: boolean;
-  time_ago: string;
-  created_at: string;
-  awards: NigditAwardBadge[];
-}
-
-export interface NigditAura {
-  username: string;
-  post_aura: number;
-  comment_aura: number;
-  total: number;
-}
-
-export interface NigditVoteResult {
-  ok: boolean;
-  my_vote: number;
-  score: number;
-}
-
-export interface NigditNotification {
-  id: number;
-  type: string;
-  from_username: string;
-  post_id: number | null;
-  comment_id: number | null;
-  meme_id: number | null;
-  message: string;
-  is_read: boolean;
-  time_ago: string;
-  created_at: string;
-}
-
-export interface NigditUserProfile {
-  username: string;
-  created_at: string;
-  aura: NigditAura;
-  post_count: number;
-  comment_count: number;
-  awards_received: number;
-  streak: number;
-}
-
-export interface NigditUserProfilePost {
-  id: number;
-  title: string;
-  board: string;
-  score: number;
-  comment_count: number;
-  time_ago: string;
-  post_type: string;
-  is_pinned: boolean;
-}
-
-export async function getNigditPosts(
-  board = "all",
-  sort = "hot",
-  page = 1,
-  search = "",
-  bookmarks = false
-): Promise<{ posts: NigditPost[]; page: number; total: number; pages: number }> {
-  let path = `/nigdit/posts?board=${board}&sort=${sort}&page=${page}`;
-  if (search) path += `&search=${encodeURIComponent(search)}`;
-  if (bookmarks) path += `&bookmarks=1`;
-  return request(path);
-}
-
-export async function getNigditPost(id: number): Promise<{ post: NigditPost; comments: NigditComment[] }> {
-  return request(`/nigdit/posts/${id}`);
-}
-
-export async function createNigditPost(data: {
-  title: string;
-  body: string;
-  board: string;
-  post_type?: string;
-  is_anonymous?: boolean;
-  poll_options?: string[];
-  attachments?: File[];
-}): Promise<{ ok: boolean; post: NigditPost }> {
-  const formData = new FormData();
-  formData.append("title", data.title);
-  formData.append("body", data.body);
-  formData.append("board", data.board);
-  if (data.post_type) formData.append("post_type", data.post_type);
-  if (data.is_anonymous) formData.append("is_anonymous", "true");
-  if (data.poll_options && data.poll_options.length > 0) {
-    formData.append("poll_options", JSON.stringify(data.poll_options));
-  }
-  if (data.attachments) {
-    for (const file of data.attachments) {
-      formData.append("attachments", file);
-    }
-  }
-
-  const token = getToken();
-  const headers: Record<string, string> = {};
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-
-  const res = await fetch(`${API_BASE}/nigdit/posts`, {
-    method: "POST",
-    headers,
-    body: formData,
-  });
-  if (!res.ok) {
-    const b = await res.json().catch(() => ({}));
-    throw new ApiError(res.status, (b as { error?: string }).error ?? "post failed");
-  }
-  return res.json() as Promise<{ ok: boolean; post: NigditPost }>;
-}
-
-export async function editNigditPost(id: number, updates: { title?: string; body?: string }): Promise<{ ok: boolean }> {
-  return request(`/nigdit/posts/${id}`, {
-    method: "PUT",
-    body: JSON.stringify(updates),
-  });
-}
-
-export async function deleteNigditPost(id: number): Promise<{ ok: boolean }> {
-  return request(`/nigdit/posts/${id}`, { method: "DELETE" });
-}
-
-export async function createNigditComment(
-  post_id: number,
-  body: string,
-  parent_id?: number,
-  is_anonymous?: boolean
-): Promise<{ ok: boolean; comment: NigditComment }> {
-  return request("/nigdit/comments", {
-    method: "POST",
-    body: JSON.stringify({ post_id, body, parent_id, is_anonymous }),
-  });
-}
-
-export async function editNigditComment(id: number, body: string): Promise<{ ok: boolean }> {
-  return request(`/nigdit/comments/${id}`, {
-    method: "PUT",
-    body: JSON.stringify({ body }),
-  });
-}
-
-export async function deleteNigditComment(id: number): Promise<{ ok: boolean }> {
-  return request(`/nigdit/comments/${id}`, { method: "DELETE" });
-}
-
-export async function voteNigdit(
-  target_id: number,
-  target_type: "post" | "comment",
-  value: 1 | -1
-): Promise<NigditVoteResult> {
-  return request("/nigdit/vote", {
-    method: "POST",
-    body: JSON.stringify({ target_id, target_type, value }),
-  });
-}
-
-export async function giveNigditAward(
-  award_type: string,
-  post_id?: number,
-  comment_id?: number
-): Promise<{ ok: boolean; nb_remaining: number }> {
-  return request("/nigdit/awards", {
-    method: "POST",
-    body: JSON.stringify({ award_type, post_id, comment_id }),
-  });
-}
-
-export async function getNigditAwardTypes(): Promise<NigditAwardType[]> {
-  const data = await request<{ award_types: NigditAwardType[] }>("/nigdit/award-types");
-  return data.award_types;
-}
-
-export async function voteNigditPoll(postId: number, option_id: number): Promise<{ ok: boolean; poll: NigditPoll }> {
-  return request(`/nigdit/polls/${postId}/vote`, {
-    method: "POST",
-    body: JSON.stringify({ option_id }),
-  });
-}
-
-export async function toggleNigditBookmark(postId: number): Promise<{ ok: boolean; bookmarked: boolean }> {
-  return request(`/nigdit/bookmarks/${postId}`, { method: "POST" });
-}
-
-export async function getNigditNotifications(): Promise<NigditNotification[]> {
-  const data = await request<{ notifications: NigditNotification[] }>("/nigdit/notifications");
-  return data.notifications;
-}
-
-export async function getNigditNotificationCount(): Promise<number> {
-  const data = await request<{ count: number }>("/nigdit/notifications/count");
-  return data.count;
-}
-
-export async function markNigditNotificationsRead(): Promise<void> {
-  await request("/nigdit/notifications/read", { method: "PUT" });
-}
-
-export async function pinNigditPost(id: number): Promise<{ ok: boolean; is_pinned: boolean }> {
-  return request(`/nigdit/posts/${id}/pin`, { method: "POST" });
-}
-
-export async function getNigditUserProfile(username: string): Promise<{ user: NigditUserProfile; posts: NigditUserProfilePost[] }> {
-  return request(`/nigdit/users/${encodeURIComponent(username)}`);
-}
-
-export async function getNigditAura(username?: string): Promise<NigditAura> {
-  const path = username ? `/nigdit/aura/${encodeURIComponent(username)}` : "/nigdit/aura";
-  return request(path);
-}
-
-export async function getNigditBoards(): Promise<NigditBoard[]> {
-  const data = await request<{ boards: NigditBoard[] }>("/nigdit/boards");
-  return data.boards;
-}
-
-export async function createNigditBoard(name: string, description: string): Promise<NigditBoard[]> {
-  const data = await request<{ ok: boolean; boards: NigditBoard[] }>("/nigdit/admin/boards", {
-    method: "POST",
-    body: JSON.stringify({ name, description }),
-  });
-  return data.boards;
-}
-
-export async function updateNigditBoard(id: number, updates: { name?: string; description?: string }): Promise<NigditBoard[]> {
-  const data = await request<{ ok: boolean; boards: NigditBoard[] }>(`/nigdit/admin/boards/${id}`, {
-    method: "PUT",
-    body: JSON.stringify(updates),
-  });
-  return data.boards;
-}
-
-export async function deleteNigditBoard(id: number): Promise<NigditBoard[]> {
-  const data = await request<{ ok: boolean; boards: NigditBoard[] }>(`/nigdit/admin/boards/${id}`, {
-    method: "DELETE",
-  });
-  return data.boards;
-}
-
-export interface NigditAdminStats {
-  totalPosts: number;
-  totalComments: number;
-  totalVotes: number;
-  topPosters: { username: string; post_count: number }[];
-  topAura: { username: string; total_aura: number }[];
-  boards: NigditBoard[];
-}
-
-export async function getNigditAdminStats(): Promise<NigditAdminStats> {
-  return request<NigditAdminStats>("/nigdit/admin/stats");
 }
 
 // ── Pastes (Code Paste Bin) ──
@@ -1724,14 +1000,13 @@ export interface ActiveSubscription {
 }
 
 export interface SubscriptionPrices {
-  classic: { '1m': number; '3m': number; '12m': number };
-  club: { '1m': number; '3m': number; '12m': number };
+  basic: { '1m': number; '3m': number; '12m': number };
+  premium: { '1m': number; '3m': number; '12m': number };
 }
 
 export interface SubscriptionBenefits {
-  free: string[];
-  classic: string[];
-  club: string[];
+  basic: string[];
+  premium: string[];
 }
 
 export interface ShopItemsResponse {
@@ -1762,11 +1037,15 @@ export async function purchaseShopItem(item: string): Promise<ShopPurchaseResult
   });
 }
 
-export async function subscribeWithNb(type: string): Promise<{ ok: boolean; message: string; nb_balance: number }> {
+export async function subscribeWithNb(type: string, promoCode?: string): Promise<{ ok: boolean; message: string; nb_balance: number }> {
   return request("/shop/subscribe", {
     method: "POST",
-    body: JSON.stringify({ type }),
+    body: JSON.stringify({ type, promo_code: promoCode }),
   });
+}
+
+export async function getNbBalance(): Promise<{ nb_balance: number }> {
+  return request("/shop/balance");
 }
 
 export async function toggleAutoRenew(enabled: boolean): Promise<{ ok: boolean; auto_renew: boolean; message: string }> {
@@ -1788,10 +1067,10 @@ export interface Payment {
   created_at: string;
 }
 
-export async function createPayment(type: string, nbAmount?: number): Promise<{ payment_id: string; invoice_url: string }> {
+export async function createPayment(type: string, nbAmount?: number, promoCode?: string): Promise<{ payment_id: string; invoice_url: string }> {
   return request("/payments/create", {
     method: "POST",
-    body: JSON.stringify({ type, nb_amount: nbAmount }),
+    body: JSON.stringify({ type, nb_amount: nbAmount, promo_code: promoCode }),
   });
 }
 
@@ -1808,54 +1087,13 @@ export async function getActiveSubscription(): Promise<ActiveSubscription | null
 // ── Online Users ──
 
 export interface OnlineUser {
-  username: string;
+  email: string;
   role: string;
 }
 
 export async function getOnlineUsers(): Promise<OnlineUser[]> {
   const data = await request<{ users: OnlineUser[] }>("/who");
   return data.users;
-}
-
-// ── Memes (Image Gallery) ──
-
-export interface Meme {
-  id: number;
-  username: string;
-  upvotes: number;
-  downvotes: number;
-  score: number;
-  my_vote: number;
-  time_ago: string;
-  created_at: string;
-  image_url: string;
-}
-
-export interface MemeVoteResult {
-  ok: boolean;
-  my_vote: number;
-  score: number;
-}
-
-export async function getMemes(
-  sort = "hot",
-  page = 1
-): Promise<{ memes: Meme[]; has_more: boolean }> {
-  return request(`/memes?sort=${sort}&page=${page}`);
-}
-
-export async function voteMeme(
-  meme_id: number,
-  value: 1 | -1
-): Promise<MemeVoteResult> {
-  return request("/memes/vote", {
-    method: "POST",
-    body: JSON.stringify({ meme_id, value }),
-  });
-}
-
-export async function deleteMeme(id: number): Promise<{ ok: boolean }> {
-  return request(`/memes/${id}`, { method: "DELETE" });
 }
 
 // ── File Transfers ──
@@ -1870,6 +1108,7 @@ export interface Transfer {
   expired: boolean;
   status?: "pending" | "uploaded" | "expired";
   max_size?: number;
+  content_type?: string | null;
 }
 
 export async function createTransferLink(): Promise<{ id: string; url: string; expires_at: string }> {
@@ -1899,11 +1138,11 @@ export function getTransferDownloadUrl(id: string): string {
   return `${API_BASE}/transfers/${encodeURIComponent(id)}/download`;
 }
 
-export async function getTransferPresignedUrl(id: string): Promise<{ uploadUrl: string }> {
+export async function getTransferPresignedUrl(id: string, contentType?: string): Promise<{ uploadUrl: string }> {
   const res = await fetch(`${API_BASE}/transfers/${encodeURIComponent(id)}/presign`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({}),
+    body: JSON.stringify(contentType ? { content_type: contentType } : {}),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -1988,70 +1227,307 @@ export async function getMediaInfo(url: string): Promise<MediaInfo> {
   });
 }
 
-export async function uploadMeme(
-  file: File
-): Promise<{ ok: boolean; meme: Meme }> {
+// ── Cloud Storage (S3-backed) ──
+
+export interface CloudFile {
+  id: string;
+  filename: string;
+  path: string;
+  mime_type: string;
+  size: number;
+  uploaded_at: string;
+}
+
+export async function cloudPresign(
+  filename: string,
+  path: string,
+  contentType: string,
+  size: number
+): Promise<{ fileId: string; uploadUrl: string; path: string }> {
+  return request("/cloud/upload/presign", {
+    method: "POST",
+    body: JSON.stringify({ filename, path, contentType, size }),
+  });
+}
+
+export async function cloudConfirm(
+  fileId: string,
+  filename: string,
+  path: string,
+  contentType: string,
+  size: number
+): Promise<{ ok: boolean; fileId: string; size: number }> {
+  return request("/cloud/upload/confirm", {
+    method: "POST",
+    body: JSON.stringify({ fileId, filename, path, contentType, size }),
+  });
+}
+
+export function getCloudDownloadUrl(fileId: string): string {
+  return `${API_BASE}/cloud/download/${encodeURIComponent(fileId)}`;
+}
+
+export async function deleteCloudFile(fileId: string): Promise<{ ok: boolean }> {
+  return request(`/cloud/file/${encodeURIComponent(fileId)}`, { method: "DELETE" });
+}
+
+export async function getCloudFiles(): Promise<CloudFile[]> {
+  const data = await request<{ files: CloudFile[] }>("/cloud/files");
+  return data.files;
+}
+
+export async function getCloudStats(): Promise<StorageStats> {
+  return request<StorageStats>("/cloud/stats");
+}
+
+export async function migrateCloud(): Promise<{ ok: boolean; migrated: number; message: string }> {
+  return request("/cloud/migrate", { method: "POST" });
+}
+
+export async function renameCloudFile(fileId: string, updates: { filename?: string; path?: string }): Promise<{ ok: boolean }> {
+  return request(`/cloud/file/${encodeURIComponent(fileId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function bulkMoveCloudFiles(moves: { id: string; filename?: string; path: string }[]): Promise<{ ok: boolean; updated: number }> {
+  return request("/cloud/files/bulk-move", {
+    method: "PATCH",
+    body: JSON.stringify({ moves }),
+  });
+}
+
+// ── Cloud Shares (public file links) ──
+
+export interface CloudShare {
+  id: string;
+  file_id?: string;
+  filename: string;
+  size: number;
+  mime_type: string;
+  downloads: number;
+  expires_at: string;
+  created_at: string;
+  expired: boolean;
+  url?: string;
+  has_password?: boolean;
+}
+
+export async function createCloudShare(
+  fileId: string,
+  password?: string,
+  expiryDays?: number,
+): Promise<CloudShare & { url: string }> {
+  return request(`/cloud/share/${encodeURIComponent(fileId)}`, {
+    method: "POST",
+    body: JSON.stringify({
+      ...(password ? { password } : {}),
+      ...(expiryDays !== undefined ? { expiry_days: expiryDays } : {}),
+    }),
+  });
+}
+
+export async function getShareForFile(fileId: string): Promise<(CloudShare & { url: string }) | null> {
+  const data = await request<{ share: (CloudShare & { url: string }) | null }>(`/cloud/share-for/${encodeURIComponent(fileId)}`);
+  return data.share;
+}
+
+export async function getCloudShares(): Promise<CloudShare[]> {
+  const data = await request<{ shares: CloudShare[] }>("/cloud/shares");
+  return data.shares;
+}
+
+export async function deleteCloudShare(shareId: string): Promise<{ ok: boolean }> {
+  return request(`/cloud/share/${encodeURIComponent(shareId)}`, { method: "DELETE" });
+}
+
+export interface ShareFolderResult {
+  id: string;
+  url: string;
+  zip_file_id: string;
+  zip_filename: string;
+  zip_size: number;
+  files_zipped: number;
+  expires_at: string;
+  has_password: boolean;
+  downloads: number;
+}
+
+export async function shareFolder(
+  path: string,
+  password?: string,
+  expiryDays?: number,
+): Promise<ShareFolderResult> {
+  return request("/cloud/share-folder", {
+    method: "POST",
+    body: JSON.stringify({
+      path,
+      ...(password ? { password } : {}),
+      ...(expiryDays !== undefined ? { expiry_days: expiryDays } : {}),
+    }),
+  });
+}
+
+export async function getPublicShareInfo(shareId: string): Promise<CloudShare> {
+  const res = await fetch(`${API_BASE}/cloud/share/public/${encodeURIComponent(shareId)}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, (body as { error?: string }).error ?? "share not found");
+  }
+  const data = await res.json() as CloudShare;
+  return data;
+}
+
+export function getShareDownloadUrl(shareId: string, password?: string): string {
+  const base = `${API_BASE}/cloud/share/public/${encodeURIComponent(shareId)}/download`;
+  if (password) return `${base}?pw=${encodeURIComponent(password)}`;
+  return base;
+}
+
+// ── Promo Codes ──
+
+export interface PromoValidation {
+  valid: boolean;
+  type?: "discount_pct" | "free_sub";
+  value?: number;
+  sub_tier?: string | null;
+  error?: string;
+}
+
+export interface PromoCode {
+  code: string;
+  type: string;
+  value: number;
+  sub_tier: string | null;
+  max_uses: number;
+  use_count: number;
+  expires_at: string | null;
+  created_at: string;
+  active: number;
+}
+
+export async function validatePromo(code: string): Promise<PromoValidation> {
+  return request<PromoValidation>("/promo/validate", {
+    method: "POST",
+    body: JSON.stringify({ code }),
+  });
+}
+
+export async function redeemPromo(code: string): Promise<{ ok: boolean; sub_tier: string; days: number; message: string }> {
+  return request("/promo/redeem", {
+    method: "POST",
+    body: JSON.stringify({ code }),
+  });
+}
+
+export async function getPromos(): Promise<PromoCode[]> {
+  const data = await request<{ promos: PromoCode[] }>("/admin/promos");
+  return data.promos;
+}
+
+export async function createPromo(data: {
+  code: string;
+  type: string;
+  value: number;
+  sub_tier?: string;
+  max_uses?: number;
+  expires_in_hours?: number;
+}): Promise<PromoCode> {
+  const res = await request<{ promo: PromoCode }>("/admin/promos", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+  return res.promo;
+}
+
+export async function deletePromo(code: string): Promise<void> {
+  await request(`/admin/promos/${encodeURIComponent(code)}`, { method: "DELETE" });
+}
+
+// ── Chess ──
+
+export async function chessCreate(opts: {
+  color?: 'white' | 'black' | 'random';
+  timeControl?: number;
+  botLevel?: number;
+}): Promise<{ gameId: string; token: string; botToken?: string; color: 'white' | 'black'; shareUrl: string }> {
+  return request("/chess/create", { method: "POST", body: JSON.stringify(opts) });
+}
+
+export async function chessJoin(gameId: string, name?: string): Promise<{ token: string; color: 'white' | 'black'; game: unknown }> {
   const token = getToken();
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
-  const formData = new FormData();
-  formData.append("image", file);
-
-  const res = await fetch(`${API_BASE}/memes`, {
+  const res = await fetch(`${API_BASE}/chess/join/${encodeURIComponent(gameId)}`, {
     method: "POST",
     headers,
-    body: formData,
+    body: JSON.stringify({ name }),
   });
-
   if (!res.ok) {
-    const b = await res.json().catch(() => ({}));
-    throw new ApiError(res.status, (b as { error?: string }).error ?? "upload failed");
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, (body as { error?: string }).error ?? "join failed");
   }
-
-  return res.json() as Promise<{ ok: boolean; meme: Meme }>;
+  return res.json() as Promise<{ token: string; color: 'white' | 'black'; game: unknown }>;
 }
 
-// ── Blackjack (Solo) ──
-
-export interface BlackjackCard {
-  rank: string;
-  suit: string;
-  hidden: boolean;
+export async function chessGet(gameId: string): Promise<{ game: unknown }> {
+  const res = await fetch(`${API_BASE}/chess/${encodeURIComponent(gameId)}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, (body as { error?: string }).error ?? "game not found");
+  }
+  return res.json() as Promise<{ game: unknown }>;
 }
 
-export interface BlackjackState {
-  active?: boolean;
-  playerHand: BlackjackCard[];
-  playerValue: number;
-  dealerHand: BlackjackCard[];
-  dealerValue: number;
-  bet: number;
-  status: "playing" | "bust" | "blackjack" | "win" | "lose" | "push";
-  payout: number;
-  nb_balance: number;
-  message: string;
+export async function chessPoll(gameId: string, token: string, since: number, draw?: string): Promise<{ updated: boolean; game?: unknown }> {
+  const params = new URLSearchParams({ token, since: String(since) });
+  if (draw) params.set("draw", draw);
+  const res = await fetch(`${API_BASE}/chess/${encodeURIComponent(gameId)}/poll?${params}`);
+  if (!res.ok) return { updated: false };
+  return res.json() as Promise<{ updated: boolean; game?: unknown }>;
 }
 
-export async function getBlackjackState(): Promise<BlackjackState> {
-  return request<BlackjackState>("/blackjack/state");
-}
-
-export async function blackjackDeal(bet: number): Promise<BlackjackState> {
-  return request<BlackjackState>("/blackjack/deal", {
+export async function chessMove(gameId: string, token: string, from: string, to: string, promotion?: string): Promise<{ ok: boolean } & Record<string, unknown>> {
+  const res = await fetch(`${API_BASE}/chess/${encodeURIComponent(gameId)}/move`, {
     method: "POST",
-    body: JSON.stringify({ bet }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, from, to, promotion }),
   });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, (body as { error?: string }).error ?? "move failed");
+  }
+  return res.json() as Promise<{ ok: boolean } & Record<string, unknown>>;
 }
 
-export async function blackjackHit(): Promise<BlackjackState> {
-  return request<BlackjackState>("/blackjack/hit", { method: "POST" });
+export async function chessResign(gameId: string, token: string): Promise<{ ok: boolean }> {
+  const res = await fetch(`${API_BASE}/chess/${encodeURIComponent(gameId)}/resign`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, (body as { error?: string }).error ?? "resign failed");
+  }
+  return res.json() as Promise<{ ok: boolean }>;
 }
 
-export async function blackjackStand(): Promise<BlackjackState> {
-  return request<BlackjackState>("/blackjack/stand", { method: "POST" });
+export async function chessDraw(gameId: string, token: string): Promise<{ ok: boolean; drawOffered?: boolean; result?: string }> {
+  const res = await fetch(`${API_BASE}/chess/${encodeURIComponent(gameId)}/draw`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, (body as { error?: string }).error ?? "draw failed");
+  }
+  return res.json() as Promise<{ ok: boolean; drawOffered?: boolean; result?: string }>;
 }
 
-export async function blackjackDouble(): Promise<BlackjackState> {
-  return request<BlackjackState>("/blackjack/double", { method: "POST" });
+export async function chessMyGames(): Promise<{ games: unknown[] }> {
+  return request("/chess/my/games");
 }

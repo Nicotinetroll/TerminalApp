@@ -38,27 +38,28 @@ router.put('/filesystem', (req: AuthRequest, res: Response): void => {
     return;
   }
 
+  // Strip content from S3-backed nodes to keep tree lightweight
+  function stripS3Content(node: Record<string, unknown>): void {
+    const children = node['children'] as Record<string, Record<string, unknown>> | undefined;
+    if (!children) return;
+    for (const child of Object.values(children)) {
+      if (child['type'] === 'directory') {
+        stripS3Content(child);
+      } else if (child['s3Key'] && child['content']) {
+        // S3-backed file should not have inline content
+        delete child['content'];
+      }
+    }
+  }
+  stripS3Content(filesystem as Record<string, unknown>);
+
   const serialized = JSON.stringify(filesystem);
 
-  // Role-based storage limit (factoring in slots bonus/deficit)
-  const role = req.user!.role;
-  const slotsRow = db.prepare('SELECT bonus_bytes FROM slots_balance WHERE user_id = ?').get(userId) as
-    | { bonus_bytes: number } | undefined;
-  const bonusBytes = slotsRow?.bonus_bytes ?? 0;
-  const limit = getEffectiveLimit(role, bonusBytes);
+  // Tree-only size limit: 10MB max for the lightweight metadata tree
   const sizeBytes = Buffer.byteLength(serialized, 'utf8');
-
-  if (limit > 0 && sizeBytes > limit) {
-    const limitMB = Math.round(limit / (1024 * 1024));
-    const usedMB = (sizeBytes / (1024 * 1024)).toFixed(1);
-    const roasts = [
-      `you're trying to stuff ${usedMB}MB into a ${limitMB}MB hole. that's what she said.`,
-      `${limitMB}MB limit exceeded. you a digital hoarder or something?`,
-      `bro you hit the ${limitMB}MB cap. delete some shit or cry about it.`,
-      `storage full at ${limitMB}MB. your files are not that important, trust me.`,
-    ];
-    const roast = roasts[Math.floor(Math.random() * roasts.length)]!;
-    res.status(413).json({ error: roast });
+  const treeLimit = 10 * 1024 * 1024;
+  if (sizeBytes > treeLimit) {
+    res.status(413).json({ error: 'filesystem tree too large. something is wrong — are you storing file contents inline?' });
     return;
   }
 
@@ -150,16 +151,19 @@ router.put('/settings', (req: AuthRequest, res: Response): void => {
   res.json({ ok: true });
 });
 
-// GET /api/sync/stats — storage usage statistics
+// GET /api/sync/stats — storage usage statistics (uses cloud_files for real storage)
 router.get('/stats', (req: AuthRequest, res: Response): void => {
   const userId = req.user!.userId;
   const role = req.user!.role;
 
-  const row = db.prepare('SELECT filesystem FROM user_filesystems WHERE user_id = ?').get(userId) as
-    | { filesystem: string }
-    | undefined;
+  // Storage used = cloud files + S3-backed email attachments
+  const cloudRow = db.prepare('SELECT COALESCE(SUM(size), 0) as total FROM cloud_files WHERE user_id = ?').get(userId) as { total: number };
+  const mailAttRow = db.prepare(`
+    SELECT COALESCE(SUM(a.size), 0) as total FROM email_attachments a
+    JOIN emails e ON e.id = a.email_id WHERE a.s3_key IS NOT NULL AND e.owner_id = ?
+  `).get(userId) as { total: number };
+  const used = cloudRow.total + mailAttRow.total;
 
-  const used = row ? Buffer.byteLength(row.filesystem, 'utf8') : 0;
   const slotsRow = db.prepare('SELECT bonus_bytes, bytebucks FROM slots_balance WHERE user_id = ?').get(userId) as
     | { bonus_bytes: number; bytebucks: number } | undefined;
   const bonusBytes = slotsRow?.bonus_bytes ?? 0;

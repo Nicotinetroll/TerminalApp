@@ -1,36 +1,57 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useCallback } from "react";
+import { getToken } from "@/lib/api";
 import { useNotifications } from "./useNotifications";
 
-export function useMailNotifications() {
+const API_BASE = import.meta.env["VITE_API_URL"] as string || "/api";
+const POLL_INTERVAL = 15_000;
+
+interface MailStats {
+  [folder: string]: { total: number; unread: number } | undefined;
+}
+
+export function useMailNotifications(
+  updateBadge?: (app: string, count: number) => void
+) {
+  const prevUnreadRef = useRef<number | null>(null);
   const { playMailSound, showBrowserNotification } = useNotifications();
 
-  useEffect(() => {
-    // Dynamic import to avoid circular deps — socket may not be connected
-    let cleanup: (() => void) | null = null;
-    let unmounted = false;
+  const poll = useCallback(async () => {
+    const token = getToken();
+    if (!token) return;
 
-    import("@/lib/socket").then(({ getSocketIfConnected }) => {
-      const socket = getSocketIfConnected();
-      if (!socket) return;
+    try {
+      const res = await fetch(`${API_BASE}/mail/stats`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const wrapper = (await res.json()) as { stats: MailStats };
+      const unread = wrapper.stats["inbox"]?.unread ?? 0;
 
-      const handler = (data: { from?: string; subject?: string }) => {
+      // Update badge
+      if (updateBadge) updateBadge("mail", unread);
+
+      // Check for new mail since last poll
+      const prev = prevUnreadRef.current;
+      if (prev !== null && unread > prev) {
+        const newCount = unread - prev;
         playMailSound();
         showBrowserNotification(
-          "new mail",
-          `from ${data.from ?? "unknown"}: ${data.subject ?? "(no subject)"}`
+          "New Mail",
+          newCount === 1
+            ? "You have 1 new message"
+            : `You have ${newCount} new messages`
         );
-      };
+      }
 
-      socket.on("mail:new", handler);
-      cleanup = () => socket.off("mail:new", handler);
+      prevUnreadRef.current = unread;
+    } catch { /* silent */ }
+  }, [updateBadge, playMailSound, showBrowserNotification]);
 
-      // If already unmounted by the time promise resolves, clean up immediately
-      if (unmounted) cleanup();
-    }).catch(() => { /* no socket */ });
+  useEffect(() => {
+    void poll();
+    const iv = setInterval(() => void poll(), POLL_INTERVAL);
+    return () => clearInterval(iv);
+  }, [poll]);
 
-    return () => {
-      unmounted = true;
-      if (cleanup) cleanup();
-    };
-  }, [playMailSound, showBrowserNotification]);
+  return { poll };
 }

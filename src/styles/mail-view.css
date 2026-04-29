@@ -56,12 +56,12 @@
 
 .mail-view-action-danger {
   color: var(--error) !important;
-  border-color: rgba(255, 68, 68, 0.2) !important;
+  border-color: var(--error-soft) !important;
 }
 
 .mail-view-action-danger:hover {
-  background: rgba(255, 68, 68, 0.08) !important;
-  border-color: rgba(255, 68, 68, 0.4) !important;
+  background: var(--error-soft) !important;
+  border-color: var(--error) !important;
 }
 
 .mail-view-meta {
@@ -134,4 +134,103 @@
   font-size: 13px;
   line-height: 1.6;
   color: var(--text-primary);
+}
+
+.mail-view-html-toggle {
+  display: flex;
+  gap: 1px;
+  margin-bottom: 10px;
+  background: var(--border-subtle);
+  width: fit-content;
+}
+
+.mail-view-toggle-btn {
+  padding: 3px 10px;
+  font-size: 10px;
+  font-family: inherit;
+  font-weight: 500;
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.mail-view-toggle-btn:hover {
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+}
+
+.mail-view-toggle-btn.active {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.mail-view-html-frame {
+  width: 100%;
+  min-height: 200px;
+  border: none;
+  background: transparent;
+  display: block;
+}
+
+/* ── Attachments ── */
+
+.mail-attachments {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.mail-attachments-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  text-transform: lowercase;
+}
+
+.mail-attachments-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mail-attachment-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+  color: var(--text-secondary);
+  transition: border-color 150ms ease, color 150ms ease;
+}
+
+.mail-attachment-item:hover {
+  border-color: var(--accent-mid);
+  color: var(--accent);
+}
+
+.mail-attachment-icon {
+  font-size: 10px;
+  color: var(--text-ghost);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.mail-attachment-name {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mail-attachment-size {
+  color: var(--text-ghost);
+  font-size: 10px;
+  white-space: nowrap;
 }

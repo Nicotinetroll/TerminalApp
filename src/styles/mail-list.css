@@ -91,7 +91,7 @@
 
 .mail-toolbar-btn-danger:hover {
   color: var(--error);
-  border-color: rgba(248, 113, 113, 0.3);
+  border-color: var(--error-soft);
 }
 
 .mail-toolbar-count {
@@ -274,7 +274,7 @@
 
 .mail-row-action-danger:hover {
   color: var(--error);
-  border-color: rgba(248, 113, 113, 0.3);
+  border-color: var(--error-soft);
 }
 
 .mail-nice {

@@ -2,7 +2,7 @@ import db from './db.js';
 
 interface AuditParams {
   adminId: number;
-  adminUsername: string;
+  adminUsername: string; // legacy column name — now stores email
   action: string;
   targetType?: string;
   targetId?: number;

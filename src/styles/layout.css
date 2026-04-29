@@ -1,24 +1,26 @@
 /* Terminal page layout, logo, frame, mobile elements, animations, utilities */
 
-/* ── Terminal page layout — centered frame ── */
+/* ── Terminal page — full-screen 3-panel layout ── */
 
 .terminal-page {
-  height: 100%;
+  height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 20px;
-  padding-top: min(8vh, 60px);
   position: relative;
-  /* grid + subtle accent ambient glow */
-  background-image:
-    radial-gradient(ellipse 60% 50% at 50% 55%, var(--accent-soft), transparent 70%),
-    radial-gradient(circle, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
-  background-size: 100% 100%, 24px 24px, 24px 24px, 24px 24px;
-  background-position: center, 12px 12px, 0 0, 0 0;
+  background: var(--bg-primary);
+  overflow: hidden;
 }
+
+/* Main content wrapper */
+.terminal-backdrop-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Logo — used on login page ── */
 
 .logo-header {
   flex-shrink: 0;
@@ -86,6 +88,8 @@
   letter-spacing: 0.5px;
 }
 
+/* ── Terminal frame (login page only now) ── */
+
 .terminal-frame {
   width: 100%;
   max-width: 820px;
@@ -93,13 +97,12 @@
   display: flex;
   flex-direction: column;
   border: 1px solid var(--border-medium);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--bg-surface);
   overflow: hidden;
   box-shadow:
-    0 0 80px var(--accent-soft),
-    0 0 160px var(--accent-soft),
-    0 0 40px rgba(0, 0, 0, 0.5);
+    0 12px 48px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.03);
 }
 
 .terminal-body {
@@ -113,72 +116,30 @@
 .mobile-submit-btn { display: none; }
 .prompt-short { display: none; }
 .mobile-header-bar { display: none; }
-.mobile-app-bar { display: none; }
-.statusbar-desktop { display: contents; }
-.statusbar-mobile { display: none; }
-
-
-/* ── Mobile app bar pill buttons ── */
-.mobile-app-btn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-subtle);
-  border-radius: 16px;
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-family: inherit;
-  cursor: pointer;
-  white-space: nowrap;
-  flex-shrink: 0;
-  -webkit-tap-highlight-color: transparent;
-  transition: background 150ms ease, border-color 150ms ease;
-}
-.mobile-app-btn:active {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--accent);
-}
-.mobile-app-icon { font-size: 14px; }
-.mobile-app-label { font-size: 11px; }
-
-/* ── Mobile header bar styling ── */
-.mobile-header-dot {
-  color: var(--accent);
-  font-size: 18px;
-  margin-right: 6px;
-  line-height: 1;
-}
-.mobile-header-user {
-  color: var(--text-secondary);
-  font-size: 12px;
-}
 
 @media (max-width: 768px) {
-  /* ── Full-screen app mode ── */
-  .terminal-page {
+  /* ── Login page layout (login still uses old frame) ── */
+  .login-page {
     padding: 0;
     height: 100vh;
     height: 100dvh;
     justify-content: flex-start;
+    align-items: center;
     background-image: none;
     background: var(--bg-primary);
     font-size: 16px;
     overflow: hidden;
   }
 
-  /* Logo: always visible on mobile */
-  .terminal-page .logo-header {
+  .login-page .logo-header {
     display: block;
     padding: 0 16px;
-    padding-top: calc(8px + env(safe-area-inset-top));
-    padding-bottom: 6px;
+    padding-top: calc(24px + env(safe-area-inset-top));
+    padding-bottom: 12px;
   }
-  .terminal-page .logo-header .logo-subtitle { display: none; }
+  .login-page .logo-header .logo-subtitle { display: none; }
 
-  .terminal-frame {
+  .login-page .terminal-frame {
     max-width: 100%;
     flex: 1;
     min-height: 0;
@@ -187,14 +148,11 @@
     box-shadow: none;
   }
 
-  .terminal-body {
-    padding: 8px 12px 8px;
+  .login-page .terminal-body {
+    padding: 16px 12px 8px;
   }
 
   /* ── Performance: kill expensive effects ── */
-  #root::after, #root::before { display: none; }
-  .screen-flicker { animation: none; }
-  .glow-text { text-shadow: none; }
   .logo-char { animation: none !important; }
 
   /* ── Mobile logo ── */
@@ -207,16 +165,8 @@
     text-shadow: none;
   }
 
-  /* ── Login page: bigger logo + layout ── */
-  .login-page .logo-header {
-    padding-top: calc(24px + env(safe-area-inset-top));
-    padding-bottom: 12px;
-  }
   .login-page .logo-text-mobile {
     font-size: 32px;
-  }
-  .login-page .terminal-body {
-    padding-top: 16px;
   }
 
   /* ── Mobile header bar ── */
@@ -230,20 +180,6 @@
     border-bottom: 1px solid var(--border-subtle);
     flex-shrink: 0;
   }
-
-  /* ── Mobile app bar ── */
-  .mobile-app-bar {
-    display: flex;
-    overflow-x: auto;
-    gap: 6px;
-    padding: 6px 12px;
-    border-top: 1px solid var(--border-subtle);
-    background: var(--bg-surface);
-    flex-shrink: 0;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-  }
-  .mobile-app-bar::-webkit-scrollbar { display: none; }
 
   /* ── Submit button (visible on mobile) ── */
   .mobile-submit-btn {
@@ -301,9 +237,6 @@
     font-size: 16px;
   }
 
-  /* ── Prevent all zoom on mobile ── */
-  * { touch-action: manipulation; }
-
   /* ── Login option touch targets ── */
   .login-option {
     min-height: 44px;
@@ -313,15 +246,22 @@
     font-size: 16px;
   }
 
-  /* ── StatusBar: hidden on mobile ── */
-  .status-bar { display: none; }
-  .statusbar-desktop { display: none; }
-  .statusbar-mobile { display: none; }
-
   /* ── Window safe areas ── */
   .window-titlebar {
     padding-top: env(safe-area-inset-top);
   }
+}
+
+/* Mobile header bar styling */
+.mobile-header-dot {
+  color: var(--accent);
+  font-size: 18px;
+  margin-right: 6px;
+  line-height: 1;
+}
+.mobile-header-user {
+  color: var(--text-secondary);
+  font-size: 12px;
 }
 
 /* cursor blink */
@@ -332,7 +272,6 @@
 .cursor-blink {
   animation: blink 1s steps(1) infinite;
 }
-
 
 .login-option {
   cursor: pointer;
@@ -408,9 +347,9 @@
   box-shadow: 0 0 6px var(--accent-soft);
 }
 
-/* text glow */
+/* text glow — subtle */
 .glow-text {
-  text-shadow: 0 0 4px var(--accent-mid), 0 0 12px var(--accent-soft), 0 0 40px var(--accent-soft);
+  text-shadow: 0 0 8px var(--accent-soft), 0 0 20px var(--accent-soft);
 }
 
 /* selection */
@@ -424,3 +363,169 @@
   transition: color 250ms ease, background-color 250ms ease, border-color 250ms ease, text-shadow 250ms ease;
 }
 
+/* ── Block cursor blink ── */
+.block-cursor {
+  color: var(--accent);
+  animation: block-cursor-blink 1s steps(1) infinite;
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+@keyframes block-cursor-blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+/* ── Output line stagger ── */
+.line-stagger {
+  animation: line-fade-in 150ms ease-out both;
+}
+
+@keyframes line-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Error shake ── */
+.error-shake {
+  animation: error-shake 200ms ease-in-out;
+}
+
+@keyframes error-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-3px); }
+  75% { transform: translateX(3px); }
+}
+
+/* ── Processing sweep — gradient scanline ── */
+.processing-sweep {
+  position: relative;
+}
+
+.processing-sweep::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  animation: sweep-down 300ms ease-out forwards;
+  pointer-events: none;
+  z-index: 5;
+}
+
+@keyframes sweep-down {
+  from {
+    top: 0;
+    opacity: 1;
+  }
+  to {
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+/* ── CRT grain overlay (desktop only) ── */
+.terminal-page::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9998;
+  opacity: 0.02;
+  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation: grain-shift 80ms steps(4) infinite;
+}
+
+@keyframes grain-shift {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(-1px, 1px); }
+  50% { transform: translate(1px, -1px); }
+  75% { transform: translate(-1px, -1px); }
+  100% { transform: translate(1px, 1px); }
+}
+
+/* ── Sound toggle button ── */
+.sound-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
+  opacity: 0.3;
+  transition: opacity 150ms ease;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.sound-toggle:hover {
+  opacity: 0.7;
+}
+
+/* ── Shortcuts overlay ── */
+.shortcuts-overlay {
+  max-height: 500px;
+}
+
+.shortcuts-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+}
+
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 16px;
+}
+
+.shortcut-row:nth-child(odd) {
+  background: rgba(255, 255, 255, 0.01);
+}
+
+.shortcut-key {
+  min-width: 100px;
+  padding: 3px 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  color: var(--accent);
+  font-family: inherit;
+  font-size: 12px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.shortcut-desc {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+/* ── Fullscreen app overlay ── */
+.fullscreen-app-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 768px) {
+  /* Disable CRT grain on mobile */
+  .terminal-page::after { display: none; }
+}

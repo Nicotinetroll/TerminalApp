@@ -13,6 +13,7 @@ function formatBytes(bytes: number): string {
 }
 
 function getUsageLabel(percent: number): string {
+  if (percent === 42) return "the answer.";
   if (percent === 69) return "nice.";
   if (percent === 0) return "empty. like my soul.";
   if (percent < 10) return "barely touched. you antisocial or something?";

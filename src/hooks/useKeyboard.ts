@@ -33,6 +33,15 @@ export function useKeyboard(
   // Track the base input (command + space) for arg mode
   const argBaseRef = useRef("");
 
+  // ── Ctrl+R reverse search state ──
+  const [searchMode, setSearchMode] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const searchMatchIdx = useRef(-1);
+  const [searchMatch, setSearchMatch] = useState("");
+
+  // ── Shortcuts overlay ──
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+
   const computeSuggestions = useCallback(
     (value: string) => {
       const trimmed = value.trimStart();
@@ -117,7 +126,34 @@ export function useKeyboard(
     setSelectedIdx(0);
   }, []);
 
+  // ── Ctrl+R search helpers ──
+  const findMatch = useCallback((query: string, startIdx: number): { match: string; idx: number } | null => {
+    if (!query) return null;
+    const q = query.toLowerCase();
+    for (let i = startIdx; i < cmdHistory.current.length; i++) {
+      const cmd = cmdHistory.current[i];
+      if (cmd && cmd.toLowerCase().includes(q)) {
+        return { match: cmd, idx: i };
+      }
+    }
+    return null;
+  }, [cmdHistory]);
+
+  const exitSearch = useCallback((accept: boolean) => {
+    if (accept && searchMatch) {
+      setInput(searchMatch);
+      computeSuggestions(searchMatch);
+    }
+    setSearchMode(false);
+    setSearchQuery("");
+    setSearchMatch("");
+    searchMatchIdx.current = -1;
+  }, [searchMatch, computeSuggestions]);
+
   const submit = useCallback(() => {
+    if (searchMode) {
+      exitSearch(true);
+    }
     dismissSuggestions();
     const trimmed = input.trim();
     if (trimmed) {
@@ -130,10 +166,85 @@ export function useKeyboard(
     savedInput.current = "";
     onExecute(input);
     setInput("");
-  }, [input, onExecute, cmdHistory, dismissSuggestions]);
+  }, [input, onExecute, cmdHistory, dismissSuggestions, searchMode, exitSearch]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
+
+      // ── Ctrl+R: enter/cycle search ──
+      if (e.ctrlKey && e.key === "r") {
+        e.preventDefault();
+        if (!searchMode) {
+          setSearchMode(true);
+          setSearchQuery("");
+          setSearchMatch("");
+          searchMatchIdx.current = -1;
+        } else {
+          // Cycle to next match
+          const result = findMatch(searchQuery, searchMatchIdx.current + 1);
+          if (result) {
+            setSearchMatch(result.match);
+            searchMatchIdx.current = result.idx;
+          }
+        }
+        return;
+      }
+
+      // ── Search mode key handling ──
+      if (searchMode) {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          exitSearch(false);
+          return;
+        }
+        if (e.key === "Enter") {
+          e.preventDefault();
+          exitSearch(true);
+          return;
+        }
+        if (e.key === "Backspace") {
+          e.preventDefault();
+          const newQ = searchQuery.slice(0, -1);
+          setSearchQuery(newQ);
+          if (newQ) {
+            const result = findMatch(newQ, 0);
+            if (result) {
+              setSearchMatch(result.match);
+              searchMatchIdx.current = result.idx;
+            } else {
+              setSearchMatch("");
+              searchMatchIdx.current = -1;
+            }
+          } else {
+            setSearchMatch("");
+            searchMatchIdx.current = -1;
+          }
+          return;
+        }
+        if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          const newQ = searchQuery + e.key;
+          setSearchQuery(newQ);
+          const result = findMatch(newQ, 0);
+          if (result) {
+            setSearchMatch(result.match);
+            searchMatchIdx.current = result.idx;
+          } else {
+            setSearchMatch("");
+            searchMatchIdx.current = -1;
+          }
+          return;
+        }
+        return;
+      }
+
+      // ── ? for shortcuts overlay (when input is empty) ──
+      if (e.key === "?" && input.trim() === "" && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        setShortcutsOpen(true);
+        return;
+      }
+
       // ── Escape: dismiss suggestions ──
       if (e.key === "Escape") {
         if (suggestions.length > 0) {
@@ -267,6 +378,10 @@ export function useKeyboard(
       computeSuggestions,
       acceptSuggestion,
       dismissSuggestions,
+      searchMode,
+      searchQuery,
+      findMatch,
+      exitSearch,
     ]
   );
 
@@ -299,5 +414,10 @@ export function useKeyboard(
     ghostText,
     mode: modeRef.current,
     submit,
+    searchMode,
+    searchQuery,
+    searchMatch,
+    shortcutsOpen,
+    setShortcutsOpen,
   };
 }

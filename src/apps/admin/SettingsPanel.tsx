@@ -9,13 +9,13 @@ const SOUND_OPTIONS = [
 ];
 
 const ALL_SHORTCUT_APPS = [
-  "mail", "whisper", "cloud", "nigdit", "memes", "paste", "profile", "games",
-  "slots", "coinflip", "blackjack", "shortlinks", "downloader", "ascii", "shop", "admin", "stats",
+  "mail", "cloud", "paste", "profile",
+  "shortlinks", "downloader", "shop", "admin", "stats",
 ];
 
 const RESTRICTABLE_APPS = [
-  "mail", "whisper", "cloud", "nigdit", "memes", "paste", "profile", "games",
-  "slots", "coinflip", "blackjack", "shortlinks", "downloader", "ascii",
+  "mail", "cloud", "paste", "profile",
+  "shortlinks", "downloader",
 ];
 
 const RESTRICTABLE_FEATURES: { key: string; label: string; desc: string }[] = [
@@ -26,8 +26,8 @@ const RESTRICTABLE_FEATURES: { key: string; label: string; desc: string }[] = [
 const ROLE_OPTIONS = [
   { value: "", label: "everyone" },
   { value: "user", label: "user" },
-  { value: "classic", label: "member" },
-  { value: "club", label: "club member" },
+  { value: "basic", label: "basic" },
+  { value: "premium", label: "premium" },
   { value: "admin", label: "admin" },
 ];
 
@@ -95,22 +95,6 @@ export function SettingsPanel() {
         </div>
 
         <ToggleRow
-          label="chat sounds"
-          sublabel="play a sound when someone sends a message in whisper"
-          enabled={settings["chat_sound_enabled"] === "true"}
-          saving={saving === "chat_sound_enabled"}
-          onToggle={() => void handleToggle("chat_sound_enabled")}
-        />
-
-        <SelectRow
-          label="chat sound type"
-          value={settings["chat_sound"] ?? "ping"}
-          options={SOUND_OPTIONS}
-          saving={saving === "chat_sound"}
-          onChange={(v) => void handleSelect("chat_sound", v)}
-        />
-
-        <ToggleRow
           label="mail sounds"
           sublabel="play a sound when new mail arrives"
           enabled={settings["mail_sound_enabled"] === "true"}
@@ -127,31 +111,18 @@ export function SettingsPanel() {
         />
       </div>
 
-      <div>
-        <div style={{ fontSize: 12, color: "var(--text-ghost)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
-          whisper settings
-        </div>
-
-        <NumberRow
-          label="handle refresh interval (hours)"
-          sublabel="anonymous handles auto-refresh after this many hours"
-          value={settings["handle_refresh_hours"] ?? "48"}
-          saving={saving === "handle_refresh_hours"}
-          onChange={(v) => void handleNumber("handle_refresh_hours", v)}
-        />
-      </div>
-
       <ConfigSection title="storage limits (MB)" sublabel="0 = unlimited. applies per role.">
         <NumberRow label="admin" sublabel="0 = unlimited" value={settings["storage_admin_mb"] ?? "0"} saving={saving === "storage_admin_mb"} onChange={(v) => void handleNumber("storage_admin_mb", v)} min={0} />
-        <NumberRow label="club member" value={settings["storage_club_mb"] ?? "500"} saving={saving === "storage_club_mb"} onChange={(v) => void handleNumber("storage_club_mb", v)} min={0} />
-        <NumberRow label="member" value={settings["storage_classic_mb"] ?? "500"} saving={saving === "storage_classic_mb"} onChange={(v) => void handleNumber("storage_classic_mb", v)} min={0} />
-        <NumberRow label="user" value={settings["storage_user_mb"] ?? "500"} saving={saving === "storage_user_mb"} onChange={(v) => void handleNumber("storage_user_mb", v)} min={0} />
-        <NumberRow label="guest" value={settings["storage_guest_mb"] ?? "50"} saving={saving === "storage_guest_mb"} onChange={(v) => void handleNumber("storage_guest_mb", v)} min={0} />
+        <NumberRow label="premium" value={settings["storage_premium_mb"] ?? "30720"} saving={saving === "storage_premium_mb"} onChange={(v) => void handleNumber("storage_premium_mb", v)} min={0} />
+        <NumberRow label="basic" value={settings["storage_basic_mb"] ?? "10240"} saving={saving === "storage_basic_mb"} onChange={(v) => void handleNumber("storage_basic_mb", v)} min={0} />
       </ConfigSection>
 
       <ConfigSection title="upload links">
         <NumberRow label="expiry (hours)" sublabel="how long upload links stay active" value={settings["transfer_expiry_hours"] ?? "12"} saving={saving === "transfer_expiry_hours"} onChange={(v) => void handleNumber("transfer_expiry_hours", v)} />
         <NumberRow label="max pending per user" value={settings["transfer_max_pending"] ?? "10"} saving={saving === "transfer_max_pending"} onChange={(v) => void handleNumber("transfer_max_pending", v)} />
+        <NumberRow label="admin max size (MB)" sublabel="0 = unlimited" value={settings["transfer_size_admin_mb"] ?? "51200"} saving={saving === "transfer_size_admin_mb"} onChange={(v) => void handleNumber("transfer_size_admin_mb", v)} min={0} />
+        <NumberRow label="premium max size (MB)" value={settings["transfer_size_premium_mb"] ?? "5120"} saving={saving === "transfer_size_premium_mb"} onChange={(v) => void handleNumber("transfer_size_premium_mb", v)} min={1} />
+        <NumberRow label="basic max size (MB)" value={settings["transfer_size_basic_mb"] ?? "1024"} saving={saving === "transfer_size_basic_mb"} onChange={(v) => void handleNumber("transfer_size_basic_mb", v)} min={1} />
       </ConfigSection>
 
       <ConfigSection title="shortlinks">
@@ -172,10 +143,8 @@ export function SettingsPanel() {
 
       <ConfigSection title="mail slots" sublabel="free slots per role + max purchasable in shop">
         <NumberRow label="admin" value={settings["mail_slots_admin"] ?? "10"} saving={saving === "mail_slots_admin"} onChange={(v) => void handleNumber("mail_slots_admin", v)} min={0} />
-        <NumberRow label="club member" value={settings["mail_slots_club"] ?? "5"} saving={saving === "mail_slots_club"} onChange={(v) => void handleNumber("mail_slots_club", v)} min={0} />
-        <NumberRow label="member" value={settings["mail_slots_classic"] ?? "3"} saving={saving === "mail_slots_classic"} onChange={(v) => void handleNumber("mail_slots_classic", v)} min={0} />
-        <NumberRow label="user" value={settings["mail_slots_user"] ?? "1"} saving={saving === "mail_slots_user"} onChange={(v) => void handleNumber("mail_slots_user", v)} min={0} />
-        <NumberRow label="guest" value={settings["mail_slots_guest"] ?? "0"} saving={saving === "mail_slots_guest"} onChange={(v) => void handleNumber("mail_slots_guest", v)} min={0} />
+        <NumberRow label="premium" value={settings["mail_slots_premium"] ?? "10"} saving={saving === "mail_slots_premium"} onChange={(v) => void handleNumber("mail_slots_premium", v)} min={0} />
+        <NumberRow label="basic" value={settings["mail_slots_basic"] ?? "3"} saving={saving === "mail_slots_basic"} onChange={(v) => void handleNumber("mail_slots_basic", v)} min={0} />
         <NumberRow label="max purchasable (shop)" sublabel="extra slots buyable with NB on top of free" value={settings["shop_max_mail_slots"] ?? "9"} saving={saving === "shop_max_mail_slots"} onChange={(v) => void handleNumber("shop_max_mail_slots", v)} />
       </ConfigSection>
 
@@ -188,15 +157,14 @@ export function SettingsPanel() {
       </ConfigSection>
 
       <ConfigSection title="subscription pricing" sublabel="EUR per month — total = price × months">
-        <DecimalRow label="member 1m (EUR/mo)" value={settings["sub_classic_1m_eur"] ?? "2.99"} saving={saving === "sub_classic_1m_eur"} onChange={(v) => void handleText("sub_classic_1m_eur", v)} />
-        <DecimalRow label="member 3m (EUR/mo)" value={settings["sub_classic_3m_eur"] ?? "2.69"} saving={saving === "sub_classic_3m_eur"} onChange={(v) => void handleText("sub_classic_3m_eur", v)} />
-        <DecimalRow label="member 12m (EUR/mo)" value={settings["sub_classic_12m_eur"] ?? "1.99"} saving={saving === "sub_classic_12m_eur"} onChange={(v) => void handleText("sub_classic_12m_eur", v)} />
-        <DecimalRow label="club 1m (EUR/mo)" value={settings["sub_club_1m_eur"] ?? "5.99"} saving={saving === "sub_club_1m_eur"} onChange={(v) => void handleText("sub_club_1m_eur", v)} />
-        <DecimalRow label="club 3m (EUR/mo)" value={settings["sub_club_3m_eur"] ?? "4.99"} saving={saving === "sub_club_3m_eur"} onChange={(v) => void handleText("sub_club_3m_eur", v)} />
-        <DecimalRow label="club 12m (EUR/mo)" value={settings["sub_club_12m_eur"] ?? "3.99"} saving={saving === "sub_club_12m_eur"} onChange={(v) => void handleText("sub_club_12m_eur", v)} />
-        <TextRow label="user benefits" sublabel='JSON array — shown on free/user tier card' value={settings["sub_free_benefits"] ?? '["terminal access","50MB cloud storage","basic apps","vibes only"]'} saving={saving === "sub_free_benefits"} onChange={(v) => void handleText("sub_free_benefits", v)} />
-        <TextRow label="member benefits" sublabel='JSON array' value={settings["sub_classic_benefits"] ?? '["@mynig.ga email","500MB cloud storage","priority support"]'} saving={saving === "sub_classic_benefits"} onChange={(v) => void handleText("sub_classic_benefits", v)} />
-        <TextRow label="club benefits" sublabel='JSON array' value={settings["sub_club_benefits"] ?? '["everything in Member","all apps unlocked","unlimited features","flex on the poors"]'} saving={saving === "sub_club_benefits"} onChange={(v) => void handleText("sub_club_benefits", v)} />
+        <DecimalRow label="basic 1m (EUR/mo)" value={settings["sub_basic_1m_eur"] ?? "2.99"} saving={saving === "sub_basic_1m_eur"} onChange={(v) => void handleText("sub_basic_1m_eur", v)} />
+        <DecimalRow label="basic 3m (EUR/mo)" value={settings["sub_basic_3m_eur"] ?? "2.49"} saving={saving === "sub_basic_3m_eur"} onChange={(v) => void handleText("sub_basic_3m_eur", v)} />
+        <DecimalRow label="basic 12m (EUR/mo)" value={settings["sub_basic_12m_eur"] ?? "1.99"} saving={saving === "sub_basic_12m_eur"} onChange={(v) => void handleText("sub_basic_12m_eur", v)} />
+        <DecimalRow label="premium 1m (EUR/mo)" value={settings["sub_premium_1m_eur"] ?? "6.69"} saving={saving === "sub_premium_1m_eur"} onChange={(v) => void handleText("sub_premium_1m_eur", v)} />
+        <DecimalRow label="premium 3m (EUR/mo)" value={settings["sub_premium_3m_eur"] ?? "5.49"} saving={saving === "sub_premium_3m_eur"} onChange={(v) => void handleText("sub_premium_3m_eur", v)} />
+        <DecimalRow label="premium 12m (EUR/mo)" value={settings["sub_premium_12m_eur"] ?? "4.49"} saving={saving === "sub_premium_12m_eur"} onChange={(v) => void handleText("sub_premium_12m_eur", v)} />
+        <TextRow label="basic benefits" sublabel='JSON array' value={settings["sub_basic_benefits"] ?? '["@mynig.ga email","10 GB cloud storage","1 GB upload links","core apps"]'} saving={saving === "sub_basic_benefits"} onChange={(v) => void handleText("sub_basic_benefits", v)} />
+        <TextRow label="premium benefits" sublabel='JSON array' value={settings["sub_premium_benefits"] ?? '["30 GB cloud storage","5 GB upload links","all apps unlocked","priority support"]'} saving={saving === "sub_premium_benefits"} onChange={(v) => void handleText("sub_premium_benefits", v)} />
       </ConfigSection>
 
       <ConfigSection title="AI (nigga command)" sublabel="system prompt and model settings">
@@ -431,7 +399,7 @@ function AppAccessSection({ settings, updateSetting, saving, setSaving, showStat
         app access
       </div>
       <div style={{ fontSize: 11, color: "var(--text-ghost)", marginBottom: 10 }}>
-        set minimum role required to open each app. users below the required role will see a "join club" prompt.
+        set minimum role required to open each app. users below the required role will see an "upgrade" prompt.
       </div>
 
       <div style={{ fontSize: 10, color: "var(--text-ghost)", textTransform: "uppercase", marginBottom: 4 }}>apps</div>

@@ -3,21 +3,70 @@
 @import "tailwindcss";
 
 :root {
-  --bg-primary: #0a0a12;
-  --bg-surface: #0e0e18;
-  --bg-elevated: #14141f;
-  --text-primary: #e8ecf4;
-  --text-secondary: #9aa4b8;
-  --text-muted: #586880;
-  --text-ghost: #354055;
+  /* ── Backgrounds ── */
+  --bg-primary: #09090b;
+  --bg-surface: #0f0f12;
+  --bg-elevated: #18181b;
+
+  /* ── Text ── */
+  --text-primary: #f0f0f3;
+  --text-secondary: #a1a1aa;
+  --text-muted: #63636e;
+  --text-ghost: #3f3f46;
+
+  /* ── Borders ── */
   --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-medium: rgba(255, 255, 255, 0.12);
-  --error: #f87171;
-  --error-soft: rgba(248, 113, 113, 0.1);
-  --success: #34d399;
+  --border-medium: rgba(255, 255, 255, 0.10);
+
+  /* ── Brand accent ── */
   --accent: #DA7756;
   --accent-soft: rgba(218, 119, 86, 0.10);
   --accent-mid: rgba(218, 119, 86, 0.25);
+  --accent-light: #e8956e;
+
+  /* ── Semantic: error ── */
+  --error: #f87171;
+  --error-soft: rgba(248, 113, 113, 0.10);
+
+  /* ── Semantic: success ── */
+  --success: #34d399;
+  --success-soft: rgba(52, 211, 153, 0.10);
+
+  /* ── Semantic: warning ── */
+  --warning: #fbbf24;
+  --warning-soft: rgba(251, 191, 36, 0.10);
+
+  /* ── Semantic: info ── */
+  --info: #60a5fa;
+  --info-soft: rgba(96, 165, 250, 0.10);
+
+  /* ── Diff ── */
+  --diff-add: #22c55e;
+  --diff-add-soft: rgba(34, 197, 94, 0.08);
+  --diff-del: #ef4444;
+  --diff-del-soft: rgba(239, 68, 68, 0.08);
+
+  /* ── Role colors ── */
+  --role-basic: #a78bfa;
+  --role-basic-soft: rgba(167, 139, 250, 0.10);
+  --role-user: #60a5fa;
+  --role-user-soft: rgba(96, 165, 250, 0.10);
+
+  /* ── Purple (toasts, highlights) ── */
+  --purple: #a855f7;
+  --purple-soft: rgba(168, 85, 247, 0.10);
+
+  /* ── Aliases (used widely, kept for compat) ── */
+  --bg-secondary: var(--bg-surface);
+  --bg-tertiary: var(--bg-elevated);
+  --bg-hover: rgba(255, 255, 255, 0.04);
+  --font-mono: 'Berkeley Mono', 'JetBrains Mono', monospace;
+  --border: var(--border-subtle);
+  --text: var(--text-primary);
+
+  /* ── Shapes ── */
+  --radius-sm: 0px;
+  --radius-md: 0px;
 }
 
 * {
@@ -45,39 +94,9 @@ input {
   line-height: inherit;
 }
 
-/* all interactive elements: sharp corners */
-button, input, select, textarea, .btn, .mobile-app-btn {
+/* sharp corners on all interactive elements */
+button, input, select, textarea, .btn {
   border-radius: 0 !important;
-}
-
-/* scanline overlay */
-#root::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(0, 0, 0, 0.06) 2px,
-    rgba(0, 0, 0, 0.06) 4px
-  );
-  pointer-events: none;
-  z-index: 100;
-}
-
-/* CRT vignette */
-#root::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  background: radial-gradient(
-    ellipse at center,
-    transparent 55%,
-    rgba(0, 0, 0, 0.45) 100%
-  );
-  pointer-events: none;
-  z-index: 99;
 }
 
 /* scrollbar */

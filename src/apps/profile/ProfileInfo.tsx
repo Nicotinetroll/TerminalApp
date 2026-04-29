@@ -35,7 +35,7 @@ export function ProfileInfo({
   };
 
   const roleBadgeClass = `role-${user.role}`;
-  const roleLabel = user.role === "club" ? "club member" : user.role === "classic" ? "member" : user.role;
+  const roleLabel = user.role === "premium" ? "premium" : user.role === "basic" ? "basic" : user.role;
 
   const formatExpiry = (expiresAt: string | null) => {
     if (!expiresAt) return "forever";
@@ -51,7 +51,7 @@ export function ProfileInfo({
   };
 
   const subLabel = activeSub && activeSub.is_active
-    ? activeSub.type.includes("club") ? "Club Member" : activeSub.type.includes("classic") ? "Member" : activeSub.type
+    ? activeSub.type.includes("premium") ? "Premium" : activeSub.type.includes("basic") ? "Basic" : activeSub.type
     : null;
 
   const nbTag = niggabytes === 69 ? "nice." :
@@ -67,8 +67,8 @@ export function ProfileInfo({
       <table className="admin-table" style={{ tableLayout: "fixed" }}>
         <tbody>
           <tr>
-            <td style={{ color: "var(--text-muted)", width: "140px" }}>username</td>
-            <td style={{ color: "var(--accent)", fontWeight: 600 }}>{user.username}</td>
+            <td style={{ color: "var(--text-muted)", width: "140px" }}>email</td>
+            <td style={{ color: "var(--accent)", fontWeight: 600 }}>{user.email}</td>
           </tr>
           <tr>
             <td style={{ color: "var(--text-muted)" }}>user id</td>
@@ -85,7 +85,7 @@ export function ProfileInfo({
             <td>
               {subLabel ? (
                 <span style={{ display: "inline-flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-                  <span style={{ color: activeSub!.type.includes("club") ? "var(--accent)" : "#a78bfa", fontWeight: 600 }}>
+                  <span style={{ color: activeSub!.type.includes("premium") ? "var(--accent)" : "#a78bfa", fontWeight: 600 }}>
                     {subLabel}
                   </span>
                   <span style={{ color: "var(--text-ghost)", fontSize: "12px" }}>
@@ -129,7 +129,7 @@ export function ProfileInfo({
               </td>
             </tr>
           )}
-          {user.role !== "guest" && onGenerateInvite && (
+          {onGenerateInvite && (
             <tr>
               <td style={{ color: "var(--text-muted)" }}>invite</td>
               <td>
@@ -180,7 +180,7 @@ export function ProfileInfo({
               </td>
             </tr>
           )}
-          {user.role !== "guest" && onGenerateTransfer && (
+          {onGenerateTransfer && (
             <tr>
               <td style={{ color: "var(--text-muted)" }}>upload link</td>
               <td>

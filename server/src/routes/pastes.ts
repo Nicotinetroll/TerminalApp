@@ -278,7 +278,7 @@ router.post('/', authMiddleware as RequestHandler, (req: AuthRequest, res: Respo
     db.prepare(`
       INSERT INTO pastes (id, user_id, username, title, content, language, expires_at, parent_id)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, user.userId, user.username, pasteTitle, content, pasteLang, expiresAt, parentId);
+    `).run(id, user.userId, user.email, pasteTitle, content, pasteLang, expiresAt, parentId);
 
     res.json({
       ok: true,

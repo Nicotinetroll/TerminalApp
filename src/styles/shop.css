@@ -230,8 +230,8 @@
 
 .shop-toast-error {
   color: var(--error);
-  border-color: rgba(248, 113, 113, 0.2);
-  background: rgba(248, 113, 113, 0.06);
+  border-color: var(--error-soft);
+  background: var(--error-soft);
 }
 
 @keyframes shop-toast-in {

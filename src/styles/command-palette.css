@@ -96,6 +96,11 @@
   max-width: 200px;
 }
 
+.cmd-palette-item--locked { opacity: 0.4; }
+.cmd-palette-item--locked:hover { opacity: 0.6; }
+.cmd-palette-item--locked .cmd-palette-item-label { color: var(--text-muted); }
+.cmd-palette-item--locked .cmd-palette-item-label svg { margin-right: 4px; }
+
 .cmd-palette-empty {
   padding: 20px 16px;
   text-align: center;

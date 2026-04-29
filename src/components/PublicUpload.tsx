@@ -102,6 +102,27 @@ function CompressVisual({ progress, files, complete }: { progress: number; files
   );
 }
 
+// ── File thumbnail component ──
+
+function FileThumb({ file }: { file: File }) {
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!file.type.startsWith("image/")) return;
+    const objUrl = URL.createObjectURL(file);
+    setUrl(objUrl);
+    return () => URL.revokeObjectURL(objUrl);
+  }, [file]);
+
+  if (file.type.startsWith("image/") && url) {
+    return <img src={url} className="pu-file-thumb" alt="" />;
+  }
+  if (file.type.startsWith("video/")) {
+    return <span className="pu-file-icon" title="video">&#127916;</span>;
+  }
+  return <span className="pu-file-icon">&#9633;</span>;
+}
+
 // ── Helpers ──
 
 function formatSpeed(bps: number): string {
@@ -165,6 +186,7 @@ export function PublicUpload({ transferId, onClose }: Props) {
   const [dragOver, setDragOver] = useState(false);
   const [copied, setCopied] = useState(false);
   const [dlTitle] = useState(getDownloadTitle);
+  const [rawMode, setRawMode] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const xhrRef = useRef<XMLHttpRequest | null>(null);
   const startTimeRef = useRef(0);
@@ -177,6 +199,11 @@ export function PublicUpload({ transferId, onClose }: Props) {
   const rafRef = useRef(0);
 
   const uploading = phase !== "idle";
+
+  // Auto-toggle raw mode based on file count
+  useEffect(() => {
+    setRawMode(files.length <= 1);
+  }, [files.length]);
 
   // rAF lerp for upload/confirm phases
   useEffect(() => {
@@ -261,127 +288,165 @@ export function PublicUpload({ transferId, onClose }: Props) {
     });
   }, [transferId]);
 
+  // ── Shared XHR upload helper ──
+  const doXhrUpload = (uploadUrl: string, body: Blob | File): Promise<void> => {
+    return new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhrRef.current = xhr;
+      xhr.open("PUT", uploadUrl);
+
+      xhr.upload.onprogress = (e) => {
+        if (!e.lengthComputable) return;
+        const el = (Date.now() - startTimeRef.current) / 1000;
+        const speed = el > 0 ? e.loaded / el : 0;
+        const remaining = e.total - e.loaded;
+        const eta = speed > 0 ? remaining / speed : Infinity;
+        setStats({ loaded: e.loaded, total: e.total, percent: Math.round((e.loaded / e.total) * 100), speed, eta });
+      };
+
+      xhr.onload = () => {
+        xhrRef.current = null;
+        if (xhr.status >= 200 && xhr.status < 300) resolve();
+        else {
+          const text = xhr.responseText || "";
+          const code = text.match(/<Code>(.*?)<\/Code>/)?.[1];
+          const msg = text.match(/<Message>(.*?)<\/Message>/)?.[1];
+          reject(new Error(code ? `${code}: ${msg ?? ""}` : `upload failed (${xhr.status})`));
+        }
+      };
+      xhr.onerror = () => { xhrRef.current = null; reject(new Error("network error")); };
+      xhr.onabort = () => { xhrRef.current = null; reject(new Error("cancelled")); };
+      xhr.send(body);
+    });
+  };
+
   const handleUpload = async () => {
     if (files.length === 0 || overLimit || uploading) return;
     cancelledRef.current = false;
-    setPhase("zipping");
-    setZipComplete(false);
     setStats(null);
     setUploadError(null);
-    setZipProgress(0);
     setDisplayPercent(0);
     currentRef.current = 0;
     targetRef.current = 0;
 
+    const useRaw = rawMode && files.length === 1;
+
     try {
-      // ── COMPRESS: run zip in background, animate progress independently ──
-      const zipStart = Date.now();
-      let zipBlob: Blob | null = null;
-      let realZipDone = false;
-      let zipError: Error | null = null;
+      if (useRaw) {
+        // ── RAW MODE: skip zip, upload file directly ──
+        const file = files[0]!;
+        const contentType = file.type || "application/octet-stream";
 
-      const zipPromise = (async () => {
-        const z = new JSZip();
-        for (const f of files) z.file(f.name, f);
-        return z.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 5 } });
-      })();
-      void zipPromise.then(
-        b => { zipBlob = b; realZipDone = true; },
-        (e: unknown) => { zipError = e instanceof Error ? e : new Error(String(e)); realZipDone = true; }
-      );
+        setPhase("uploading");
+        startTimeRef.current = Date.now();
 
-      // Smooth fake progress: smoothstep to 88% over MIN_ZIP_MS, then rush to 100% when zip finishes
-      await new Promise<void>((resolve) => {
-        let p = 0;
-        const tick = () => {
-          if (cancelledRef.current) { resolve(); return; }
-          const elapsed = Date.now() - zipStart;
-          if (!realZipDone) {
-            const t = Math.min(elapsed / MIN_ZIP_MS, 1);
-            const target = t * t * (3 - 2 * t) * 88;
-            p += (target - p) * 0.08;
-          } else {
-            p += (100 - p) * 0.12;
-          }
-          setZipProgress(Math.round(Math.min(p, 100)));
-          if (p >= 99.5 && realZipDone && elapsed >= MIN_ZIP_MS) {
-            setZipProgress(100);
-            resolve();
-          } else {
-            requestAnimationFrame(tick);
-          }
-        };
-        requestAnimationFrame(tick);
-      });
+        const { uploadUrl } = await getTransferPresignedUrl(transferId, contentType);
+        if (cancelledRef.current) return;
 
-      if (cancelledRef.current) return;
-      if (zipError) throw zipError;
-      if (!zipBlob) return;
-      const blob = zipBlob; // narrow type past async boundaries
+        await doXhrUpload(uploadUrl, file);
+        if (cancelledRef.current) return;
 
-      // ── CELEBRATE: fragments flash green + collapse ──
-      setZipComplete(true);
-      const presignPromise = getTransferPresignedUrl(transferId);
-      await sleep(900);
-      if (cancelledRef.current) return;
+        // ── CONFIRM ──
+        setPhase("confirming");
+        await confirmTransferUpload(transferId, [file.name], file.size);
 
-      // ── UPLOAD TO S3 ──
-      const { uploadUrl } = await presignPromise;
-      if (cancelledRef.current) return;
+        // ── SUCCESS ──
+        setPhase("complete");
+        await sleep(1200);
+        setTransfer(prev => prev ? {
+          ...prev,
+          status: "uploaded",
+          uploaded_at: new Date().toISOString(),
+          original_names: [file.name],
+          size: file.size,
+          content_type: contentType,
+        } : prev);
+        setPhase("idle");
+      } else {
+        // ── ZIP MODE: existing flow ──
+        setPhase("zipping");
+        setZipComplete(false);
+        setZipProgress(0);
 
-      setPhase("uploading");
-      startTimeRef.current = Date.now();
-      currentRef.current = 0;
-      targetRef.current = 0;
-      setDisplayPercent(0);
+        const zipStart = Date.now();
+        let zipBlob: Blob | null = null;
+        let realZipDone = false;
+        let zipError: Error | null = null;
 
-      await new Promise<void>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhrRef.current = xhr;
-        xhr.open("PUT", uploadUrl);
+        const zipPromise = (async () => {
+          const z = new JSZip();
+          for (const f of files) z.file(f.name, f);
+          return z.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 5 } });
+        })();
+        void zipPromise.then(
+          b => { zipBlob = b; realZipDone = true; },
+          (e: unknown) => { zipError = e instanceof Error ? e : new Error(String(e)); realZipDone = true; }
+        );
 
-        xhr.upload.onprogress = (e) => {
-          if (!e.lengthComputable) return;
-          const el = (Date.now() - startTimeRef.current) / 1000;
-          const speed = el > 0 ? e.loaded / el : 0;
-          const remaining = e.total - e.loaded;
-          const eta = speed > 0 ? remaining / speed : Infinity;
-          setStats({ loaded: e.loaded, total: e.total, percent: Math.round((e.loaded / e.total) * 100), speed, eta });
-        };
+        // Smooth fake progress
+        await new Promise<void>((resolve) => {
+          let p = 0;
+          const tick = () => {
+            if (cancelledRef.current) { resolve(); return; }
+            const elapsed = Date.now() - zipStart;
+            if (!realZipDone) {
+              const t = Math.min(elapsed / MIN_ZIP_MS, 1);
+              const target = t * t * (3 - 2 * t) * 88;
+              p += (target - p) * 0.08;
+            } else {
+              p += (100 - p) * 0.12;
+            }
+            setZipProgress(Math.round(Math.min(p, 100)));
+            if (p >= 99.5 && realZipDone && elapsed >= MIN_ZIP_MS) {
+              setZipProgress(100);
+              resolve();
+            } else {
+              requestAnimationFrame(tick);
+            }
+          };
+          requestAnimationFrame(tick);
+        });
 
-        xhr.onload = () => {
-          xhrRef.current = null;
-          if (xhr.status >= 200 && xhr.status < 300) resolve();
-          else {
-            const body = xhr.responseText || "";
-            const code = body.match(/<Code>(.*?)<\/Code>/)?.[1];
-            const msg = body.match(/<Message>(.*?)<\/Message>/)?.[1];
-            reject(new Error(code ? `${code}: ${msg ?? ""}` : `upload failed (${xhr.status})`));
-          }
-        };
-        xhr.onerror = () => { xhrRef.current = null; reject(new Error("network error")); };
-        xhr.onabort = () => { xhrRef.current = null; reject(new Error("cancelled")); };
-        xhr.send(blob);
-      });
+        if (cancelledRef.current) return;
+        if (zipError) throw zipError;
+        if (!zipBlob) return;
+        const blob = zipBlob;
 
-      if (cancelledRef.current) return;
+        // ── CELEBRATE ──
+        setZipComplete(true);
+        const presignPromise = getTransferPresignedUrl(transferId);
+        await sleep(900);
+        if (cancelledRef.current) return;
 
-      // ── CONFIRM ──
-      setPhase("confirming");
-      await confirmTransferUpload(transferId, files.map(f => f.name), blob.size);
+        // ── UPLOAD TO S3 ──
+        const { uploadUrl } = await presignPromise;
+        if (cancelledRef.current) return;
 
-      // ── BRIEF SUCCESS → then swap to download view ──
-      setPhase("complete");
-      await sleep(1200);
-      setTransfer(prev => prev ? {
-        ...prev,
-        status: "uploaded",
-        uploaded_at: new Date().toISOString(),
-        original_names: files.map(f => f.name),
-        size: blob.size,
-      } : prev);
-      setPhase("idle");
+        setPhase("uploading");
+        startTimeRef.current = Date.now();
+        currentRef.current = 0;
+        targetRef.current = 0;
+        setDisplayPercent(0);
 
+        await doXhrUpload(uploadUrl, blob);
+        if (cancelledRef.current) return;
+
+        // ── CONFIRM ──
+        setPhase("confirming");
+        await confirmTransferUpload(transferId, files.map(f => f.name), blob.size);
+
+        // ── SUCCESS ──
+        setPhase("complete");
+        await sleep(1200);
+        setTransfer(prev => prev ? {
+          ...prev,
+          status: "uploaded",
+          uploaded_at: new Date().toISOString(),
+          original_names: files.map(f => f.name),
+          size: blob.size,
+        } : prev);
+        setPhase("idle");
+      }
     } catch (err) {
       if (cancelledRef.current) return;
       setUploadError(err instanceof Error ? err.message : "upload failed");
@@ -449,6 +514,11 @@ export function PublicUpload({ transferId, onClose }: Props) {
   // ── Download view (transfer already uploaded — visitor wants to download) ──
   if (transfer.status === "uploaded" && phase === "idle") {
     const names = transfer.original_names ?? [];
+    const isRaw = !!transfer.content_type;
+    const isImage = isRaw && transfer.content_type!.startsWith("image/");
+    const isVideo = isRaw && transfer.content_type!.startsWith("video/");
+    const downloadUrl = getTransferDownloadUrl(transferId);
+
     return wrap(
       <div className="pu-card screen-flicker">
         <div className="pu-card-grid" />
@@ -456,13 +526,30 @@ export function PublicUpload({ transferId, onClose }: Props) {
         <div className="pu-card-body">
           <h1 className="pu-title"><span className="pu-prompt">$</span> {dlTitle}</h1>
           <p className="pu-subtitle">
-            {names.length > 0
-              ? `${names.length} file${names.length !== 1 ? "s" : ""} · ${formatBytes(transfer.size)}`
-              : "files ready for download"}
+            {isRaw && names[0]
+              ? <>{names[0]} &middot; {formatBytes(transfer.size)}</>
+              : names.length > 0
+                ? `${names.length} file${names.length !== 1 ? "s" : ""} \u00b7 ${formatBytes(transfer.size)}`
+                : "files ready for download"}
             {transfer.expires_at && <> &middot; expires {new Date(transfer.expires_at + "Z").toLocaleString()}</>}
           </p>
 
-          {names.length > 0 && (
+          {/* Preview for raw images */}
+          {isImage && (
+            <div className="pu-preview-wrap">
+              <img src={downloadUrl} className="pu-preview-img" alt={names[0] ?? "preview"} />
+            </div>
+          )}
+
+          {/* Preview for raw videos */}
+          {isVideo && (
+            <div className="pu-preview-wrap">
+              <video src={downloadUrl} className="pu-preview-video" controls preload="metadata" />
+            </div>
+          )}
+
+          {/* File list for zip mode */}
+          {!isRaw && names.length > 0 && (
             <div className="pu-filelist" style={{ marginBottom: 16, flex: "none" }}>
               {names.map(name => (
                 <div key={name} className="pu-file">
@@ -473,8 +560,8 @@ export function PublicUpload({ transferId, onClose }: Props) {
             </div>
           )}
 
-          <a href={getTransferDownloadUrl(transferId)} className="btn btn-primary pu-btn-full" target="_blank" rel="noopener noreferrer">
-            &darr; download .zip
+          <a href={downloadUrl} className="btn btn-primary pu-btn-full" target="_blank" rel="noopener noreferrer">
+            &darr; download{isRaw ? "" : " .zip"}
           </a>
           <button className="btn pu-btn-full" onClick={handleCopyLink} style={{ marginTop: 6 }}>
             {copied ? "copied!" : "copy link"}
@@ -533,7 +620,7 @@ export function PublicUpload({ transferId, onClose }: Props) {
           <div className="pu-filelist">
             {files.map((f, i) => (
               <div key={`${f.name}-${f.size}-${f.lastModified}`} className="pu-file">
-                <span className="pu-file-icon">&#9633;</span>
+                <FileThumb file={f} />
                 <span className="pu-file-name">{f.name}</span>
                 <span className="pu-file-size">{formatBytes(f.size)}</span>
                 <button className="pu-file-rm" onClick={() => removeFile(i)}>&times;</button>
@@ -544,6 +631,21 @@ export function PublicUpload({ transferId, onClose }: Props) {
               <span className={overLimit ? "pu-overlimit" : ""}>{formatBytes(totalSize)} / {formatBytes(maxSize)}</span>
             </div>
           </div>
+        )}
+
+        {/* Raw/zip mode toggle — only shown for single file */}
+        {files.length === 1 && phase === "idle" && (
+          <button
+            className="pu-mode-toggle"
+            onClick={() => setRawMode(p => !p)}
+          >
+            {rawMode ? "// upload as .zip instead" : "// upload raw (no zip)"}
+          </button>
+        )}
+
+        {/* Multi-file note */}
+        {files.length > 1 && phase === "idle" && (
+          <div className="pu-mode-note">// multiple files &rarr; auto-zipped</div>
         )}
 
         {/* ── COMPRESS: Fragment assembly ── */}
@@ -602,7 +704,7 @@ export function PublicUpload({ transferId, onClose }: Props) {
             disabled={overLimit}
             onClick={() => void handleUpload()}
           >
-            upload &middot; {files.length} file{files.length !== 1 ? "s" : ""} ({formatBytes(totalSize)})
+            upload{rawMode && files.length === 1 ? "" : " .zip"} &middot; {files.length} file{files.length !== 1 ? "s" : ""} ({formatBytes(totalSize)})
           </button>
         )}
       </div>

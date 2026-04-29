@@ -2,31 +2,29 @@ import { useRef, useEffect, useCallback, useMemo, useState } from "react";
 import type { User } from "@/types/terminal";
 import { useTerminal } from "@/hooks/useTerminal";
 import { useKeyboard } from "@/hooks/useKeyboard";
-import { shortenPath, getHomePath } from "@/core/utils";
-import { TerminalOutput } from "./TerminalOutput";
-import { StatusBar } from "./StatusBar";
-import { LogoHeader } from "./LogoHeader";
-import { AutocompleteDropdown } from "./AutocompleteDropdown";
+import { getHomePath, emailLocalPart } from "@/core/utils";
+import { TerminalEmbed } from "./TerminalEmbed";
+import { Navbar } from "./Navbar";
+import { PanelLayout } from "./PanelLayout";
 import { WindowLayer } from "./WindowLayer";
-import { MobileAppBar } from "./MobileAppBar";
-import { AppShortcutBar } from "./AppShortcutBar";
 import { CommandPalette } from "./CommandPalette";
-import { HOSTNAME } from "@/config";
-import { getAll } from "@/core/commandRegistry";
-import { WhisperPanel } from "@/apps/whisper/WhisperPanel";
+import { ShortcutsOverlay } from "./ShortcutsOverlay";
+import { StatusLine } from "./StatusLine";
 import { GlobalSettingsProvider } from "@/hooks/useGlobalSettings";
 import { useMailNotifications } from "@/hooks/useMailNotifications";
 import { useAppBadges } from "@/hooks/useAppBadges";
-import { useParallaxButtons } from "@/hooks/useParallaxButtons";
 import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts";
 import { GlobalEventToast } from "./GlobalEventToast";
 import { AppRestrictionSync } from "./AppRestrictionSync";
+import { MailPanel } from "@/apps/mail/MailPanel";
+import { CloudPanel } from "@/apps/cloud/CloudPanel";
 import type { GlobalEvent } from "@/hooks/useGlobalEvents";
+import { THEMES } from "@/config";
 import * as api from "@/lib/api";
 import type { WindowLayout } from "@/lib/api";
 
-function MailNotificationListener() {
-  useMailNotifications();
+function MailNotificationListener({ updateBadge }: { updateBadge: (app: string, count: number) => void }) {
+  useMailNotifications(updateBadge);
   return null;
 }
 
@@ -34,25 +32,25 @@ interface Props {
   user: User;
   userId: string | null;
   onLogout: () => void;
-  roomToken?: string | null;
 }
 
-export function Terminal({ user, userId, onLogout, roomToken }: Props) {
-  const { history, cwd, theme, isProcessing, execute, print, fs, cmdHistoryRef, windowManager: rawWindowManager } = useTerminal(user, userId, onLogout);
-  useParallaxButtons();
-  const { badges, clearBadge } = useAppBadges();
+// Konami code sequence
+const KONAMI = ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight", "b", "a"];
+
+export function Terminal({ user, userId, onLogout }: Props) {
+  const { history, cwd, theme, isProcessing, execute, print, fs, fsReady, cmdHistoryRef, windowManager: rawWindowManager, fullscreenApp, closeFullscreen } = useTerminal(user, userId, onLogout);
+  const { badges, clearBadge, updateBadge } = useAppBadges();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const togglePalette = useCallback(() => setPaletteOpen((v) => !v), []);
-  const [roomTokenUsed, setRoomTokenUsed] = useState(false);
   const [autoOpenApps, setAutoOpenApps] = useState<string[]>([]);
   const autoOpenDone = useRef(false);
   const windowLayoutsRef = useRef<Record<string, WindowLayout>>({});
   const layoutSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const homePath = getHomePath(user.username);
+  const homePath = getHomePath(user.email);
 
   const completionCtx = useMemo(
-    () => ({ fs, cwd, username: user.username, role: user.role }),
-    [fs, cwd, user.username, user.role]
+    () => ({ fs, cwd, username: emailLocalPart(user.email), role: user.role }),
+    [fs, cwd, user.email, user.role]
   );
 
   const {
@@ -65,50 +63,61 @@ export function Terminal({ user, userId, onLogout, roomToken }: Props) {
     ghostText,
     mode,
     submit,
+    searchMode,
+    searchQuery,
+    searchMatch,
+    shortcutsOpen,
+    setShortcutsOpen,
   } = useKeyboard(execute, completionCtx, cmdHistoryRef);
 
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const focusInput = useCallback(() => {
-    requestAnimationFrame(() => inputRef.current?.focus());
-  }, []);
-
+  // ── Konami code ──
+  const konamiIdx = useRef(0);
+  const konamiActive = useRef(false);
   useEffect(() => {
-    const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [history, input]);
+    const handler = (e: KeyboardEvent) => {
+      // Don't trigger in inputs (except terminal input)
+      const tag = (e.target as HTMLElement)?.tagName;
+      const isTerminalInput = (e.target as HTMLElement)?.dataset?.testid === "terminal-input";
+      if ((tag === "INPUT" || tag === "TEXTAREA") && !isTerminalInput) return;
 
-  useEffect(() => {
-    if (!isProcessing) focusInput();
-  }, [isProcessing, focusInput]);
+      if (konamiActive.current) return;
 
-  useEffect(() => { focusInput(); }, [history, focusInput]);
-  useEffect(() => { focusInput(); }, [focusInput]);
+      if (e.key === KONAMI[konamiIdx.current]) {
+        konamiIdx.current++;
+        if (konamiIdx.current === KONAMI.length) {
+          konamiIdx.current = 0;
+          konamiActive.current = true;
 
-  useEffect(() => {
-    const root = document.documentElement;
-    root.style.setProperty("--accent", theme.accent);
-    root.style.setProperty("--accent-soft", theme.accentSoft);
-    root.style.setProperty("--accent-mid", theme.accentMid);
-    // Full-palette fields: apply when set, reset to CSS defaults when missing
-    const defaults: Record<string, string> = {
-      "--bg-primary": "#0a0a12", "--bg-surface": "#0e0e18", "--bg-elevated": "#14141f",
-      "--text-primary": "#e8ecf4", "--text-secondary": "#9aa4b8", "--text-muted": "#586880",
-      "--text-ghost": "#354055", "--border-subtle": "rgba(255,255,255,0.06)",
-      "--border-medium": "rgba(255,255,255,0.12)", "--error": "#f87171", "--success": "#34d399",
+          // Cycle through theme accents rapidly
+          const themeNames = Object.keys(THEMES);
+          let i = 0;
+          const iv = setInterval(() => {
+            const t = THEMES[themeNames[i % themeNames.length]!];
+            if (t) {
+              document.documentElement.style.setProperty("--accent", t.accent);
+            }
+            i++;
+          }, 200);
+
+          setTimeout(() => {
+            clearInterval(iv);
+            // Restore current theme
+            document.documentElement.style.setProperty("--accent", theme.accent);
+            konamiActive.current = false;
+          }, 2000);
+
+          print({
+            text: "CHEAT CODE ACTIVATED. just kidding, there are no cheats. you're still broke.",
+          });
+        }
+      } else {
+        konamiIdx.current = 0;
+      }
     };
-    const map: Record<string, string | undefined> = {
-      "--bg-primary": theme.bgPrimary, "--bg-surface": theme.bgSurface, "--bg-elevated": theme.bgElevated,
-      "--text-primary": theme.textPrimary, "--text-secondary": theme.textSecondary,
-      "--text-muted": theme.textMuted, "--text-ghost": theme.textGhost,
-      "--border-subtle": theme.borderSubtle, "--border-medium": theme.borderMedium,
-      "--error": theme.error, "--success": theme.success,
-    };
-    for (const [prop, val] of Object.entries(map)) {
-      root.style.setProperty(prop, val ?? defaults[prop]!);
-    }
-  }, [theme]);
+
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [theme.accent, print]);
 
   // Wrap openWindow to inject saved layouts for apps
   const wrappedOpenWindow = useCallback(
@@ -134,33 +143,41 @@ export function Terminal({ user, userId, onLogout, roomToken }: Props) {
 
   useGlobalShortcuts({ windowManager, togglePalette });
 
-  // Auto-open whisper when ?room= token is present
+  // Apply theme
   useEffect(() => {
-    if (roomToken && user.role !== "guest" && !roomTokenUsed) {
-      setRoomTokenUsed(true);
-      windowManager.openWindow({
-        id: "whisper",
-        title: "whisper",
-        component: WhisperPanel,
-        props: { initialRoomId: roomToken },
-        width: 800,
-        height: 600,
-        appName: "whisper",
-      });
+    const root = document.documentElement;
+    root.style.setProperty("--accent", theme.accent);
+    root.style.setProperty("--accent-soft", theme.accentSoft);
+    root.style.setProperty("--accent-mid", theme.accentMid);
+    const defaults: Record<string, string> = {
+      "--bg-primary": "#0a0a12", "--bg-surface": "#0e0e18", "--bg-elevated": "#14141f",
+      "--text-primary": "#e8ecf4", "--text-secondary": "#9aa4b8", "--text-muted": "#586880",
+      "--text-ghost": "#354055", "--border-subtle": "rgba(255,255,255,0.06)",
+      "--border-medium": "rgba(255,255,255,0.12)", "--error": "#f87171", "--success": "#34d399",
+    };
+    const map: Record<string, string | undefined> = {
+      "--bg-primary": theme.bgPrimary, "--bg-surface": theme.bgSurface, "--bg-elevated": theme.bgElevated,
+      "--text-primary": theme.textPrimary, "--text-secondary": theme.textSecondary,
+      "--text-muted": theme.textMuted, "--text-ghost": theme.textGhost,
+      "--border-subtle": theme.borderSubtle, "--border-medium": theme.borderMedium,
+      "--error": theme.error, "--success": theme.success,
+    };
+    for (const [prop, val] of Object.entries(map)) {
+      root.style.setProperty(prop, val ?? defaults[prop]!);
     }
-  }, [roomToken, user.role, roomTokenUsed, windowManager]);
+  }, [theme]);
 
   // Load auto-open apps + saved window layouts from settings
+  // Filter out mail/cloud since they're always visible in panels
   useEffect(() => {
     if (!userId || autoOpenDone.current) return;
     autoOpenDone.current = true;
 
     void api.loadSettings().then((settings) => {
-      const apps = settings?.auto_open_apps ?? [];
+      const apps = (settings?.auto_open_apps ?? []).filter((a: string) => a !== "mail" && a !== "cloud");
       const layouts = settings?.window_layouts ?? {};
       setAutoOpenApps(apps);
       windowLayoutsRef.current = layouts;
-      // Auto-open each app with a small delay between them
       for (let i = 0; i < apps.length; i++) {
         const name = apps[i]!;
         setTimeout(() => {
@@ -184,7 +201,6 @@ export function Terminal({ user, userId, onLogout, roomToken }: Props) {
     clearBadge(name);
     void execute(`run ${name}`);
   }, [execute, clearBadge]);
-
 
   // Save all current window layouts (debounced)
   const saveLayouts = useCallback(() => {
@@ -218,122 +234,47 @@ export function Terminal({ user, userId, onLogout, roomToken }: Props) {
   return (
     <GlobalSettingsProvider>
     <AppRestrictionSync />
-    <MailNotificationListener />
+    <MailNotificationListener updateBadge={updateBadge} />
     <GlobalEventToast onEvent={handleGlobalEvent} />
     <div className="terminal-page screen-flicker font-mono">
-      <div className="terminal-backdrop-content">
-      <LogoHeader
-        subtitle={`${user.username}@${HOSTNAME}:${shortenPath(cwd, homePath)}  ·  nsh v1.0`}
+      <Navbar
+        onRunApp={handleRunApp}
+        onLogout={onLogout}
+        username={emailLocalPart(user.email)}
+        userRole={user.role}
+        badges={badges}
+        onTogglePalette={togglePalette}
       />
 
-      <AppShortcutBar onRunApp={handleRunApp} userRole={user.role} badges={badges} />
-
-      <div className="terminal-frame">
-        {/* Mobile header bar */}
-        <div className="mobile-header-bar">
-          <span className="mobile-header-dot">·</span>
-          <span className="mobile-header-user">{user.username}</span>
-        </div>
-
-        {/* scrollable output */}
-        <div
-          ref={scrollRef}
-          className="terminal-body terminal-scroll"
-          onClick={() => { if (!window.getSelection()?.toString()) focusInput(); }}
-        >
-          {history.length === 0 && (
-            <div className="mb-4" style={{ color: "var(--text-muted)" }}>
-              Welcome to <span className="glow-text" style={{ color: "var(--accent)" }}>{HOSTNAME}</span>
-              {" — "}logged in as <span style={{ color: "var(--text-primary)" }}>{user.username}</span>
-              <div className="mt-1">
-                Type <span style={{ color: "var(--text-secondary)" }}>help</span> for available commands.
-              </div>
-            </div>
-          )}
-
-          <TerminalOutput entries={history} homePath={homePath} username={user.username} />
-
-          {/* Input row — sticky on mobile via CSS */}
-          <div className="terminal-input-wrap">
-            <div className="relative">
-              <div className="flex items-start terminal-input-row">
-                <span className="shrink-0 whitespace-pre">
-                  <span className="prompt-full">
-                    <span className="glow-text theme-transition" style={{ color: "var(--accent)" }}>
-                      {user.username}@{HOSTNAME}
-                    </span>
-                    <span style={{ color: "var(--text-muted)" }}>:</span>
-                    <span style={{ color: "var(--accent)", opacity: 0.8 }}>
-                      {shortenPath(cwd, homePath)}
-                    </span>
-                    <span style={{ color: "var(--text-muted)" }}>$ </span>
-                  </span>
-                  <span className="prompt-short">
-                    <span style={{ color: "var(--accent)", opacity: 0.8 }}>
-                      {shortenPath(cwd, homePath)}
-                    </span>
-                    <span style={{ color: "var(--text-muted)" }}>$ </span>
-                  </span>
-                </span>
-                {isProcessing ? (
-                  <span className="terminal-spinner-wrap"><span className="terminal-spinner" /></span>
-                ) : (
-                  <>
-                  <span className="flex-1 relative min-w-0">
-                    <input
-                      ref={inputRef}
-                      type="text"
-                      value={input}
-                      onChange={(e) => setInput(e.target.value)}
-                      onKeyDown={handleKeyDown}
-                      className="w-full bg-transparent outline-none font-mono"
-                      style={{ color: "var(--text-primary)", caretColor: "var(--accent)", fontSize: "inherit" }}
-                      spellCheck={false}
-                      autoComplete="off"
-                      autoCorrect="off"
-                      autoCapitalize="off"
-                      data-testid="terminal-input"
-                    />
-                    {ghostText && (
-                      <span
-                        className="ghost-text-overlay pointer-events-none absolute top-0 left-0 font-mono whitespace-pre"
-                        style={{ color: "var(--text-ghost)", fontSize: "inherit" }}
-                        aria-hidden="true"
-                      >
-                        <span style={{ visibility: "hidden" }}>{input}</span>
-                        {ghostText}
-                      </span>
-                    )}
-                  </span>
-                  <button className="mobile-submit-btn ml-2" onMouseDown={e => e.preventDefault()} onClick={() => { submit(); inputRef.current?.focus(); }} type="button">&gt;</button>
-                  </>
-                )}
-              </div>
-
-              {suggestions.length > 0 && !isProcessing && (
-                <AutocompleteDropdown
-                  suggestions={suggestions}
-                  selectedIdx={selectedIdx}
-                  onSelect={acceptSuggestion}
-                  input={input}
-                  mode={mode}
-                />
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Mobile app bar */}
-        <MobileAppBar onRunApp={handleRunApp} userRole={user.role} badges={badges} />
-
-        <StatusBar
-          username={user.username}
-          cwd={cwd}
-          homePath={homePath}
-          commandCount={getAll().length}
+      <div className="terminal-backdrop-content">
+        <PanelLayout
+          mailPanel={<MailPanel user={user} />}
+          cloudPanel={<CloudPanel user={user} fs={fs} fsReady={fsReady} cwd={cwd} />}
+          terminalPanel={
+            <TerminalEmbed
+              history={history}
+              input={input}
+              setInput={setInput}
+              handleKeyDown={handleKeyDown}
+              suggestions={suggestions}
+              selectedIdx={selectedIdx}
+              acceptSuggestion={acceptSuggestion}
+              ghostText={ghostText}
+              mode={mode}
+              submit={submit}
+              isProcessing={isProcessing}
+              user={user}
+              cwd={cwd}
+              homePath={homePath}
+              searchMode={searchMode}
+              searchQuery={searchQuery}
+              searchMatch={searchMatch}
+            />
+          }
         />
       </div>
-      </div>
+
+      <StatusLine historyLength={history.length} username={emailLocalPart(user.email)} />
 
       <WindowLayer
         windowManager={windowManager}
@@ -343,7 +284,14 @@ export function Terminal({ user, userId, onLogout, roomToken }: Props) {
         onLayoutChange={handleLayoutChange}
       />
 
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} execute={(cmd) => void execute(cmd)} />
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} execute={(cmd) => void execute(cmd)} userRole={user.role} />
+      <ShortcutsOverlay open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+
+      {fullscreenApp && (
+        <div className="fullscreen-app-overlay">
+          <fullscreenApp.component user={user} onClose={closeFullscreen} {...fullscreenApp.props} />
+        </div>
+      )}
     </div>
     </GlobalSettingsProvider>
   );

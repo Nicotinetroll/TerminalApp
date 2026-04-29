@@ -5,26 +5,18 @@ import type { AdminUser } from "@/lib/api";
 import { UserTable } from "./UserTable";
 import { UserForm } from "./UserForm";
 import { InvitePanel } from "./InvitePanel";
-import { ChatLogPanel } from "./ChatLogPanel";
 import { MailReviewPanel } from "./MailReviewPanel";
 import { SettingsPanel } from "./SettingsPanel";
-import { CodePanel } from "./CodePanel";
-import { AiLogPanel } from "./AiLogPanel";
-import { CasinoAdminPanel } from "./CasinoAdminPanel";
-import { NigditAdminPanel } from "./NigditAdminPanel";
 import { AuditLogPanel } from "./AuditLogPanel";
+import { PromoPanel } from "./PromoPanel";
 
-type View = "list" | "create" | "edit" | "invites" | "chats" | "emails" | "settings" | "codes" | "ai-logs" | "casino" | "nigdit" | "audit";
+type View = "list" | "create" | "edit" | "invites" | "promos" | "emails" | "settings" | "audit";
 
 const NAV: { view: View; label: string }[] = [
   { view: "list",     label: "users" },
-  { view: "casino",   label: "casino" },
-  { view: "nigdit",   label: "nigdit" },
   { view: "invites",  label: "invites" },
-  { view: "codes",    label: "codes" },
-  { view: "chats",    label: "whispers" },
+  { view: "promos",   label: "promos" },
   { view: "emails",   label: "mail" },
-  { view: "ai-logs",  label: "ai logs" },
   { view: "settings", label: "config" },
   { view: "audit",    label: "audit" },
 ];
@@ -34,13 +26,9 @@ const VIEW_TITLES: Record<View, string> = {
   create: "create user",
   edit: "edit user",
   invites: "invite links",
-  codes: "access codes",
-  chats: "chat logs",
+  promos: "promo codes",
   emails: "mail mgmt",
   settings: "global settings",
-  "ai-logs": "nigga AI logs",
-  casino: "casino admin",
-  nigdit: "nigdit admin",
   audit: "audit log",
 };
 
@@ -78,10 +66,10 @@ export function AdminPanel({ user }: WindowContentProps) {
   }, []);
 
   const handleCreate = useCallback(
-    async (username: string, password: string, role: string) => {
+    async (email: string, password: string, role: string) => {
       try {
-        await createUser(username, password, role);
-        showStatus(`${username} just joined the party`);
+        await createUser(email, password, role);
+        showStatus(`${email} just joined the party`);
         setView("list");
         await loadUsers();
       } catch (err) {
@@ -97,10 +85,10 @@ export function AdminPanel({ user }: WindowContentProps) {
   );
 
   const handleUpdate = useCallback(
-    async (id: number, updates: { username?: string; password?: string; role?: string }) => {
+    async (id: number, updates: { email?: string; password?: string; role?: string }) => {
       try {
         const updated = await updateUser(id, updates);
-        showStatus(`${updated.username} got an upgrade`);
+        showStatus(`${updated.email} got an upgrade`);
         setView("list");
         setEditingUser(null);
         await loadUsers();
@@ -121,7 +109,7 @@ export function AdminPanel({ user }: WindowContentProps) {
       const target = users.find((u) => u.id === id);
       try {
         await deleteUser(id);
-        showStatus(`${target?.username ?? "user"} has been yeeted`);
+        showStatus(`${target?.email ?? "user"} has been yeeted`);
         await loadUsers();
       } catch (err) {
         const msg = err instanceof ApiError ? err.message : "unknown error";
@@ -141,7 +129,7 @@ export function AdminPanel({ user }: WindowContentProps) {
   }, []);
 
   const activeNav = sidebarView(view);
-  const title = view === "edit" ? `edit: ${editingUser?.username ?? ""}` : VIEW_TITLES[view];
+  const title = view === "edit" ? `edit: ${editingUser?.email ?? ""}` : VIEW_TITLES[view];
 
   return (
     <div className="admin-panel">
@@ -189,7 +177,7 @@ export function AdminPanel({ user }: WindowContentProps) {
             <UserTable
               users={users}
               loading={loading}
-              currentUsername={user.username}
+              currentEmail={user.email}
               onEdit={handleEdit}
               onDelete={handleDelete}
               onStatus={showStatus}
@@ -199,7 +187,7 @@ export function AdminPanel({ user }: WindowContentProps) {
           {view === "create" && (
             <UserForm
               mode="create"
-              onSubmit={(username, password, role) => void handleCreate(username, password, role)}
+              onSubmit={(email, password, role) => void handleCreate(email, password, role)}
               onCancel={() => setView("list")}
             />
           )}
@@ -208,9 +196,9 @@ export function AdminPanel({ user }: WindowContentProps) {
             <UserForm
               mode="edit"
               initialUser={editingUser}
-              onSubmit={(username, password, role) => {
-                const updates: { username?: string; password?: string; role?: string } = {};
-                if (username !== editingUser.username) updates.username = username;
+              onSubmit={(email, password, role) => {
+                const updates: { email?: string; password?: string; role?: string } = {};
+                if (email !== editingUser.email) updates.email = email;
                 if (password) updates.password = password;
                 if (role !== editingUser.role) updates.role = role;
                 void handleUpdate(editingUser.id, updates);
@@ -224,13 +212,9 @@ export function AdminPanel({ user }: WindowContentProps) {
           )}
 
           {view === "invites" && <InvitePanel />}
-          {view === "codes" && <CodePanel />}
-          {view === "ai-logs" && <AiLogPanel />}
-          {view === "chats" && <ChatLogPanel />}
+          {view === "promos" && <PromoPanel />}
           {view === "emails" && <MailReviewPanel />}
           {view === "settings" && <SettingsPanel />}
-          {view === "casino" && <CasinoAdminPanel />}
-          {view === "nigdit" && <NigditAdminPanel />}
           {view === "audit" && <AuditLogPanel />}
         </div>
       </div>

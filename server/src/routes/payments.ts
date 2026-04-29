@@ -5,13 +5,14 @@ import db from '../db.js';
 import { authMiddleware } from '../middleware.js';
 import type { AuthRequest } from '../middleware.js';
 import { getSetting, getStringSetting } from '../constants.js';
+import { activateUser } from './auth.js';
 
 const router = Router();
 
 const VALID_TYPES = [
   'nb',
-  'sub_classic_1m', 'sub_classic_3m', 'sub_classic_12m',
-  'sub_club_1m', 'sub_club_3m', 'sub_club_12m',
+  'sub_basic_1m', 'sub_basic_3m', 'sub_basic_12m',
+  'sub_premium_1m', 'sub_premium_3m', 'sub_premium_12m',
 ] as const;
 type PaymentType = typeof VALID_TYPES[number];
 
@@ -23,10 +24,34 @@ function getApiBase(): string {
   return isSandbox() ? 'https://api-sandbox.nowpayments.io/v1' : 'https://api.nowpayments.io/v1';
 }
 
+interface PromoRow {
+  code: string; type: string; value: number; sub_tier: string | null;
+  max_uses: number; use_count: number; expires_at: string | null; active: number;
+}
+
+function validatePromoForPayment(code: string, userId: number, planTier: string): { valid: true; promo: PromoRow } | { valid: false; error: string } {
+  const promo = db.prepare('SELECT * FROM promo_codes WHERE code = ?').get(code) as PromoRow | undefined;
+  if (!promo) return { valid: false, error: "promo code doesn't exist." };
+  if (!promo.active) return { valid: false, error: "promo code is deactivated." };
+  if (promo.type !== 'discount_pct') return { valid: false, error: "this code isn't a discount." };
+  if (promo.expires_at && new Date(promo.expires_at + 'Z') < new Date()) {
+    return { valid: false, error: "promo code expired." };
+  }
+  if (promo.max_uses > 0 && promo.use_count >= promo.max_uses) {
+    return { valid: false, error: "promo code is maxed out." };
+  }
+  if (promo.sub_tier && promo.sub_tier !== planTier) {
+    return { valid: false, error: `this code only works for ${promo.sub_tier} plans.` };
+  }
+  const used = db.prepare('SELECT id FROM promo_uses WHERE promo_code = ? AND user_id = ?').get(code, userId);
+  if (used) return { valid: false, error: "you already used this code." };
+  return { valid: true, promo };
+}
+
 // ── POST /api/payments/create (auth) ──
 router.post('/create', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
   const userId = req.user!.userId;
-  const { type, nb_amount } = req.body as { type?: string; nb_amount?: number };
+  const { type, nb_amount, promo_code } = req.body as { type?: string; nb_amount?: number; promo_code?: string };
 
   if (!type || !VALID_TYPES.includes(type as PaymentType)) {
     res.status(400).json({ error: "invalid payment type. what are you trying to buy?" });
@@ -35,19 +60,18 @@ router.post('/create', authMiddleware, async (req: AuthRequest, res: Response): 
 
   const paymentType = type as PaymentType;
 
-  // Prevent subscription downgrade (e.g. buying Classic when you have Club)
+  // Prevent subscription downgrade (e.g. buying Basic when you have Pro)
   if (paymentType !== 'nb') {
     const activeSub = db.prepare(
       'SELECT type FROM subscriptions WHERE user_id = ? AND is_active = 1 ORDER BY id DESC LIMIT 1'
     ).get(userId) as { type: string } | undefined;
 
     if (activeSub) {
-      const roleLevel: Record<string, number> = { classic: 2, club: 3 };
-      const currentSubRole = activeSub.type.includes('club') ? 'club' : activeSub.type.includes('classic') ? 'classic' : '';
-      const newSubRole = paymentType.includes('club') ? 'club' : 'classic';
-      const displayRole = currentSubRole === 'club' ? 'club member' : 'member';
+      const roleLevel: Record<string, number> = { basic: 2, premium: 3 };
+      const currentSubRole = activeSub.type.includes('premium') ? 'premium' : activeSub.type.includes('basic') ? 'basic' : '';
+      const newSubRole = paymentType.includes('premium') ? 'premium' : 'basic';
       if ((roleLevel[currentSubRole] ?? 0) > (roleLevel[newSubRole] ?? 0)) {
-        res.status(400).json({ error: `you already have ${displayRole}. downgrading is not a thing.` });
+        res.status(400).json({ error: `you already have premium. downgrading is not a thing.` });
         return;
       }
     }
@@ -69,19 +93,33 @@ router.post('/create', authMiddleware, async (req: AuthRequest, res: Response): 
     nbToCredit = nb_amount;
     description = `${nb_amount} NiggaBytes`;
   } else {
-    // settingKey, fallback per-month price, months, label
     const priceMap: Record<string, [string, number, number, string]> = {
-      sub_classic_1m:  ['sub_classic_1m_eur',  2.99, 1,  'Member 1 Month'],
-      sub_classic_3m:  ['sub_classic_3m_eur',  2.69, 3,  'Member 3 Months'],
-      sub_classic_12m: ['sub_classic_12m_eur', 1.99, 12, 'Member 12 Months'],
-      sub_club_1m:     ['sub_club_1m_eur',     5.99, 1,  'Club Member 1 Month'],
-      sub_club_3m:     ['sub_club_3m_eur',     4.99, 3,  'Club Member 3 Months'],
-      sub_club_12m:    ['sub_club_12m_eur',    3.99, 12, 'Club Member 12 Months'],
+      sub_basic_1m:  ['sub_basic_1m_eur',  2.99, 1,  'Basic 1 Month'],
+      sub_basic_3m:  ['sub_basic_3m_eur',  2.49, 3,  'Basic 3 Months'],
+      sub_basic_12m: ['sub_basic_12m_eur', 1.99, 12, 'Basic 12 Months'],
+      sub_premium_1m:    ['sub_premium_1m_eur',    6.69, 1,  'Premium 1 Month'],
+      sub_premium_3m:    ['sub_premium_3m_eur',    5.49, 3,  'Premium 3 Months'],
+      sub_premium_12m:   ['sub_premium_12m_eur',   4.49, 12, 'Premium 12 Months'],
     };
     const [settingKey, fallback, months, label] = priceMap[paymentType]!;
     const perMonth = getSetting(settingKey!, fallback!);
     amountEur = Math.round(perMonth * months! * 100) / 100;
     description = `${label} Subscription`;
+  }
+
+  // Apply promo discount if provided
+  let appliedPromo: string | null = null;
+  if (promo_code && paymentType !== 'nb') {
+    const planTier = paymentType.includes('premium') ? 'premium' : 'basic';
+    const promoResult = validatePromoForPayment(promo_code.toUpperCase().trim(), userId, planTier);
+    if (!promoResult.valid) {
+      res.status(400).json({ error: promoResult.error });
+      return;
+    }
+    const discount = promoResult.promo.value / 100;
+    amountEur = Math.round(amountEur * (1 - discount) * 100) / 100;
+    if (amountEur < 0.50) amountEur = 0.50; // min payment floor
+    appliedPromo = promo_code.toUpperCase().trim();
   }
 
   const paymentId = crypto.randomUUID();
@@ -122,11 +160,18 @@ router.post('/create', authMiddleware, async (req: AuthRequest, res: Response): 
 
     const invoiceData = await invoiceRes.json() as { id: string; invoice_url: string };
 
-    // Store payment in DB
-    db.prepare(`
-      INSERT INTO payments (id, user_id, nowpayments_id, type, amount_eur, nb_amount, status, invoice_url)
-      VALUES (?, ?, ?, ?, ?, ?, 'waiting', ?)
-    `).run(paymentId, userId, invoiceData.id, paymentType, amountEur, nbToCredit, invoiceData.invoice_url);
+    // Store payment in DB + track promo usage atomically
+    db.transaction(() => {
+      db.prepare(`
+        INSERT INTO payments (id, user_id, nowpayments_id, type, amount_eur, nb_amount, status, invoice_url, promo_code)
+        VALUES (?, ?, ?, ?, ?, ?, 'waiting', ?, ?)
+      `).run(paymentId, userId, invoiceData.id, paymentType, amountEur, nbToCredit, invoiceData.invoice_url, appliedPromo);
+
+      if (appliedPromo) {
+        db.prepare('UPDATE promo_codes SET use_count = use_count + 1 WHERE code = ?').run(appliedPromo);
+        db.prepare('INSERT INTO promo_uses (promo_code, user_id) VALUES (?, ?)').run(appliedPromo, userId);
+      }
+    })();
 
     res.json({
       payment_id: paymentId,
@@ -233,20 +278,20 @@ function processPayment(payment: { id: string; user_id: number; type: string; nb
     return;
   }
 
-  // Subscription — duration-based (no lifetime)
+  // Subscription — duration-based
   const subTypeMap: Record<string, { role: string; days: number }> = {
-    sub_classic_1m:  { role: 'classic', days: 30 },
-    sub_classic_3m:  { role: 'classic', days: 90 },
-    sub_classic_12m: { role: 'classic', days: 365 },
-    sub_club_1m:     { role: 'club',    days: 30 },
-    sub_club_3m:     { role: 'club',    days: 90 },
-    sub_club_12m:    { role: 'club',    days: 365 },
+    sub_basic_1m:  { role: 'basic', days: 30 },
+    sub_basic_3m:  { role: 'basic', days: 90 },
+    sub_basic_12m: { role: 'basic', days: 365 },
+    sub_premium_1m:    { role: 'premium',   days: 30 },
+    sub_premium_3m:    { role: 'premium',   days: 90 },
+    sub_premium_12m:   { role: 'premium',   days: 365 },
   };
 
   const subInfo = subTypeMap[payment.type];
   if (!subInfo) return;
 
-  // Atomic: deactivate old sub + create new + upgrade role
+  // Atomic: deactivate old sub + create new + upgrade role + activate pending user
   db.transaction(() => {
     db.prepare('UPDATE subscriptions SET is_active = 0 WHERE user_id = ? AND is_active = 1').run(payment.user_id);
 
@@ -259,14 +304,23 @@ function processPayment(payment: { id: string; user_id: number; type: string; nb
       VALUES (?, ?, ?, datetime('now'), ?, 1)
     `).run(payment.user_id, subType, payment.id, expiresAt);
 
-    const roleLevel: Record<string, number> = { guest: 0, code: 0, user: 1, classic: 2, club: 3, admin: 4 };
-    const currentRole = (db.prepare('SELECT role FROM users WHERE id = ?').get(payment.user_id) as { role: string } | undefined)?.role ?? 'user';
-    const currentLevel = roleLevel[currentRole] ?? 0;
-    const newLevel = roleLevel[subInfo.role] ?? 0;
+    const currentUser = db.prepare('SELECT role, email FROM users WHERE id = ?').get(payment.user_id) as { role: string; email: string } | undefined;
+    const currentRole = currentUser?.role ?? 'user';
 
-    if (newLevel > currentLevel) {
-      db.prepare("UPDATE users SET role = ?, updated_at = datetime('now') WHERE id = ?").run(subInfo.role, payment.user_id);
-      console.log(`[payments] upgraded user ${payment.user_id} from ${currentRole} to ${subInfo.role}`);
+    // If user is pending, activate them (create filesystem, settings, email address)
+    if (currentRole === 'pending') {
+      const localPart = (currentUser?.email ?? '').split('@')[0] ?? '';
+      activateUser(payment.user_id, localPart, subInfo.role);
+      console.log(`[payments] activated pending user ${payment.user_id} as ${subInfo.role}`);
+    } else {
+      const roleLevel: Record<string, number> = { user: 1, basic: 2, premium: 3, admin: 4 };
+      const currentLevel = roleLevel[currentRole] ?? 0;
+      const newLevel = roleLevel[subInfo.role] ?? 0;
+
+      if (newLevel > currentLevel) {
+        db.prepare("UPDATE users SET role = ?, updated_at = datetime('now') WHERE id = ?").run(subInfo.role, payment.user_id);
+        console.log(`[payments] upgraded user ${payment.user_id} from ${currentRole} to ${subInfo.role}`);
+      }
     }
   })();
 }
@@ -291,14 +345,13 @@ router.get('/subscription', authMiddleware, (req: AuthRequest, res: Response): v
 
 // ── Subscription expiry cron ──
 
-// Map sub type (e.g. 'classic_1m') back to pricing info
 const RENEW_MAP: Record<string, { settingKey: string; fallback: number; months: number; role: string; days: number }> = {
-  classic_1m:  { settingKey: 'sub_classic_1m_eur',  fallback: 2.99, months: 1,  role: 'classic', days: 30  },
-  classic_3m:  { settingKey: 'sub_classic_3m_eur',  fallback: 2.69, months: 3,  role: 'classic', days: 90  },
-  classic_12m: { settingKey: 'sub_classic_12m_eur', fallback: 1.99, months: 12, role: 'classic', days: 365 },
-  club_1m:     { settingKey: 'sub_club_1m_eur',     fallback: 5.99, months: 1,  role: 'club',    days: 30  },
-  club_3m:     { settingKey: 'sub_club_3m_eur',     fallback: 4.99, months: 3,  role: 'club',    days: 90  },
-  club_12m:    { settingKey: 'sub_club_12m_eur',    fallback: 3.99, months: 12, role: 'club',    days: 365 },
+  basic_1m:  { settingKey: 'sub_basic_1m_eur',  fallback: 2.99, months: 1,  role: 'basic', days: 30  },
+  basic_3m:  { settingKey: 'sub_basic_3m_eur',  fallback: 2.49, months: 3,  role: 'basic', days: 90  },
+  basic_12m: { settingKey: 'sub_basic_12m_eur', fallback: 1.99, months: 12, role: 'basic', days: 365 },
+  premium_1m:    { settingKey: 'sub_premium_1m_eur',    fallback: 6.69, months: 1,  role: 'premium',   days: 30  },
+  premium_3m:    { settingKey: 'sub_premium_3m_eur',    fallback: 5.49, months: 3,  role: 'premium',   days: 90  },
+  premium_12m:   { settingKey: 'sub_premium_12m_eur',   fallback: 4.49, months: 12, role: 'premium',   days: 365 },
 };
 
 function tryAutoRenew(sub: { id: number; user_id: number; type: string }): boolean {
@@ -345,7 +398,7 @@ function tryAutoRenew(sub: { id: number; user_id: number; type: string }): boole
 }
 
 export function checkExpiredSubscriptions(): void {
-  const roleLevel: Record<string, number> = { guest: 0, code: 0, user: 1, classic: 2, club: 3, admin: 4 };
+  const roleLevel: Record<string, number> = { user: 1, basic: 2, premium: 3, admin: 4 };
 
   const expired = db.prepare(`
     SELECT s.id, s.user_id, s.type, s.auto_renew FROM subscriptions s
@@ -360,7 +413,7 @@ export function checkExpiredSubscriptions(): void {
     // Try auto-renew if enabled
     if (sub.auto_renew === 1) {
       const renewed = tryAutoRenew(sub);
-      if (renewed) continue; // Successfully renewed, skip expiry
+      if (renewed) continue;
     }
 
     db.prepare('UPDATE subscriptions SET is_active = 0 WHERE id = ?').run(sub.id);
@@ -370,7 +423,7 @@ export function checkExpiredSubscriptions(): void {
       'SELECT type FROM subscriptions WHERE user_id = ? AND is_active = 1 AND id != ? ORDER BY id DESC LIMIT 1'
     ).get(sub.user_id, sub.id) as { type: string } | undefined;
 
-    if (otherActive) continue; // Still has another active sub
+    if (otherActive) continue;
 
     // Downgrade to "user" (but don't downgrade admin)
     const currentRole = (db.prepare('SELECT role FROM users WHERE id = ?').get(sub.user_id) as { role: string } | undefined)?.role ?? 'user';
@@ -381,6 +434,25 @@ export function checkExpiredSubscriptions(): void {
       console.log(`[payments] downgraded user ${sub.user_id} from ${currentRole} to user (sub expired)`);
     }
   }
+}
+
+// ── Cleanup stale pending users (no payment after 1 hour) ──
+
+export function cleanupPendingUsers(): void {
+  const stale = db.prepare(
+    "SELECT id FROM users WHERE role = 'pending' AND created_at < datetime('now', '-1 hour')"
+  ).all() as { id: number }[];
+
+  if (stale.length === 0) return;
+
+  db.transaction(() => {
+    for (const u of stale) {
+      db.prepare('DELETE FROM payments WHERE user_id = ?').run(u.id);
+      db.prepare('DELETE FROM users WHERE id = ?').run(u.id);
+    }
+  })();
+
+  console.log(`[payments] cleaned up ${stale.length} stale pending user(s)`);
 }
 
 export default router;

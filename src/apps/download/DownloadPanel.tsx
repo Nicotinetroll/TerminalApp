@@ -179,10 +179,9 @@ export function DownloadPanel(_props: WindowContentProps) {
       {/* INPUT */}
       {view === "input" && (
         <div className="yt-input-view">
-          <div className="yt-input-card">
-            <div className="yt-input-card-grid" />
-            <div className="yt-input-card-glow" />
-            <div className="yt-input-card-body">
+          <div className="yt-input-card-grid" />
+          <div className="yt-input-card-glow" />
+          <div className="yt-input-card-body">
               <div className="yt-prompt-line">
                 <span className="yt-prompt">$</span>
                 <span className="yt-prompt-cmd">media_dl</span>
@@ -220,7 +219,6 @@ export function DownloadPanel(_props: WindowContentProps) {
               <div className="yt-input-sites">
                 youtube &middot; instagram &middot; tiktok &middot; twitter &middot; soundcloud &middot; 1000+ more
               </div>
-            </div>
           </div>
         </div>
       )}

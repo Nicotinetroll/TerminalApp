@@ -13,7 +13,7 @@ export const touch: CommandDef = {
 
     const raw = args[0];
     const expanded = raw.startsWith("~/")
-      ? getHomePath(terminal.user.username) + raw.slice(1)
+      ? getHomePath(terminal.user.email) + raw.slice(1)
       : raw;
 
     // If it contains slashes, we need to resolve parent + name

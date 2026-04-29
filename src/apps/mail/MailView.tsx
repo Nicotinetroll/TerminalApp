@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { EmailMessage } from "@/lib/api";
 import { getEmail, updateEmail, deleteEmail, downloadAttachment, ApiError } from "@/lib/api";
+import DOMPurify from "dompurify";
 
 interface Props {
   emailId: number;
@@ -25,9 +26,8 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
 
-/** Minimal markdown-ish renderer for email bodies */
-function renderBody(text: string): string {
-  // Escape HTML first
+/** Minimal markdown-ish renderer for plain text email bodies */
+function renderPlainText(text: string): string {
   let html = text
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -46,15 +46,6 @@ function renderBody(text: string): string {
   // Inline code: `text`
   html = html.replace(/`([^`]+)`/g, '<code style="background:rgba(255,255,255,0.06);padding:1px 4px;border-radius:3px;font-size:0.9em">$1</code>');
 
-  // Links: [text](url) and bare URLs
-  html = html.replace(
-    /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
-    '<a href="$2" target="_blank" rel="noopener" style="color:var(--accent)">$1</a>'
-  );
-  html = html.replace(
-    /(?<!\])\((https?:\/\/[^\s)]+)\)(?!\))/g,
-    '(<a href="$1" target="_blank" rel="noopener" style="color:var(--accent)">$1</a>)'
-  );
   // Bare URLs (not already in anchor tags)
   html = html.replace(
     /(?<!href="|">)(https?:\/\/[^\s<]+)/g,
@@ -67,10 +58,36 @@ function renderBody(text: string): string {
   return html;
 }
 
+/** Sanitize HTML email body — allows safe tags, forces link target */
+function sanitizeHtml(html: string): string {
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: [
+      "a", "b", "i", "u", "em", "strong", "p", "br", "hr", "div", "span",
+      "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "li", "blockquote",
+      "pre", "code", "table", "thead", "tbody", "tr", "th", "td", "img",
+      "font", "center", "small", "sub", "sup", "dl", "dt", "dd",
+    ],
+    ALLOWED_ATTR: [
+      "href", "target", "rel", "style", "class", "src", "alt", "width",
+      "height", "align", "valign", "border", "cellpadding", "cellspacing",
+      "bgcolor", "color", "size", "face",
+    ],
+    ADD_ATTR: ["target"],
+    FORBID_TAGS: ["script", "iframe", "object", "embed", "form", "input"],
+  });
+}
+
+/** Detect if body looks like HTML */
+function isHtml(text: string): boolean {
+  return /<\s*(html|body|div|p|br|table|a|img|span)\b/i.test(text);
+}
+
 export function MailView({ emailId, onBack, onReply, onForward, onDelete, showStatus }: Props) {
   const [email, setEmail] = useState<EmailMessage | null>(null);
   const [loading, setLoading] = useState(true);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showHtml, setShowHtml] = useState(true);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const loadEmail = useCallback(async () => {
     setLoading(true);
@@ -264,10 +281,117 @@ export function MailView({ emailId, onBack, onReply, onForward, onDelete, showSt
         </div>
       )}
 
-      <div
-        className="mail-view-body"
-        dangerouslySetInnerHTML={{ __html: renderBody(email.body || "(empty body. a true minimalist.)") }}
-      />
+      <MailBody email={email} showHtml={showHtml} setShowHtml={setShowHtml} iframeRef={iframeRef} />
+    </div>
+  );
+}
+
+/** Renders email body — HTML emails in sandboxed iframe, plain text inline */
+function MailBody({ email, showHtml, setShowHtml, iframeRef }: {
+  email: EmailMessage;
+  showHtml: boolean;
+  setShowHtml: (v: boolean) => void;
+  iframeRef: React.RefObject<HTMLIFrameElement | null>;
+}) {
+  const rawHtml = email.body_html ?? null;
+  const body = email.body || "";
+  const hasHtml = rawHtml ? true : isHtml(body);
+  const htmlContent = rawHtml ?? (hasHtml ? body : null);
+
+  // Build srcdoc string for fully sandboxed iframe (no allow-same-origin)
+  const srcdoc = (() => {
+    if (!showHtml || !htmlContent) return "";
+    const sanitized = sanitizeHtml(htmlContent);
+    // Rewrite links: add target="_blank" rel="noopener noreferrer"
+    const withLinks = sanitized.replace(
+      /<a\b([^>]*)>/gi,
+      (match, attrs: string) => {
+        let cleaned = attrs.replace(/target\s*=\s*["'][^"']*["']/gi, "").replace(/rel\s*=\s*["'][^"']*["']/gi, "");
+        return `<a${cleaned} target="_blank" rel="noopener noreferrer">`;
+      }
+    );
+    return `<!DOCTYPE html><html><head><style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        font-size: 13px; line-height: 1.6; color: #e0e0e0;
+        background: transparent; padding: 0;
+        word-wrap: break-word; overflow-wrap: break-word;
+      }
+      a { color: #DA7756; }
+      img { max-width: 100%; height: auto; }
+      table { max-width: 100%; border-collapse: collapse; }
+      blockquote { border-left: 2px solid #555; padding-left: 10px; margin: 8px 0; color: #aaa; }
+      pre, code { font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
+    </style></head><body>${withLinks}</body></html>`;
+  })();
+
+  // Auto-resize iframe to fit HTML content
+  useEffect(() => {
+    if (!showHtml || !htmlContent || !iframeRef.current) return;
+    const iframe = iframeRef.current;
+
+    const resize = () => {
+      try {
+        const doc = iframe.contentDocument;
+        if (doc?.body) {
+          // Reset height first so scrollHeight reflects true content height
+          iframe.style.height = "0px";
+          const h = Math.max(doc.body.scrollHeight, doc.documentElement?.scrollHeight ?? 0);
+          iframe.style.height = h + 16 + "px";
+        }
+      } catch { /* sandbox fallback — shouldn't happen with allow-same-origin */ }
+    };
+
+    // Resize on load + poll a few times for lazy-loading images/fonts
+    const onLoad = () => {
+      resize();
+      let n = 0;
+      const poll = () => { resize(); if (++n < 8) setTimeout(poll, 400); };
+      setTimeout(poll, 300);
+    };
+
+    iframe.addEventListener("load", onLoad);
+    return () => iframe.removeEventListener("load", onLoad);
+  }, [showHtml, htmlContent, iframeRef]);
+
+  if (!body && !htmlContent) {
+    return (
+      <div className="mail-view-body" style={{ fontStyle: "italic", color: "var(--text-muted)" }}>
+        (empty body. a true minimalist.)
+      </div>
+    );
+  }
+
+  if (hasHtml && showHtml) {
+    return (
+      <div className="mail-view-body">
+        <div className="mail-view-html-toggle">
+          <button className="mail-view-toggle-btn active" onClick={() => setShowHtml(true)}>HTML</button>
+          <button className="mail-view-toggle-btn" onClick={() => setShowHtml(false)}>Plain text</button>
+        </div>
+        <iframe
+          ref={iframeRef}
+          className="mail-view-html-frame"
+          srcDoc={srcdoc}
+          sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+          title="Email content"
+        />
+      </div>
+    );
+  }
+
+  // Plain text (or "show plain" toggle for HTML emails)
+  const plainText = body || "(no plain text version)";
+  return (
+    <div className="mail-view-body">
+      {hasHtml && (
+        <div className="mail-view-html-toggle">
+          <button className="mail-view-toggle-btn" onClick={() => setShowHtml(true)}>HTML</button>
+          <button className="mail-view-toggle-btn active" onClick={() => setShowHtml(false)}>Plain text</button>
+        </div>
+      )}
+      <div dangerouslySetInnerHTML={{ __html: renderPlainText(plainText) }} />
     </div>
   );
 }

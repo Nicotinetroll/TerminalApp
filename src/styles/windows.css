@@ -27,10 +27,8 @@
 .window-frame.window-focused {
   border-color: var(--border-medium);
   box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.5),
+    0 12px 40px rgba(0, 0, 0, 0.55),
     0 2px 8px rgba(0, 0, 0, 0.3),
-    0 0 80px var(--accent-soft),
-    0 0 160px var(--accent-soft),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
@@ -92,7 +90,7 @@
 }
 
 .window-btn-close:hover {
-  background: rgba(248, 113, 113, 0.2);
+  background: var(--error-soft);
   color: var(--error);
 }
 

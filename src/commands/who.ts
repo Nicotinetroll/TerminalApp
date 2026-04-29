@@ -15,7 +15,7 @@ export const who: CommandDef = {
       }
 
       const lines = users.map((u) => {
-        const badge = u.role === "admin" ? " [admin]" : u.role === "club" ? " [club]" : u.role === "code" ? " [code]" : "";
+        const badge = u.role === "admin" ? " [admin]" : u.role === "premium" ? " [premium]" : u.role === "basic" ? " [basic]" : "";
         return `  ${u.username}${badge}`;
       });
 
